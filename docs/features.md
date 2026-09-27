@@ -125,13 +125,14 @@ before recommending them. A `check_collection` tool reports whether the owner
 has a free copy of each candidate, has copies only in other active decks, or
 does not own it. The prompts tell the model to prefer cards with a free copy
 when they fit comparably well, treat copies in other decks the same as unowned
-cards, still suggest cards without a free copy when they are clearly better, and
-say which additions the owner has a free copy of. Models whose OpenRouter endpoints
-lack tool support fall back to answering without tools. Commander results keep
-the guideline bracket separate from the estimated practical play bracket, so
-labels can communicate
-distinctions such as `Bracket 3 (plays like Bracket 2)`. The saved label appears
-on deck cards, the deck header, and shared preview images.
+cards, and still suggest cards without a free copy when they are clearly better.
+Deck question answers say which additions the owner has a free copy of; deck
+analysis uses collection status only to choose cards and does not label them.
+Models whose OpenRouter endpoints lack tool support fall back to answering
+without tools. Commander results keep the guideline bracket separate from the
+estimated practical play bracket, so labels can communicate distinctions such
+as `Bracket 3 (plays like Bracket 2)`. The saved label appears on deck cards,
+the deck header, and shared preview images.
 
 ## Trade
 

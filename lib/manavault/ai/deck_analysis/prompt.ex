@@ -24,8 +24,9 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
     available. Treat owned_in_other_decks the same as not_owned, since using it means pulling it
     from another deck. Still suggest cards without a free copy when they are clearly the better fit
     or no available card fills the role, and keep at least one strong option without a free copy
-    where it would meaningfully improve the deck. Note which suggested cards the user has a free
-    copy of. Ownership never overrides format legality or color identity.
+    where it would meaningfully improve the deck. Use collection status only to choose cards; do
+    not mention it or label suggestions as owned, free, or unowned. Ownership never overrides
+    format legality or color identity.
     The facts object contains authoritative metadata calculated by ManaVault. Use its counts instead
     of recounting deck.cards.
     Card entries omit default values to keep the request compact: omitted quantity means 1, omitted
