@@ -42,12 +42,16 @@ import { createEmptyCollectionFilters } from "./storage"
 import { SetCombobox } from "./set-combobox"
 
 export function CollectionFilterModal({
+  copyFilters = true,
   filters,
   onApply,
   onClear,
   onClose,
   open,
 }: {
+  // Purchase price and added date describe owned copies; the card catalog
+  // searches cards, not copies, so it hides them.
+  copyFilters?: boolean
   filters: CollectionFilterState
   onApply: (filters: CollectionFilterState) => void
   onClear: () => void
@@ -131,8 +135,8 @@ export function CollectionFilterModal({
               />
             </FilterSection>
 
-            <FilterSection label="Set" syntax="set:lea">
-              <SetCombobox value={draft.set} onValueChange={(value) => update("set", value)} />
+            <FilterSection label="Sets" syntax="(set:lea or set:leb)">
+              <SetCombobox values={draft.sets} onValuesChange={(sets) => update("sets", sets)} />
             </FilterSection>
 
             <FilterSection label="Finish" syntax="is:foil">
@@ -169,6 +173,62 @@ export function CollectionFilterModal({
                 onValueChange={(value) => update("quantity", value)}
               />
             </FilterSection>
+
+            {copyFilters ? (
+              <>
+                <FilterSection label="Purchase price" syntax="paid>=1 paid<=20">
+                  <RangeFilterControl
+                    fromLabel="Minimum paid"
+                    inputMode="decimal"
+                    from={draft.purchasePriceMin}
+                    placeholder={["Min $", "Max $"]}
+                    to={draft.purchasePriceMax}
+                    toLabel="Maximum paid"
+                    onFromChange={(value) => update("purchasePriceMin", value)}
+                    onToChange={(value) => update("purchasePriceMax", value)}
+                  />
+                </FilterSection>
+
+                <FilterSection label="Added" syntax="added>=2026-09-01">
+                  <div className="grid gap-3">
+                    <RangeFilterControl
+                      fromLabel="Added on or after"
+                      from={draft.addedFrom}
+                      to={draft.addedTo}
+                      toLabel="Added on or before"
+                      type="date"
+                      onFromChange={(value) => update("addedFrom", value)}
+                      onToChange={(value) => update("addedTo", value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {ADDED_DATE_PRESETS.map((preset) => {
+                        const from = preset.from()
+                        const active = draft.addedFrom === from && !draft.addedTo
+
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            aria-pressed={active}
+                            className={cn(
+                              "btn btn-outline btn-sm",
+                              active
+                                ? "border-primary bg-primary/15 text-primary"
+                                : "text-base-content/75",
+                            )}
+                            onClick={() =>
+                              setDraft((current) => ({ ...current, addedFrom: from, addedTo: "" }))
+                            }
+                          >
+                            {preset.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </FilterSection>
+              </>
+            ) : null}
 
             <details className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-base-200/40 px-5 py-4 marker:hidden">
@@ -434,6 +494,67 @@ function ComparisonFilterControl({
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         placeholder={placeholder}
+      />
+    </div>
+  )
+}
+
+// Presets resolve to a fixed start date when chosen, so saved filters keep
+// meaning the same window rather than silently sliding forward.
+const ADDED_DATE_PRESETS = [
+  { label: "Last 7 days", from: () => localDateDaysAgo(7) },
+  { label: "Last 30 days", from: () => localDateDaysAgo(30) },
+  { label: "Last 90 days", from: () => localDateDaysAgo(90) },
+  { label: "This year", from: () => `${new Date().getFullYear()}-01-01` },
+]
+
+function localDateDaysAgo(days: number) {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function RangeFilterControl({
+  from,
+  fromLabel,
+  inputMode,
+  onFromChange,
+  onToChange,
+  placeholder = ["From", "To"],
+  to,
+  toLabel,
+  type = "text",
+}: {
+  from: string
+  fromLabel: string
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]
+  onFromChange: (value: string) => void
+  onToChange: (value: string) => void
+  placeholder?: [string, string]
+  to: string
+  toLabel: string
+  type?: string
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+      <Input
+        aria-label={fromLabel}
+        inputMode={inputMode}
+        type={type}
+        value={from}
+        onChange={(event) => onFromChange(event.target.value)}
+        placeholder={placeholder[0]}
+      />
+      <span className="text-sm text-base-content/50">to</span>
+      <Input
+        aria-label={toLabel}
+        inputMode={inputMode}
+        type={type}
+        value={to}
+        onChange={(event) => onToChange(event.target.value)}
+        placeholder={placeholder[1]}
       />
     </div>
   )

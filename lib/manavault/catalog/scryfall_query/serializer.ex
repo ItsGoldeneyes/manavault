@@ -23,6 +23,8 @@ defmodule Manavault.Catalog.ScryfallQuery.Serializer do
     tix: "tix",
     date: "date",
     year: "year",
+    paid: "paid",
+    added: "added",
     artist: "artist",
     flavor: "flavor",
     game: "game",

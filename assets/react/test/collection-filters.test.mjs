@@ -113,3 +113,45 @@ test("allocation filter emits is: syntax, counts as active, and round trips", ()
     EMPTY_COLLECTION_FILTERS,
   )
 })
+
+test("multiple sets emit an OR group and single sets stay bare", () => {
+  const filters = cloneCollectionFilters(EMPTY_COLLECTION_FILTERS)
+  filters.sets = ["lea"]
+  assert.equal(buildCollectionFilterQuery(filters), "set:lea")
+
+  filters.sets = ["lea", "leb", "Time Spiral"]
+  assert.equal(buildCollectionFilterQuery(filters), '(set:lea or set:leb or set:"Time Spiral")')
+  assert.equal(countActiveCollectionFilters(filters), 1)
+  assert.deepEqual(decodeCollectionFilters(encodeCollectionFilters(filters)), filters)
+})
+
+test("legacy single set filters decode into the sets list", () => {
+  assert.deepEqual(decodeCollectionFilters(JSON.stringify({ set: " lea " })), {
+    ...EMPTY_COLLECTION_FILTERS,
+    sets: ["lea"],
+  })
+  assert.deepEqual(decodeCollectionFilters(JSON.stringify({ sets: ["lea", "LEA", "", 3] })), {
+    ...EMPTY_COLLECTION_FILTERS,
+    sets: ["lea"],
+  })
+})
+
+test("purchase price and added date ranges emit bounded predicates", () => {
+  const filters = cloneCollectionFilters(EMPTY_COLLECTION_FILTERS)
+  filters.purchasePriceMin = "1"
+  filters.purchasePriceMax = "20.50"
+  filters.addedFrom = "2026-09-01"
+  filters.addedTo = "2026-09-27"
+
+  assert.equal(
+    buildCollectionFilterQuery(filters),
+    "paid>=1 paid<=20.50 added>=2026-09-01 added<=2026-09-27",
+  )
+  assert.equal(countActiveCollectionFilters(filters), 2)
+  assert.deepEqual(decodeCollectionFilters(encodeCollectionFilters(filters)), filters)
+
+  const openEnded = cloneCollectionFilters(EMPTY_COLLECTION_FILTERS)
+  openEnded.addedFrom = "2026-09-20"
+  openEnded.purchasePriceMax = "5"
+  assert.equal(buildCollectionFilterQuery(openEnded), "paid<=5 added>=2026-09-20")
+})

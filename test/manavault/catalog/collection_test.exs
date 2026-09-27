@@ -639,6 +639,65 @@ defmodule Manavault.Catalog.CollectionTest do
     assert walk_card.oracle_id == "oracle-2"
   end
 
+  test "collection filtering supports purchase price, added date, and multiple sets" do
+    time_walk = Map.merge(@time_walk, %{"set" => "leb", "set_name" => "Limited Edition Beta"})
+    plains = Map.merge(@plains, %{"set" => "tst", "set_name" => "Test Set"})
+
+    assert {:ok, %{cards_count: 3, printings_count: 3}} =
+             Catalog.import_cards([@black_lotus, time_walk, plains])
+
+    assert {:ok, lotus} =
+             Catalog.create_collection_item(%{
+               "scryfall_id" => "scryfall-printing-1",
+               "purchase_price_cents" => 1_250
+             })
+
+    assert {:ok, walk} =
+             Catalog.create_collection_item(%{
+               "scryfall_id" => "scryfall-printing-2",
+               "finish" => "foil",
+               "purchase_price_cents" => 300
+             })
+
+    assert {:ok, plains} =
+             Catalog.create_collection_item(%{"scryfall_id" => "scryfall-printing-basic-plains"})
+
+    Repo.update_all(from(item in CollectionItem, where: item.id == ^lotus.id),
+      set: [inserted_at: ~U[2026-01-01 23:59:59Z]]
+    )
+
+    Repo.update_all(from(item in CollectionItem, where: item.id == ^walk.id),
+      set: [inserted_at: ~U[2026-01-02 00:00:00Z]]
+    )
+
+    Repo.update_all(from(item in CollectionItem, where: item.id == ^plains.id),
+      set: [inserted_at: ~U[2026-02-15 12:00:00Z]]
+    )
+
+    assert [lotus.id] == collection_item_ids(q: "paid>=12.50")
+    assert [lotus.id] == collection_item_ids(q: "paid>3")
+    assert [walk.id] == collection_item_ids(q: "paid<=3")
+    assert [walk.id] == collection_item_ids(q: "paid=$3")
+    assert [lotus.id, walk.id] == collection_item_ids(q: "paid>=1 paid<=20")
+    assert [] == collection_item_ids(q: "paid>=cheap")
+    assert [lotus.id, walk.id] == collection_item_ids(q: "is:paid")
+    assert [plains.id] == collection_item_ids(q: "is:unpaid")
+
+    assert [lotus.id] == collection_item_ids(q: "added=2026-01-01")
+    assert [lotus.id] == collection_item_ids(q: "added<=2026-01-01")
+    assert [lotus.id] == collection_item_ids(q: "added<2026-01-02")
+    assert [plains.id, walk.id] == collection_item_ids(q: "added>2026-01-01")
+    assert [plains.id, walk.id] == collection_item_ids(q: "added>=2026-01-02")
+    assert [lotus.id, walk.id] == collection_item_ids(q: "added>=2026-01-01 added<=2026-01-31")
+    assert [lotus.id, plains.id] == collection_item_ids(q: "added!=2026-01-02")
+    assert [] == collection_item_ids(q: "added>=yesterday")
+
+    assert [plains.id] == collection_item_ids(q: "set:tst")
+    assert [lotus.id, plains.id] == collection_item_ids(q: "(set:lea or set:tst)")
+    assert [plains.id, walk.id] == collection_item_ids(q: "(set:leb or set:tst)")
+    assert [walk.id] == collection_item_ids(q: "(set:leb or set:tst) paid<5 added>=2026-01-02")
+  end
+
   test "collection item sorting supports quantity, price, value gain, and added date" do
     time_walk = Map.put(@time_walk, "prices", %{"usd_foil" => "5.00"})
 

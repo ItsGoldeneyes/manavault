@@ -77,6 +77,77 @@ defmodule Manavault.Catalog.CardCollection.SearchFilter.ScalarPredicates do
     end
   end
 
+  # Purchase price is stored per copy in cents; the query value is in dollars.
+  # Copies without a recorded purchase price never satisfy a comparison.
+  def purchase_price(op, value) do
+    case value |> String.trim_leading("$") |> Float.parse() do
+      {dollars, ""} ->
+        cents = round(dollars * 100)
+
+        case Values.comparison_op(op) do
+          :eq ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents == ^cents)
+
+          :neq ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents != ^cents)
+
+          :gt ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents > ^cents)
+
+          :gte ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents >= ^cents)
+
+          :lt ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents < ^cents)
+
+          :lte ->
+            dynamic([item, _printing, _card, _location], item.purchase_price_cents <= ^cents)
+        end
+
+      _invalid ->
+        dynamic(false)
+    end
+  end
+
+  # Compares the date a copy was added (inserted_at) at UTC-day granularity, so
+  # `added<=2026-09-01` includes everything added during that day.
+  def added(op, value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} ->
+        day_start = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+        next_day_start = DateTime.add(day_start, 1, :day)
+
+        case Values.comparison_op(op) do
+          :eq ->
+            dynamic(
+              [item, _printing, _card, _location],
+              item.inserted_at >= ^day_start and item.inserted_at < ^next_day_start
+            )
+
+          :neq ->
+            dynamic(
+              [item, _printing, _card, _location],
+              item.inserted_at < ^day_start or item.inserted_at >= ^next_day_start
+            )
+
+          :gt ->
+            dynamic([item, _printing, _card, _location], item.inserted_at >= ^next_day_start)
+
+          :gte ->
+            dynamic([item, _printing, _card, _location], item.inserted_at >= ^day_start)
+
+          :lt ->
+            dynamic([item, _printing, _card, _location], item.inserted_at < ^day_start)
+
+          :lte ->
+            dynamic([item, _printing, _card, _location], item.inserted_at < ^next_day_start)
+        end
+
+      _invalid ->
+        dynamic(false)
+    end
+  end
+
   def is_predicate(op, value) when op in [:colon, :eq, :neq] do
     value = Values.downcase(value)
 
@@ -96,6 +167,12 @@ defmodule Manavault.Catalog.CardCollection.SearchFilter.ScalarPredicates do
 
         "unallocated" ->
           dynamic([item, printing, card, location], not (^allocated_to_deck()))
+
+        "paid" ->
+          dynamic([item, _printing, _card, _location], not is_nil(item.purchase_price_cents))
+
+        "unpaid" ->
+          dynamic([item, _printing, _card, _location], is_nil(item.purchase_price_cents))
 
         "colorless" ->
           ColorPredicates.count(:colors, :eq, 0, :eq)

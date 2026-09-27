@@ -87,6 +87,7 @@ defmodule Manavault.Catalog.ScryfallQueryTest do
         "type:legendary oracle:draw mana:{G} mv>=3",
         "c=2 id<=uw rarity>=rare set:tdc number>200 lang:ja",
         "usd<10 year>=2020 date<2025-01-01",
+        "paid>=2.50 paid<=10 added>=2026-01-01 added<=2026-01-31",
         "is:foil -is:funny",
         "(dragon or angel) -type:creature",
         "(type:artifact rarity:rare) or (type:sorcery rarity:mythic)",

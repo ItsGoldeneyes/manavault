@@ -54,10 +54,19 @@ export function useCollectionItemSelection({
 }) {
   const [selectionMode, setSelectionMode] = useState(false)
   const [state, setState] = useState<CollectionSelectionState>(EMPTY_SELECTION)
+  // Range-selection anchor and the loaded groups live in refs so toggleItem
+  // stays referentially stable (tiles are memoized) and back-to-back
+  // shift-clicks each see the previous click's anchor.
+  const rangeAnchorRef = useRef<string | null>(null)
+  const groupsRef = useRef(groups)
+  useEffect(() => {
+    groupsRef.current = groups
+  }, [groups])
 
   const clearSelection = useCallback(() => {
     setSelectionMode(false)
     setState(EMPTY_SELECTION)
+    rangeAnchorRef.current = null
   }, [])
 
   const lastResetKey = useRef(resetKey)
@@ -91,8 +100,18 @@ export function useCollectionItemSelection({
       ? "Choose printing groups with only one finish per card before adding to a deck."
       : undefined
 
-  const toggleItem = useCallback((group: CollectionItemGroup) => {
+  const toggleItem = useCallback((group: CollectionItemGroup, selectRange = false) => {
+    const anchor = rangeAnchorRef.current
+    rangeAnchorRef.current = group.printingId
     setSelectionMode(true)
+
+    const range = selectRange && anchor ? groupRange(groupsRef.current, anchor, group) : null
+    if (range) {
+      // Range clicks only add to the selection, matching the deck page.
+      setState((current) => selectGroups(current, range))
+      return
+    }
+
     setState((current) => {
       if (current.all) {
         const excluded = new Map(current.excluded)
@@ -111,6 +130,7 @@ export function useCollectionItemSelection({
   const selectAll = useCallback(() => {
     setSelectionMode(true)
     setState({ all: true, included: new Map(), excluded: new Map() })
+    rangeAnchorRef.current = null
   }, [])
 
   const toggleSelectionMode = useCallback(() => {
@@ -133,6 +153,41 @@ export function useCollectionItemSelection({
     toggleItem,
     toggleSelectionMode,
   }
+}
+
+// Loaded groups between the anchor and target, inclusive, in display order.
+// Returns null when the anchor is no longer loaded (filters or sort changed).
+function groupRange(
+  groups: CollectionItemGroup[],
+  anchorId: string,
+  target: CollectionItemGroup,
+): CollectionItemGroup[] | null {
+  const anchorIndex = groups.findIndex((group) => group.printingId === anchorId)
+  const targetIndex = groups.findIndex((group) => group.printingId === target.printingId)
+  if (anchorIndex < 0 || targetIndex < 0) return null
+
+  const [from, to] =
+    anchorIndex < targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex]
+  return groups.slice(from, to + 1)
+}
+
+function selectGroups(
+  current: CollectionSelectionState,
+  groups: CollectionItemGroup[],
+): CollectionSelectionState {
+  if (current.all) {
+    const excluded = new Map(current.excluded)
+    for (const group of groups) excluded.delete(group.printingId)
+    return { ...current, excluded }
+  }
+
+  const included = new Map(current.included)
+  for (const group of groups) {
+    if (!included.has(group.printingId)) {
+      included.set(group.printingId, groupSelectionSnapshot(group))
+    }
+  }
+  return { ...current, included }
 }
 
 function groupSelectionSnapshot(group: CollectionItemGroup): CollectionGroupSelectionSnapshot {
@@ -298,7 +353,7 @@ export function VirtualizedCollectionGrid({
   groups: CollectionItemGroup[]
   onLoadMore: () => void
   onToggleForTrade?: (group: CollectionItemGroup) => void
-  onToggleSelected?: (group: CollectionItemGroup) => void
+  onToggleSelected?: (group: CollectionItemGroup, selectRange?: boolean) => void
   pendingForTradePrintingIds?: Set<string>
   selectionActive?: boolean
 }) {
@@ -428,7 +483,7 @@ const CollectionItemTile = memo(function CollectionItemTile({
   group: CollectionItemGroup
   isSelected?: boolean
   onToggleForTrade?: (group: CollectionItemGroup) => void
-  onToggleSelected?: (group: CollectionItemGroup) => void
+  onToggleSelected?: (group: CollectionItemGroup, selectRange?: boolean) => void
   selectionActive?: boolean
 }) {
   const client = useApolloClient()
@@ -531,7 +586,7 @@ const CollectionItemTile = memo(function CollectionItemTile({
         setName={item.printing?.setName}
         typeLine={item.printing?.card?.typeLine}
         onToggleForTrade={onToggleForTrade ? () => onToggleForTrade(group) : undefined}
-        onToggleSelected={() => onToggleSelected?.(group)}
+        onToggleSelected={(selectRange) => onToggleSelected?.(group, selectRange)}
       />
       <AddCollectionItemToDeckDialog
         item={deckTarget}

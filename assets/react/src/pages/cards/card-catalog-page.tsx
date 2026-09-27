@@ -88,6 +88,7 @@ export function CardCatalogPage({
       )}
 
       <CollectionFilterModal
+        copyFilters={false}
         filters={search.structuredFilters}
         open={search.isFilterModalOpen}
         onApply={search.applyFilters}

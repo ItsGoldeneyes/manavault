@@ -120,7 +120,8 @@ export function CardTile({
   name: ReactNode
   onSelect?: () => void
   onToggleForTrade?: () => void
-  onToggleSelected?: () => void
+  // selectRange is true for shift+click, letting the owner select a span of tiles.
+  onToggleSelected?: (selectRange?: boolean) => void
   primaryActionLabel?: string
   primaryActionRole?: "button" | "link"
   price?: ReactNode
@@ -203,11 +204,17 @@ export function CardTile({
     if (isInteractiveClickTarget(event.target)) return
 
     if (selectionClickActive) {
-      onToggleSelected?.()
+      onToggleSelected?.(event.shiftKey)
       return
     }
 
     onSelect?.()
+  }
+
+  // Shift+mousedown would otherwise extend the page's text selection across
+  // every tile in the range being selected.
+  function handleMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.shiftKey && selectionClickActive) event.preventDefault()
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -216,7 +223,7 @@ export function CardTile({
 
     if (selectionClickActive) {
       event.preventDefault()
-      onToggleSelected?.()
+      onToggleSelected?.(event.shiftKey)
       return
     }
 
@@ -243,6 +250,7 @@ export function CardTile({
       onBlur={handleBlur}
       onClick={hasPrimaryAction ? handleClick : undefined}
       onKeyDown={handleKeyDown}
+      onMouseDown={handleMouseDown}
       onPointerCancel={mobileHover.onPointerCancel}
       onPointerDown={mobileHover.onPointerDown}
       onPointerMove={mobileHover.onPointerMove}
@@ -318,10 +326,13 @@ export function CardTile({
           aria-pressed={selected}
           onClick={(event) => {
             event.stopPropagation()
-            onToggleSelected?.()
+            onToggleSelected?.(event.shiftKey)
           }}
           onKeyDown={(event) => event.stopPropagation()}
-          onMouseDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => {
+            event.stopPropagation()
+            if (event.shiftKey) event.preventDefault()
+          }}
         >
           {selected ? <CheckSquare /> : <Square />}
         </CardTileOverlayButton>

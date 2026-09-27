@@ -16,7 +16,7 @@ export type CollectionFilterState = {
   manaValueOperator: ComparisonOperator
   manaValue: string
   rarities: RarityFilter[]
-  set: string
+  sets: string[]
   collectorOperator: ComparisonOperator
   collectorNumber: string
   language: string
@@ -24,6 +24,10 @@ export type CollectionFilterState = {
   allocation: AllocationFilter
   quantityOperator: ComparisonOperator
   quantity: string
+  purchasePriceMin: string
+  purchasePriceMax: string
+  addedFrom: string
+  addedTo: string
   priceOperator: ComparisonOperator
   priceUsd: string
   dateOperator: ComparisonOperator
@@ -50,7 +54,7 @@ export const EMPTY_COLLECTION_FILTERS: CollectionFilterState = {
   manaValueOperator: "=",
   manaValue: "",
   rarities: [],
-  set: "",
+  sets: [],
   collectorOperator: "=",
   collectorNumber: "",
   language: "",
@@ -58,6 +62,10 @@ export const EMPTY_COLLECTION_FILTERS: CollectionFilterState = {
   allocation: "any",
   quantityOperator: ">=",
   quantity: "",
+  purchasePriceMin: "",
+  purchasePriceMax: "",
+  addedFrom: "",
+  addedTo: "",
   priceOperator: ">=",
   priceUsd: "",
   dateOperator: ">=",
@@ -75,12 +83,16 @@ export function buildCollectionFilterQuery(filters: CollectionFilterState) {
     colorPredicate("id", filters.identityOperator, filters.identity),
     comparisonPredicate("mv", filters.manaValueOperator, filters.manaValue),
     rarityPredicate(filters.rarities),
-    textPredicate("set", filters.set),
+    setPredicate(filters.sets),
     comparisonPredicate("number", filters.collectorOperator, filters.collectorNumber),
     textPredicate("lang", filters.language),
     filters.finish === "any" ? "" : `is:${filters.finish}`,
     filters.allocation === "any" ? "" : `is:${filters.allocation}`,
     comparisonPredicate("qty", filters.quantityOperator, filters.quantity),
+    comparisonPredicate("paid", ">=", filters.purchasePriceMin),
+    comparisonPredicate("paid", "<=", filters.purchasePriceMax),
+    comparisonPredicate("added", ">=", filters.addedFrom),
+    comparisonPredicate("added", "<=", filters.addedTo),
     comparisonPredicate("usd", filters.priceOperator, filters.priceUsd),
     comparisonPredicate("date", filters.dateOperator, filters.releasedDate),
     comparisonPredicate("year", filters.yearOperator, filters.releasedYear),
@@ -106,12 +118,14 @@ export function countActiveCollectionFilters(filters: CollectionFilterState) {
     filters.identity.length,
     filters.manaValue.trim(),
     filters.rarities.length,
-    filters.set.trim(),
+    filters.sets.length,
     filters.collectorNumber.trim(),
     filters.language.trim(),
     filters.finish !== "any",
     filters.allocation !== "any",
     filters.quantity.trim(),
+    filters.purchasePriceMin.trim() || filters.purchasePriceMax.trim(),
+    filters.addedFrom.trim() || filters.addedTo.trim(),
     filters.priceUsd.trim(),
     filters.releasedDate.trim(),
     filters.releasedYear.trim(),
@@ -124,6 +138,7 @@ export function cloneCollectionFilters(filters: CollectionFilterState): Collecti
     colors: [...filters.colors],
     identity: [...filters.identity],
     rarities: [...filters.rarities],
+    sets: [...filters.sets],
   }
 }
 
@@ -152,7 +167,7 @@ export function encodeCollectionFilters(filters: CollectionFilterState) {
         ? filters.manaValueOperator
         : undefined,
     rarities: filters.rarities.length ? filters.rarities : undefined,
-    set: trimmedValue(filters.set),
+    sets: filters.sets.length ? filters.sets : undefined,
     collectorNumber: trimmedValue(filters.collectorNumber),
     collectorOperator:
       filters.collectorNumber.trim() &&
@@ -169,6 +184,10 @@ export function encodeCollectionFilters(filters: CollectionFilterState) {
       filters.quantityOperator !== EMPTY_COLLECTION_FILTERS.quantityOperator
         ? filters.quantityOperator
         : undefined,
+    purchasePriceMin: trimmedValue(filters.purchasePriceMin),
+    purchasePriceMax: trimmedValue(filters.purchasePriceMax),
+    addedFrom: trimmedValue(filters.addedFrom),
+    addedTo: trimmedValue(filters.addedTo),
     priceUsd: trimmedValue(filters.priceUsd),
     priceOperator:
       filters.priceUsd.trim() && filters.priceOperator !== EMPTY_COLLECTION_FILTERS.priceOperator
@@ -222,7 +241,10 @@ export function decodeCollectionFilters(value: unknown): CollectionFilterState {
     filters.manaValueOperator,
   )
   filters.rarities = filteredValues(decoded.rarities, RARITY_FILTERS)
-  filters.set = stringValue(decoded.set)
+  // Older saved filters stored a single `set` string.
+  filters.sets = uniqueSetValues(
+    Array.isArray(decoded.sets) ? decoded.sets : [stringValue(decoded.set)],
+  )
   filters.collectorNumber = stringValue(decoded.collectorNumber)
   filters.collectorOperator = operatorValue(
     decoded.collectorOperator,
@@ -238,6 +260,10 @@ export function decodeCollectionFilters(value: unknown): CollectionFilterState {
     COMPARISON_OPERATORS,
     filters.quantityOperator,
   )
+  filters.purchasePriceMin = stringValue(decoded.purchasePriceMin)
+  filters.purchasePriceMax = stringValue(decoded.purchasePriceMax)
+  filters.addedFrom = stringValue(decoded.addedFrom)
+  filters.addedTo = stringValue(decoded.addedTo)
   filters.priceUsd = stringValue(decoded.priceUsd)
   filters.priceOperator = operatorValue(
     decoded.priceOperator,
@@ -302,6 +328,27 @@ function colorPredicate(field: "c" | "id", operator: ColorOperator, colors: Mana
   if (colors.includes("c")) return `${field}:c`
 
   return `${field}${operator}${colors.join("")}`
+}
+
+/** Trims, drops blanks, and removes case-insensitive duplicates, keeping the first spelling. */
+export function uniqueSetValues(values: readonly unknown[]) {
+  const seen = new Set<string>()
+  const sets: string[] = []
+  for (const value of values) {
+    const set = stringValue(value)
+    const key = set.toLowerCase()
+    if (!set || seen.has(key)) continue
+    seen.add(key)
+    sets.push(set)
+  }
+  return sets
+}
+
+function setPredicate(sets: string[]) {
+  const terms = sets.map((set) => textPredicate("set", set)).filter(Boolean)
+  if (!terms.length) return ""
+
+  return terms.length === 1 ? terms[0] : `(${terms.join(" or ")})`
 }
 
 function rarityPredicate(rarities: RarityFilter[]) {

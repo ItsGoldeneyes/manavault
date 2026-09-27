@@ -1,8 +1,9 @@
 import { useQuery } from "@apollo/client/react"
+import { X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
-import { Input } from "../../components/ui/input"
 import { graphql } from "../../gql"
+import { uniqueSetValues } from "../../lib/collection-filters"
 import { cn } from "../../lib/utils"
 
 const SET_SUGGESTION_LIMIT = 8
@@ -16,33 +17,40 @@ const SetSuggestionsDocument = graphql(`
   }
 `)
 
+// Multi-select set picker: each chosen set becomes a removable chip and the
+// filter matches cards from any of them.
 export function SetCombobox({
-  onValueChange,
-  value,
+  onValuesChange,
+  values,
 }: {
-  onValueChange: (value: string) => void
-  value: string
+  onValuesChange: (values: string[]) => void
+  values: string[]
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [debouncedValue, setDebouncedValue] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [text, setText] = useState("")
+  const [debouncedText, setDebouncedText] = useState("")
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const query = debouncedValue.trim()
+  const query = debouncedText.trim()
   const { data } = useQuery(SetSuggestionsDocument, {
     variables: { q: query, limit: SET_SUGGESTION_LIMIT },
     skip: query.length <= 1,
   })
-  const suggestions = data?.setSuggestions ?? []
-  const showSuggestions = open && suggestions.length > 0
+  const selectedKeys = new Set(values.map((value) => value.toLowerCase()))
+  const suggestions = (data?.setSuggestions ?? []).filter(
+    (set) => !selectedKeys.has(set.setCode.toLowerCase()),
+  )
+  const showSuggestions = open && text.trim().length > 1 && suggestions.length > 0
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedValue(value), 200)
+    const timeout = window.setTimeout(() => setDebouncedText(text), 200)
     return () => window.clearTimeout(timeout)
-  }, [value])
+  }, [text])
 
   useEffect(() => {
     setActiveIndex(-1)
-  }, [value, suggestions.length])
+  }, [text, suggestions.length])
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -53,52 +61,94 @@ export function SetCombobox({
     return () => document.removeEventListener("pointerdown", handlePointerDown)
   }, [])
 
-  function selectSet(set: (typeof suggestions)[number]) {
-    onValueChange(set.setCode)
+  function addSet(value: string) {
+    const next = uniqueSetValues([...values, value])
+    if (next.length !== values.length) onValuesChange(next)
+    setText("")
     setOpen(false)
+    inputRef.current?.focus()
   }
 
-  function handleValueChange(nextValue: string) {
-    onValueChange(nextValue)
-    setOpen(nextValue.trim().length > 1)
+  function removeSet(value: string) {
+    onValuesChange(values.filter((set) => set !== value))
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (!showSuggestions) {
-      if (event.key === "Escape") setOpen(false)
+    if (event.key === "Backspace" && !text && values.length) {
+      event.preventDefault()
+      removeSet(values[values.length - 1])
       return
     }
 
-    if (event.key === "ArrowDown") {
+    if (event.key === "Escape") {
+      if (showSuggestions) event.preventDefault()
+      setOpen(false)
+      return
+    }
+
+    if (showSuggestions && event.key === "ArrowDown") {
       event.preventDefault()
       setActiveIndex((index) => (index + 1) % suggestions.length)
-    } else if (event.key === "ArrowUp") {
+    } else if (showSuggestions && event.key === "ArrowUp") {
       event.preventDefault()
       setActiveIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1))
-    } else if (event.key === "Enter" && activeIndex >= 0) {
-      event.preventDefault()
-      selectSet(suggestions[activeIndex])
-    } else if (event.key === "Enter") {
-      setOpen(false)
-    } else if (event.key === "Escape") {
-      event.preventDefault()
-      setOpen(false)
+    } else if (event.key === "Enter" || event.key === ",") {
+      // Enter picks the highlighted suggestion, otherwise commits the typed
+      // text as-is so exact set codes work without waiting for suggestions.
+      const typed = text.trim()
+      if (showSuggestions && activeIndex >= 0) {
+        event.preventDefault()
+        addSet(suggestions[activeIndex].setCode)
+      } else if (typed) {
+        event.preventDefault()
+        addSet(typed)
+      }
     }
   }
 
   return (
     <div ref={rootRef} className="relative">
-      <Input
-        value={value}
-        onChange={(event) => handleValueChange(event.target.value)}
-        onFocus={() => setOpen(value.trim().length > 1)}
-        onKeyDown={handleKeyDown}
-        placeholder="Set code or name"
-        role="combobox"
-        aria-autocomplete="list"
-        aria-expanded={showSuggestions}
-        autoComplete="off"
-      />
+      <div
+        className="input input-bordered flex h-auto min-h-12 w-full flex-wrap items-center gap-1.5 bg-base-100 px-2 py-1.5 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {values.map((set) => (
+          <span
+            key={set}
+            className="inline-flex items-center gap-1 rounded-btn border border-primary/40 bg-primary/10 py-0.5 pl-2 pr-1 font-mono text-xs font-bold uppercase text-primary"
+          >
+            {set}
+            <button
+              type="button"
+              className="grid h-5 w-5 place-items-center rounded-full hover:bg-primary/20"
+              aria-label={`Remove set ${set.toUpperCase()}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                removeSet(set)
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="min-w-[8rem] flex-1 bg-transparent px-1 text-base outline-none placeholder:text-base-content/50"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value)
+            setOpen(event.target.value.trim().length > 1)
+          }}
+          onFocus={() => setOpen(text.trim().length > 1)}
+          onKeyDown={handleKeyDown}
+          placeholder={values.length ? "Add another set" : "Set code or name"}
+          role="combobox"
+          aria-label="Sets"
+          aria-autocomplete="list"
+          aria-expanded={showSuggestions}
+          autoComplete="off"
+        />
+      </div>
       {showSuggestions ? (
         <div
           className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-2xl"
@@ -116,9 +166,9 @@ export function SetCombobox({
               )}
               onPointerDown={(event) => {
                 event.preventDefault()
-                selectSet(set)
+                addSet(set.setCode)
               }}
-              onClick={() => selectSet(set)}
+              onClick={() => addSet(set.setCode)}
             >
               <span className="font-mono font-bold uppercase">{set.setCode}</span>
               {set.setName ? (

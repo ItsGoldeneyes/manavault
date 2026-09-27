@@ -170,7 +170,12 @@ function collectionFilterChips(
   }
   if (filters.rarities.length)
     chips.push({ key: "rarity", label: `Rarity: ${filters.rarities.join(", ")}` })
-  if (filters.set.trim()) chips.push({ key: "set", label: `Set: ${filters.set.trim()}` })
+  if (filters.sets.length) {
+    chips.push({
+      key: "set",
+      label: `${filters.sets.length > 1 ? "Sets" : "Set"}: ${filters.sets.map((set) => set.toUpperCase()).join(", ")}`,
+    })
+  }
   if (filters.collectorNumber.trim()) {
     chips.push({
       key: "collector",
@@ -188,6 +193,14 @@ function collectionFilterChips(
       label: `Quantity ${filters.quantityOperator} ${filters.quantity.trim()}`,
     })
   }
+  const paidRange = rangeLabel(
+    filters.purchasePriceMin,
+    filters.purchasePriceMax,
+    (value) => `$${value}`,
+  )
+  if (paidRange) chips.push({ key: "paid", label: `Paid ${paidRange}` })
+  const addedRange = rangeLabel(filters.addedFrom, filters.addedTo)
+  if (addedRange) chips.push({ key: "added", label: `Added ${addedRange}` })
   if (filters.priceUsd.trim())
     chips.push({ key: "price", label: `USD ${filters.priceOperator} ${filters.priceUsd.trim()}` })
   if (filters.releasedDate.trim()) {
@@ -203,4 +216,13 @@ function collectionFilterChips(
     })
   }
   return chips
+}
+
+function rangeLabel(min: string, max: string, format = (value: string) => value) {
+  const from = min.trim()
+  const to = max.trim()
+  if (from && to) return `${format(from)}–${format(to)}`
+  if (from) return `≥ ${format(from)}`
+  if (to) return `≤ ${format(to)}`
+  return ""
 }

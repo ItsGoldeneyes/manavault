@@ -42,6 +42,8 @@ defmodule Manavault.Catalog.ScryfallQuery.Parser do
     "date" => :date,
     "year" => :year,
     "released" => :date,
+    "paid" => :paid,
+    "added" => :added,
     "artist" => :artist,
     "flavor" => :flavor,
     "ft" => :flavor,
