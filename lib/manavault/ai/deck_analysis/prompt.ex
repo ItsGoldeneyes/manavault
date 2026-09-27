@@ -19,6 +19,13 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
     consider suggesting that are not in the deck; its catalog includes sets released after your
     training data. Omit any card whose legality or color identity you cannot verify rather than
     guessing.
+    When the check_collection tool is available, check cards you consider suggesting against the
+    user's collection. Among candidates that fill a role comparably well, prefer cards with status
+    available. Treat owned_in_other_decks the same as not_owned, since using it means pulling it
+    from another deck. Still suggest cards without a free copy when they are clearly the better fit
+    or no available card fills the role, and keep at least one strong option without a free copy
+    where it would meaningfully improve the deck. Note which suggested cards the user has a free
+    copy of. Ownership never overrides format legality or color identity.
     The facts object contains authoritative metadata calculated by ManaVault. Use its counts instead
     of recounting deck.cards.
     Card entries omit default values to keep the request compact: omitted quantity means 1, omitted

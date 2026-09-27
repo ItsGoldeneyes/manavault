@@ -516,8 +516,8 @@ defmodule Manavault.AITest do
       {:ok, request_body, conn} = Plug.Conn.read_body(conn)
       request = Jason.decode!(request_body)
 
-      assert [%{"type" => "function", "function" => %{"name" => "lookup_cards"}}] =
-               request["tools"]
+      assert ["lookup_cards", "check_collection"] =
+               Enum.map(request["tools"], & &1["function"]["name"])
 
       assert request["response_format"]["type"] == "json_schema"
       refute Map.has_key?(request, "tool_choice")

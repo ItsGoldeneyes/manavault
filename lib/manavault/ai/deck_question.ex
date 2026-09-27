@@ -87,6 +87,16 @@ defmodule Manavault.AI.DeckQuestion do
     rules text, combos, or hidden play patterns. Return only the final recommendation, never
     scratch work, rejected options, or self-corrections.
 
+    When the check_collection tool is available, check candidate additions against the user's
+    collection before recommending them. Among candidates that fill a role comparably well, prefer
+    cards with status available. Treat owned_in_other_decks the same as not_owned, since using it
+    means pulling it from another deck. Still recommend a card without a free copy when it is
+    clearly the better fit or no available card fills the role, and include at least one strong
+    option without a free copy when it would meaningfully improve the deck. Say which recommended
+    additions the user has a free copy of, which are in another deck, and which they would need to
+    acquire.
+    Ownership never overrides format legality, color identity, or the user's stated constraints.
+
     Return readable GitHub-Flavored Markdown without a preamble. Wrap every exact Magic card name
     in double brackets, for example [[Doubling Season]], so ManaVault can link it. Write mana costs
     with standard brace notation such as {2}{W}. If a table is useful, put its header, separator,

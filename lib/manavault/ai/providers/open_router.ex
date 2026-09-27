@@ -5,7 +5,7 @@ defmodule Manavault.AI.Providers.OpenRouter do
 
   require Logger
 
-  alias Manavault.AI.{CardLookupTool, DeckAnalysis, DeckQuestion, Settings}
+  alias Manavault.AI.{DeckAnalysis, DeckQuestion, Settings, Tools}
 
   @api_base "https://openrouter.ai/api/v1"
   # Rounds in which the model may call tools before it is forced to answer.
@@ -48,7 +48,7 @@ defmodule Manavault.AI.Providers.OpenRouter do
       ],
       max_tokens: 20_000,
       temperature: 0.2,
-      tools: CardLookupTool.definitions(),
+      tools: Tools.definitions(),
       response_format: %{
         type: "json_schema",
         json_schema: %{
@@ -74,7 +74,7 @@ defmodule Manavault.AI.Providers.OpenRouter do
       messages: deck_question_messages(payload, turn),
       max_tokens: 20_000,
       temperature: 0.2,
-      tools: CardLookupTool.definitions(),
+      tools: Tools.definitions(),
       plugins: [%{id: "response-healing"}],
       response_format: %{
         type: "json_schema",
@@ -152,7 +152,7 @@ defmodule Manavault.AI.Providers.OpenRouter do
         if tool_use_unsupported?(body) do
           Logger.warning(
             "OpenRouter model #{inspect(settings.model)} does not support tool use; " <>
-              "retrying operation=#{context.operation} without the card lookup tool"
+              "retrying operation=#{context.operation} without tools"
           )
 
           request |> Map.delete(:tools) |> complete(settings, context, round)
@@ -202,7 +202,7 @@ defmodule Manavault.AI.Providers.OpenRouter do
         role: "tool",
         tool_call_id: Map.get(call, "id"),
         name: name,
-        content: Jason.encode!(CardLookupTool.call(name, arguments))
+        content: Jason.encode!(Tools.call(name, arguments))
       }
     end)
   end

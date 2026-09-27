@@ -5,9 +5,9 @@ defmodule Manavault.AI.CardLookupToolTest do
   alias Manavault.Catalog
   alias Manavault.CatalogTestSupport
 
-  test "exposes a single function tool definition" do
-    assert [%{type: "function", function: %{name: "lookup_cards", parameters: parameters}}] =
-             CardLookupTool.definitions()
+  test "exposes a function tool definition" do
+    assert %{type: "function", function: %{name: "lookup_cards", parameters: parameters}} =
+             CardLookupTool.definition()
 
     assert parameters.required == ["names"]
     assert parameters.properties.names.type == "array"
@@ -26,7 +26,7 @@ defmodule Manavault.AI.CardLookupToolTest do
              ])
 
     result =
-      CardLookupTool.call("lookup_cards", %{
+      CardLookupTool.call(%{
         "names" => ["recent removal", "Test Commander", "Made Up Card", " ", "Recent Removal"]
       })
 
@@ -47,11 +47,8 @@ defmodule Manavault.AI.CardLookupToolTest do
     assert {:ok, _json} = Jason.encode(result)
   end
 
-  test "describes malformed calls and unknown tools instead of failing" do
-    assert %{error: error} = CardLookupTool.call("lookup_cards", %{"names" => "Sol Ring"})
+  test "describes malformed calls instead of failing" do
+    assert %{error: error} = CardLookupTool.call(%{"names" => "Sol Ring"})
     assert error =~ "names array"
-
-    assert %{error: error} = CardLookupTool.call("search_web", %{"query" => "Sol Ring"})
-    assert error =~ ~s(Unknown tool "search_web")
   end
 end
