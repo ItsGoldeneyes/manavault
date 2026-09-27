@@ -31,6 +31,7 @@ defmodule Manavault.Catalog.Decks do
     Records,
     ShareToken,
     Statistics,
+    SwapDeckCards,
     Tags
   }
 
@@ -242,6 +243,14 @@ defmodule Manavault.Catalog.Decks do
   def delete_deck_card(deck_card) do
     deck_card
     |> Cards.delete_deck_card()
+    |> invalidate_decks_on_ok()
+  end
+
+  defdelegate preview_deck_swap(deck, swap), to: SwapDeckCards, as: :preview
+
+  def apply_deck_swap(deck, swap) do
+    deck
+    |> SwapDeckCards.apply(swap)
     |> invalidate_decks_on_ok()
   end
 

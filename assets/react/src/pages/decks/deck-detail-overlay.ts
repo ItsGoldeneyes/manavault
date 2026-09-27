@@ -32,6 +32,7 @@ export type DeckDetailOverlay =
   | { kind: "share-deck" }
   | { kind: "share-playtest" }
   | { kind: "shortcuts" }
+  | { kind: "swap-cards" }
 
 export const NO_DECK_DETAIL_OVERLAY: DeckDetailOverlay = { kind: "none" }
 

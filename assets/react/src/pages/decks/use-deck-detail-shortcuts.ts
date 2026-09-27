@@ -4,6 +4,7 @@ import { useEffect } from "react"
 // dependency) so the bindings stay predictable regardless of hover state.
 export type DeckDetailShortcutHandlers = {
   onAddCard: () => void
+  onSwapCards: () => void
   onToggleSelect: () => void
   onCycleGroup: () => void
   onOpenPlaytest: () => void
@@ -24,6 +25,7 @@ function isTypingTarget(target: EventTarget | null) {
 export function useDeckDetailShortcuts(handlers: DeckDetailShortcutHandlers, enabled: boolean) {
   const {
     onAddCard,
+    onSwapCards,
     onToggleSelect,
     onCycleGroup,
     onOpenPlaytest,
@@ -63,6 +65,10 @@ export function useDeckDetailShortcuts(handlers: DeckDetailShortcutHandlers, ena
           event.preventDefault()
           onAddCard()
           break
+        case "e":
+          event.preventDefault()
+          onSwapCards()
+          break
         case "s":
           event.preventDefault()
           onToggleSelect()
@@ -85,6 +91,7 @@ export function useDeckDetailShortcuts(handlers: DeckDetailShortcutHandlers, ena
   }, [
     enabled,
     onAddCard,
+    onSwapCards,
     onToggleSelect,
     onCycleGroup,
     onOpenPlaytest,
@@ -96,6 +103,7 @@ export function useDeckDetailShortcuts(handlers: DeckDetailShortcutHandlers, ena
 
 export const DECK_DETAIL_SHORTCUTS: Array<{ keys: string; label: string }> = [
   { keys: "A", label: "Add card" },
+  { keys: "E", label: "Swap cards" },
   { keys: "S", label: "Toggle select mode" },
   { keys: "G", label: "Cycle grouping" },
   { keys: "P", label: "Open playtest" },

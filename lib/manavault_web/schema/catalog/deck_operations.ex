@@ -8,6 +8,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
 
   alias ManavaultWeb.Schema.Catalog.{
     AllocationResolvers,
+    DeckSwapResolvers,
     MutationResolvers,
     QueryResolvers
   }
@@ -49,6 +50,12 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
     field :deck_export_text, non_null(:string) do
       arg(:id, non_null(:id))
       resolve(&QueryResolvers.deck_export_text/3)
+    end
+
+    field :deck_swap_preview, non_null(:deck_swap_preview) do
+      arg(:deck_id, non_null(:id))
+      arg(:input, non_null(:deck_swap_input))
+      resolve(&DeckSwapResolvers.preview/3)
     end
 
     field :deck_buylist, non_null(list_of(non_null(:deck_buylist_entry))) do
@@ -444,6 +451,19 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
           &MutationResolvers.bulk_update_deck_cards/3,
           :deck_cards
         )
+      end)
+    end
+
+    payload field :apply_deck_swap do
+      arg(:deck_id, non_null(:id))
+      arg(:input, non_null(:deck_swap_input))
+
+      output do
+        field :deck, non_null(:deck)
+      end
+
+      resolve(fn parent, args, resolution ->
+        payload(parent, args, resolution, &DeckSwapResolvers.apply/3, :deck)
       end)
     end
 

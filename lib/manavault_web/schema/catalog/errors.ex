@@ -39,6 +39,21 @@ defmodule ManavaultWeb.Schema.Catalog.Errors do
   def deck_edit_error(reason) when is_atom(reason), do: Atom.to_string(reason)
   def deck_edit_error(_reason), do: "Could not edit decklist."
 
+  def deck_swap_error(%Ecto.Changeset{} = changeset), do: changeset_error_message(changeset)
+  def deck_swap_error(:empty_swap), do: "Stage at least one cut or add before swapping."
+  def deck_swap_error(:invalid_swap), do: "Each staged card needs a positive quantity."
+  def deck_swap_error(:duplicate_swap_entry), do: "Each card can only be staged once per swap."
+  def deck_swap_error(:swap_cut_not_in_deck), do: "Only cards in the deck can be cut."
+
+  def deck_swap_error(:swap_add_not_considering),
+    do: "Only Considering cards can be moved into the deck."
+
+  def deck_swap_error(:swap_quantity_exceeds_deck_card),
+    do: "A staged quantity is larger than the copies in the deck."
+
+  def deck_swap_error(:card_not_found), do: "One or more added cards were not found."
+  def deck_swap_error(reason), do: deck_edit_error(reason)
+
   def deck_allocation_error(:deck_archived),
     do: "Unarchive this deck before changing allocations."
 

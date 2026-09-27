@@ -95,6 +95,14 @@ Deck workflows include:
 - quantity, zone, tag, finish, and preferred-printing edits
 - deck grouping by theme/category and zone tables
 - bulk deck-card selection and movement
+- a **Swap cards** workbench (toolbar button or `E`) that stages mainboard
+  cuts and adds together: Consider Cutting cards lead the cut column, the
+  Considering board and card-name search feed the add column, and each cut
+  can be removed or moved to Considering. A server-side preview runs the deck
+  legality rules on the staged list and shows which issues the swap
+  introduces or resolves; applying commits every change in one transaction
+  and releases collection copies that no longer fit. Illegal results can
+  still be applied.
 - public share links with owner controls to rotate the bearer link or disable
   sharing immediately
 - read-only shared deck pages with copy/export/playtest actions

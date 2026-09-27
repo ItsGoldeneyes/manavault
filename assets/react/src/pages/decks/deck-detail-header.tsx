@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   Archive,
   AlertTriangle,
+  ArrowRightLeft,
   CheckSquare,
   Clipboard,
   createLucideIcon,
@@ -75,6 +76,7 @@ type DeckDetailHeaderProps = {
   onShareDeck: () => void
   onSharePlaytest: () => void
   onStartSelecting: () => void
+  onSwapCards: () => void
   shareCopyState: "idle" | "copied" | "failed"
   shareMode: boolean
   tagActions: DeckTagActions
@@ -216,6 +218,7 @@ export function DeckDetailHeader({
   onShareDeck,
   onSharePlaytest,
   onStartSelecting,
+  onSwapCards,
   shareCopyState,
   shareMode,
   tagActions,
@@ -453,6 +456,16 @@ export function DeckDetailHeader({
                   <Button type="button" size="sm" onClick={onAddCard}>
                     <Plus className="h-4 w-4" />
                     Add card
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!deckCards.length}
+                    onClick={onSwapCards}
+                  >
+                    <ArrowRightLeft className="h-4 w-4" />
+                    Swap cards
                   </Button>
                   {!isSelectionActive ? (
                     <Button

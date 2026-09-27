@@ -199,6 +199,7 @@ export function DeckDetailScreen({
   useDeckDetailShortcuts(
     {
       onAddCard: () => setOverlay({ kind: "add-card" }),
+      onSwapCards: () => setOverlay({ kind: "swap-cards" }),
       onClearHighlight: () => {
         setActiveTagId(null)
         selection.setHighlightedDeckCardIds(null)
@@ -219,7 +220,9 @@ export function DeckDetailScreen({
         ),
       onToggleSelect: () => selection.setIsSelectingCards((selecting) => !selecting),
     },
-    !shareMode && canEditDecklist,
+    // Page shortcuts would replace the swap workbench overlay and drop its
+    // staged changes, so they pause while it is open.
+    !shareMode && canEditDecklist && overlay.kind !== "swap-cards",
   )
 
   if (isInitialDeckLoading) return <DeckDetailLoadingState />
@@ -280,6 +283,7 @@ export function DeckDetailScreen({
           legalityIssues={legalityIssues}
           saltSum={deferredDeckAnalysis?.stats.saltSum ?? null}
           onAddCard={() => setOverlay({ kind: "add-card" })}
+          onSwapCards={() => setOverlay({ kind: "swap-cards" })}
           onCombos={() => setOverlay({ kind: "combos" })}
           onCompareDeck={() => setOverlay({ kind: "compare-deck" })}
           onCopySharedDecklist={copySharedDecklist}

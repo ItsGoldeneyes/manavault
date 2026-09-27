@@ -119,6 +119,8 @@ defmodule Manavault.Catalog do
   defdelegate set_deck_commander(deck_card), to: Decks
   defdelegate add_deck_partner(deck_card), to: Decks
   defdelegate delete_deck_card(deck_card), to: Decks
+  defdelegate preview_deck_swap(deck, swap), to: Decks
+  defdelegate apply_deck_swap(deck, swap), to: Decks
   defdelegate deck_allocation_status(deck), to: Decks
   defdelegate deck_card_allocation_status(deck_card), to: Decks
   defdelegate put_deck_card_allocation_statuses(deck_cards), to: Decks

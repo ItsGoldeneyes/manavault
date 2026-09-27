@@ -11,6 +11,7 @@ import {
 import { DeckDetailShareOverlays } from "./deck-detail-share-overlays"
 import { DeckDetailShortcutsOverlay } from "./deck-detail-shortcuts-overlay"
 import { DeckDetailUtilityOverlays } from "./deck-detail-utility-overlays"
+import { DeckSwapDialog } from "./deck-swap-dialog"
 import type { useDeckDetailSelection } from "./detail-page-selection"
 import type {
   DeckCardEntry,
@@ -148,6 +149,9 @@ export function DeckDetailDialogLauncher({
         shareToken={shareToken}
       />
       <DeckDetailShortcutsOverlay onClose={close} overlay={overlay} />
+      {canEdit && !shareMode && overlay.kind === "swap-cards" ? (
+        <DeckSwapDialog deck={deck} deckCards={deckCards} onClose={close} />
+      ) : null}
     </>
   )
 }

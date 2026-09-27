@@ -450,6 +450,36 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     field :tag, :string
   end
 
+  enum :deck_swap_cut_destination do
+    value(:remove)
+    value(:considering)
+  end
+
+  input_object :deck_swap_cut_input do
+    field :deck_card_id, non_null(:id)
+    field :quantity, non_null(:integer)
+    field :destination, :deck_swap_cut_destination, default_value: :remove
+  end
+
+  input_object :deck_swap_add_input do
+    @desc "Considering deck card to move into the mainboard."
+    field :deck_card_id, :id
+    @desc "Card name to add to the mainboard when it is not already on the Considering board."
+    field :name, :string
+    field :quantity, non_null(:integer)
+  end
+
+  input_object :deck_swap_input do
+    field :cuts, non_null(list_of(non_null(:deck_swap_cut_input)))
+    field :adds, non_null(list_of(non_null(:deck_swap_add_input)))
+  end
+
+  object :deck_swap_preview do
+    field :legality, non_null(:deck_legality)
+    field :card_count, non_null(:integer)
+    field :unresolved_names, non_null(list_of(non_null(:string)))
+  end
+
   input_object :deck_tag_input do
     field :name, non_null(:string)
     field :color, :string
