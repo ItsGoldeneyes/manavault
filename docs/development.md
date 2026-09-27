@@ -121,6 +121,11 @@ mise run ios:open
 The iOS project is checked into the repo and syncs from the same web assets, but
 building or running requires Xcode.
 
+Like Android, the iOS shell loads the saved server URL as the app origin on
+launch and keeps navigation to that origin inside the web view; other hosts open
+in Safari. iOS App Transport Security blocks plain `http://` servers, so point
+the iOS shell at an `https://` URL.
+
 ## Release Helper
 
 Release commands are documented in [releasing.md](releasing.md). The short form
