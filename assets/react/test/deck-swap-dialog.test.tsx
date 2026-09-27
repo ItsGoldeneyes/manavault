@@ -16,7 +16,14 @@ vi.mock("@apollo/client/react", () => ({
     options: { skip?: boolean; variables: { deckId: string; input: unknown } },
   ) => {
     if (document.definitions[0]?.name?.value !== "DeckSwapPreview" || options.skip) {
-      return { data: undefined, error: undefined, loading: false, previousData: undefined }
+      return {
+        data: undefined,
+        error: undefined,
+        loading: false,
+        previousData: undefined,
+        startPolling: () => {},
+        stopPolling: () => {},
+      }
     }
 
     apolloMocks.previewVariables.push(options.variables)

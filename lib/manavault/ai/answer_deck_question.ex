@@ -16,13 +16,30 @@ defmodule Manavault.AI.AnswerDeckQuestion do
   alias Manavault.Catalog.Search.CardsByName
   alias Manavault.Repo
 
-  def enqueue(%Deck{} = deck, question) do
+  # Prior turns of a Swap cards chat thread sent with each new question.
+  @thread_history_turns 6
+
+  @doc """
+  Queues a question about `deck`. Options:
+
+    * `:thread_id` - groups Swap cards chat turns so later turns see earlier ones
+    * `:swap_context` - card names staged to cut and add when the question was asked
+  """
+  def enqueue(%Deck{} = deck, question, opts \\ []) do
     settings = UpdateSettings.settings()
 
     with {:ok, question} <- DeckQuestion.validate(question),
+         {:ok, thread_id} <- DeckQuestion.validate_thread_id(Keyword.get(opts, :thread_id)),
+         {:ok, swap_context} <-
+           DeckQuestion.validate_swap_context(Keyword.get(opts, :swap_context)),
          :ok <- UpdateSettings.configured(settings),
          {:ok, _provider} <- Provider.module(settings.provider) do
-      enqueue_question(deck, question)
+      enqueue_question(deck, %{
+        question: question,
+        status: "pending",
+        thread_id: thread_id,
+        swap_context: swap_context
+      })
     end
   end
 
@@ -42,12 +59,9 @@ defmodule Manavault.AI.AnswerDeckQuestion do
     end
   end
 
-  defp enqueue_question(deck, question) do
+  defp enqueue_question(deck, attrs) do
     Multi.new()
-    |> Multi.insert(
-      :question_answer,
-      Catalog.change_deck_question_answer(deck, %{question: question, status: "pending"})
-    )
+    |> Multi.insert(:question_answer, Catalog.change_deck_question_answer(deck, attrs))
     |> Oban.insert(:job, fn %{question_answer: answer} ->
       DeckQuestionWorker.new(%{question_answer_id: answer.id})
     end)
@@ -65,10 +79,29 @@ defmodule Manavault.AI.AnswerDeckQuestion do
     with :ok <- UpdateSettings.configured(settings),
          {:ok, provider} <- Provider.module(settings.provider),
          payload <- DeckAnalysis.payload(deck, Catalog.deck_cards(deck)),
-         {:ok, result} <- generate(provider, settings, payload, question_answer.question, 1),
+         {:ok, result} <- generate(provider, settings, payload, turn(deck, question_answer), 1),
          {:ok, _question_answer} <- complete(question_answer, result, settings.model) do
       :ok
     end
+  end
+
+  defp turn(deck, question_answer) do
+    %{
+      question: question_answer.question,
+      history: thread_history(deck, question_answer),
+      swap_context: question_answer.swap_context,
+      thread?: not is_nil(question_answer.thread_id)
+    }
+  end
+
+  defp thread_history(_deck, %DeckQuestionAnswer{thread_id: nil}), do: []
+
+  defp thread_history(deck, %DeckQuestionAnswer{id: id, thread_id: thread_id}) do
+    deck
+    |> Catalog.list_deck_question_thread(thread_id)
+    |> Enum.filter(&(&1.id < id and &1.status == "completed"))
+    |> Enum.take(-@thread_history_turns)
+    |> Enum.map(&%{question: &1.question, answer: &1.answer})
   end
 
   defp complete(question_answer, result, model) do
@@ -94,20 +127,20 @@ defmodule Manavault.AI.AnswerDeckQuestion do
     end
   end
 
-  defp generate(provider, settings, payload, question, corrections_left) do
-    with {:ok, provider_result} <- provider.ask_deck_question(settings, payload, question),
+  defp generate(provider, settings, payload, turn, corrections_left) do
+    with {:ok, provider_result} <- provider.ask_deck_question(settings, payload, turn),
          {:ok, result} <- DeckQuestion.normalize_result(provider_result) do
-      validate_recommendations(provider, settings, payload, question, result, corrections_left)
+      validate_recommendations(provider, settings, payload, turn, result, corrections_left)
     end
   end
 
-  defp validate_recommendations(provider, settings, payload, question, result, corrections_left) do
+  defp validate_recommendations(provider, settings, payload, turn, result, corrections_left) do
     case recommendation_issues(result, payload) do
       [] ->
         {:ok, canonicalize_recommendations(result, payload)}
 
       issues when corrections_left > 0 ->
-        correction = DeckQuestion.correction_prompt(question, issues)
+        correction = %{turn | question: DeckQuestion.correction_prompt(turn.question, issues)}
         generate(provider, settings, payload, correction, corrections_left - 1)
 
       _issues ->

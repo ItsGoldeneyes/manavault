@@ -2,6 +2,9 @@ defmodule Manavault.AI.DeckQuestion do
   @moduledoc false
 
   @max_question_length 1_000
+  @max_thread_id_length 64
+  @max_staged_names 100
+  @max_card_name_length 200
 
   def validate(question) when is_binary(question) do
     question = String.trim(question)
@@ -19,6 +22,46 @@ defmodule Manavault.AI.DeckQuestion do
   end
 
   def validate(_question), do: {:error, "Enter a question about this deck."}
+
+  def validate_thread_id(nil), do: {:ok, nil}
+
+  def validate_thread_id(thread_id) when is_binary(thread_id) do
+    thread_id = String.trim(thread_id)
+
+    if thread_id != "" and String.length(thread_id) <= @max_thread_id_length,
+      do: {:ok, thread_id},
+      else: {:error, "The chat thread id is invalid."}
+  end
+
+  def validate_thread_id(_thread_id), do: {:error, "The chat thread id is invalid."}
+
+  @doc """
+  Normalizes the card names staged in the Swap cards workbench into
+  `%{"cuts" => [...], "adds" => [...]}`, or `nil` when nothing is staged.
+  """
+  def validate_swap_context(nil), do: {:ok, nil}
+
+  def validate_swap_context(context) when is_map(context) do
+    cuts = staged_names(context, :cuts)
+    adds = staged_names(context, :adds)
+
+    cond do
+      cuts == :invalid or adds == :invalid -> {:error, "The staged swap is invalid."}
+      cuts == [] and adds == [] -> {:ok, nil}
+      true -> {:ok, %{"cuts" => cuts, "adds" => adds}}
+    end
+  end
+
+  def validate_swap_context(_context), do: {:error, "The staged swap is invalid."}
+
+  defp staged_names(context, key) do
+    names = value(context, key) || []
+
+    if is_list(names) and length(names) <= @max_staged_names and
+         Enum.all?(names, &(is_binary(&1) and String.length(&1) <= @max_card_name_length)),
+       do: normalize_card_names(names),
+       else: :invalid
+  end
 
   def system_prompt do
     """
@@ -61,13 +104,39 @@ defmodule Manavault.AI.DeckQuestion do
     """
   end
 
-  def user_prompt(question, payload) do
+  @doc "Extra system instructions for Swap cards chat threads."
+  def swap_chat_instructions do
+    """
+    This conversation happens inside ManaVault's Swap cards workbench, where the user stages cuts
+    and additions before applying them together. Earlier turns of the conversation come first;
+    answer the latest question with them in mind. The staged_swap object, when present, lists cards
+    already staged to cut (still present in deck.cards) and cards already staged to add (not yet in
+    deck.cards). Treat the staged swap as the user's working plan.
+
+    Keep answers short: lead with the recommendation and stay under 120 words. Pair each addition
+    with a cut when the deck has no room for it. Do not recommend cutting a card already staged to
+    cut, and do not recommend adding a card already staged to add. Only put cards currently in
+    deck.cards in recommended_cuts.
+    """
+  end
+
+  def user_prompt(question, payload, swap_context \\ nil) do
     """
     Question:
     #{question}
-
+    #{staged_swap_prompt(swap_context)}
     Deck data:
     #{Jason.encode!(payload)}
+    """
+  end
+
+  defp staged_swap_prompt(nil), do: ""
+
+  defp staged_swap_prompt(swap_context) do
+    """
+
+    Staged swap:
+    #{Jason.encode!(%{staged_swap: Jason.OrderedObject.new(cuts: swap_context["cuts"], adds: swap_context["adds"])})}
     """
   end
 

@@ -68,13 +68,10 @@ defmodule Manavault.AI.Providers.OpenRouter do
   end
 
   @impl true
-  def ask_deck_question(%Settings{} = settings, payload, question) do
+  def ask_deck_question(%Settings{} = settings, payload, turn) do
     request = %{
       model: settings.model,
-      messages: [
-        %{role: "system", content: DeckQuestion.system_prompt()},
-        %{role: "user", content: DeckQuestion.user_prompt(question, payload)}
-      ],
+      messages: deck_question_messages(payload, turn),
       max_tokens: 20_000,
       temperature: 0.2,
       tools: CardLookupTool.definitions(),
@@ -95,6 +92,27 @@ defmodule Manavault.AI.Providers.OpenRouter do
       http_error: "OpenRouter could not answer this question.",
       request_error: "Could not reach OpenRouter to answer this question."
     })
+  end
+
+  defp deck_question_messages(payload, turn) do
+    system =
+      if turn.thread?,
+        do: DeckQuestion.system_prompt() <> "\n" <> DeckQuestion.swap_chat_instructions(),
+        else: DeckQuestion.system_prompt()
+
+    history =
+      Enum.flat_map(turn.history, fn prior ->
+        [%{role: "user", content: prior.question}, %{role: "assistant", content: prior.answer}]
+      end)
+
+    [%{role: "system", content: system}] ++
+      history ++
+      [
+        %{
+          role: "user",
+          content: DeckQuestion.user_prompt(turn.question, payload, turn.swap_context)
+        }
+      ]
   end
 
   # Runs the completion, executing any tool calls the model requests and

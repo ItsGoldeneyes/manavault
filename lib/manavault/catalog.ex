@@ -128,6 +128,7 @@ defmodule Manavault.Catalog do
   defdelegate put_deck_card_fallback_printings(deck_cards), to: Decks
 
   defdelegate list_deck_question_answers(deck), to: Decks
+  defdelegate list_deck_question_thread(deck, thread_id), to: Decks
   defdelegate get_deck_question_answer(id), to: Decks
   defdelegate change_deck_question_answer(deck, attrs), to: Decks
   defdelegate create_deck_question_answer(deck, attrs), to: Decks

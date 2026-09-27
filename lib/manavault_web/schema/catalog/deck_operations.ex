@@ -39,6 +39,8 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
 
     field :deck_question_answers, non_null(list_of(non_null(:deck_question_answer))) do
       arg(:deck_id, non_null(:id))
+      @desc "Return the turns of one Swap cards chat thread instead of Ask AI history."
+      arg(:thread_id, :string)
       resolve(&QueryResolvers.deck_question_answers/3)
     end
 
@@ -171,6 +173,8 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
     payload field :ask_deck_question do
       arg(:id, non_null(:id))
       arg(:question, non_null(:string))
+      arg(:thread_id, :string)
+      arg(:swap_context, :deck_swap_context_input)
 
       output do
         field :answer, non_null(:string)

@@ -19,7 +19,7 @@ defmodule Manavault.AI do
   defdelegate analyze_deck_list(args), to: AnalyzeDeckList, as: :run
   defdelegate list_deck_analysis_requests(opts \\ []), to: ListDeckAnalysisRequests, as: :run
 
-  defdelegate ask_deck_question(deck, question), to: AnswerDeckQuestion, as: :enqueue
+  defdelegate ask_deck_question(deck, question, opts \\ []), to: AnswerDeckQuestion, as: :enqueue
   defdelegate answer_deck_question(id), to: AnswerDeckQuestion, as: :run
   defdelegate fail_deck_question(id, reason), to: AnswerDeckQuestion, as: :fail
 end

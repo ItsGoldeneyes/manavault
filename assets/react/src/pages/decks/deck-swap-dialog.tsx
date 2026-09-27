@@ -1,5 +1,5 @@
 import { useApolloClient, useMutation, useQuery } from "@apollo/client/react"
-import { ArrowRightLeft, ShieldAlert, ShieldCheck } from "lucide-react"
+import { ArrowRightLeft, Plus, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from "react"
 
 import { Button } from "../../components/ui/button"
@@ -15,6 +15,7 @@ import { useToast } from "../../components/ui/toast"
 import { refetchActiveQueries } from "../../lib/apollo"
 import { cn } from "../../lib/utils"
 import { deckLegalityIssueCount } from "./deck-legality"
+import { DeckSwapChat } from "./deck-swap-chat"
 import { DeckSwapLedger, type SwapSummary } from "./deck-swap-ledger"
 import type { SwapLegalityState } from "./deck-swap-legality"
 import { ApplyDeckSwapDocument, DeckSwapPreviewDocument } from "./deck-swap-documents"
@@ -35,7 +36,8 @@ import type { DeckCardEntry, DeckDetail } from "./deck-types"
 
 const PREVIEW_DEBOUNCE_MS = 250
 
-type MobileTab = "cut" | "add" | "review"
+type MobileTab = "cut" | "add" | "ai" | "review"
+type RightMode = "bring" | "ai"
 type PendingConfirm = "clear" | "close" | null
 
 function useDebouncedValue<T>(value: T, delayMs: number) {
@@ -100,6 +102,7 @@ function MobileTabs({
   const tabs = [
     { value: "cut", label: "Cut", count: swap.cuts.length },
     { value: "add", label: "Add", count: swap.adds.length },
+    { value: "ai", label: "AI", count: 0 },
     { value: "review", label: "Review", count: summary.stagedCount },
   ] as const
 
@@ -107,7 +110,7 @@ function MobileTabs({
     <div
       role="tablist"
       aria-label="Swap sections"
-      className="grid grid-cols-3 gap-1 border-b border-base-300 p-1.5 lg:hidden"
+      className="grid grid-cols-4 gap-1 border-b border-base-300 p-1.5 lg:hidden"
     >
       {tabs.map((item) => (
         <button
@@ -161,6 +164,46 @@ function SwapPanel({
   )
 }
 
+function RightColumnToggle({
+  onChange,
+  value,
+}: {
+  onChange: (value: RightMode) => void
+  value: RightMode
+}) {
+  const options = [
+    { value: "bring", label: "Bring in", icon: Plus },
+    { value: "ai", label: "Ask AI", icon: Sparkles },
+  ] as const
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Add column"
+      className="hidden grid-cols-2 gap-1 border-b border-base-300 p-1.5 lg:grid"
+    >
+      {options.map(({ icon: Icon, label, value: option }) => (
+        <button
+          key={option}
+          type="button"
+          role="tab"
+          aria-selected={value === option}
+          className={cn(
+            "flex h-8 items-center justify-center gap-1.5 rounded-field text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            value === option
+              ? "bg-base-content text-base-100"
+              : "text-base-content/65 hover:bg-base-200",
+          )}
+          onClick={() => onChange(option)}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function SwapFooter({
   applyError,
   canApply,
@@ -190,7 +233,10 @@ function SwapFooter({
         ) : willBeIllegal ? (
           <p className="flex items-center gap-1.5 text-base-content/70">
             <ShieldAlert className="h-4 w-4 shrink-0 text-error" aria-hidden="true" />
-            <span>The deck will be illegal after this swap. You can still apply it.</span>
+            <span className="sm:hidden">Illegal</span>
+            <span className="hidden sm:inline">
+              The deck will be illegal after this swap. You can still apply it.
+            </span>
           </p>
         ) : summary.stagedCount ? (
           <p
@@ -239,6 +285,7 @@ export function DeckSwapDialog({
   const [swap, dispatch] = useReducer(deckSwapReducer, EMPTY_DECK_SWAP)
   const [filter, setFilter] = useState("")
   const [tab, setTab] = useState<MobileTab>("cut")
+  const [rightMode, setRightMode] = useState<RightMode>("bring")
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [applySwap, { loading: isApplying }] = useMutation(ApplyDeckSwapDocument)
@@ -315,14 +362,47 @@ export function DeckSwapDialog({
               swap={swap}
             />
           </SwapPanel>
-          <SwapPanel tab={tab} value="add">
-            <SwapAddPanel
-              considering={considering}
-              stagedIds={stagedAddIds}
-              onSearchCard={(name) => dispatch(stageSearchedCardAction(name, considering))}
-              onToggle={(deckCardId) => dispatch({ type: "toggle-considering-add", deckCardId })}
-            />
-          </SwapPanel>
+          {/* The add column holds Bring in and Ask AI. Both stay mounted so the chat
+              thread survives switching; CSS picks which one shows per breakpoint. */}
+          <div
+            className={cn(
+              "min-h-0 min-w-0 flex-1 flex-col lg:flex",
+              tab === "add" || tab === "ai" ? "flex" : "hidden",
+            )}
+          >
+            <RightColumnToggle value={rightMode} onChange={setRightMode} />
+            <div
+              id="swap-panel-add"
+              className={cn(
+                "min-h-0 flex-1 flex-col",
+                tab === "add" ? "flex" : "hidden",
+                rightMode === "bring" ? "lg:flex" : "lg:hidden",
+              )}
+            >
+              <SwapAddPanel
+                considering={considering}
+                stagedIds={stagedAddIds}
+                onSearchCard={(name) => dispatch(stageSearchedCardAction(name, considering))}
+                onToggle={(deckCardId) => dispatch({ type: "toggle-considering-add", deckCardId })}
+              />
+            </div>
+            <div
+              id="swap-panel-ai"
+              className={cn(
+                "min-h-0 flex-1 flex-col",
+                tab === "ai" ? "flex" : "hidden",
+                rightMode === "ai" ? "lg:flex" : "lg:hidden",
+              )}
+            >
+              <DeckSwapChat
+                deckCards={deckCards}
+                deckCardsById={deckCardsById}
+                deckId={deck.id}
+                dispatch={dispatch}
+                swap={swap}
+              />
+            </div>
+          </div>
         </div>
 
         <SwapFooter

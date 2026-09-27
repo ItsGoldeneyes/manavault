@@ -189,12 +189,17 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
     {:ok, AI.list_deck_analysis_requests(limit: limit)}
   end
 
-  def deck_question_answers(_parent, %{deck_id: deck_id}, resolution) do
+  def deck_question_answers(_parent, %{deck_id: deck_id} = args, resolution) do
     with {:ok, deck_id} <- RelayHelpers.node_id(deck_id, :deck, resolution) do
-      deck_id
-      |> Catalog.get_deck!(preload?: false)
-      |> Catalog.list_deck_question_answers()
-      |> then(&{:ok, &1})
+      deck = Catalog.get_deck!(deck_id, preload?: false)
+
+      case Map.get(args, :thread_id) do
+        thread_id when is_binary(thread_id) ->
+          {:ok, Catalog.list_deck_question_thread(deck, thread_id)}
+
+        _thread_id ->
+          {:ok, Catalog.list_deck_question_answers(deck)}
+      end
     end
   end
 

@@ -72,11 +72,14 @@ defmodule ManavaultWeb.Schema.Catalog.DeckMutations do
     end
   end
 
-  def ask_deck_question(_parent, %{id: id, question: question}, resolution) do
+  def ask_deck_question(_parent, %{id: id, question: question} = args, resolution) do
     with {:ok, id} <- RelayHelpers.node_id(id, :deck, resolution) do
       id
       |> Catalog.get_deck!()
-      |> AI.ask_deck_question(question)
+      |> AI.ask_deck_question(question,
+        thread_id: Map.get(args, :thread_id),
+        swap_context: Map.get(args, :swap_context)
+      )
       |> case do
         {:ok, question_answer} ->
           {:ok, %{answer: question_answer.answer, question_answer: question_answer}}

@@ -56,4 +56,33 @@ defmodule Manavault.AI.DeckQuestionTest do
                "recommended_additions" => []
              })
   end
+
+  test "normalizes staged swap context and thread ids" do
+    assert {:ok, nil} = DeckQuestion.validate_swap_context(nil)
+    assert {:ok, nil} = DeckQuestion.validate_swap_context(%{cuts: [], adds: []})
+
+    assert {:ok, %{"cuts" => ["Sol Ring"], "adds" => ["Mother of Runes"]}} =
+             DeckQuestion.validate_swap_context(%{
+               cuts: [" Sol Ring ", "sol ring"],
+               adds: ["Mother of Runes"]
+             })
+
+    assert {:error, "The staged swap is invalid."} =
+             DeckQuestion.validate_swap_context(%{cuts: [1], adds: []})
+
+    assert {:ok, "thread-1"} = DeckQuestion.validate_thread_id(" thread-1 ")
+    assert {:error, _message} = DeckQuestion.validate_thread_id(String.duplicate("a", 65))
+  end
+
+  test "includes the staged swap in threaded prompts" do
+    prompt =
+      DeckQuestion.user_prompt("What replaces it?", %{deck: %{cards: []}}, %{
+        "cuts" => ["Pia Nalaar"],
+        "adds" => []
+      })
+
+    assert prompt =~ ~s("staged_swap":{"cuts":["Pia Nalaar"],"adds":[]})
+    assert DeckQuestion.swap_chat_instructions() =~ "under 120 words"
+    refute DeckQuestion.user_prompt("Q", %{deck: %{cards: []}}) =~ "staged_swap"
+  end
 end

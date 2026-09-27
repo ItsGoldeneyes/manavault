@@ -727,6 +727,80 @@ defmodule Manavault.AITest do
     assert :counters.get(attempts, 1) == 1
   end
 
+  test "threads Swap cards chat turns and keeps them out of Ask AI history" do
+    insert_settings!("anthropic/claude-sonnet-4")
+
+    assert {:ok, _result} =
+             Catalog.import_cards([
+               CatalogTestSupport.legal_commander_card(),
+               CatalogTestSupport.legality_card("Silver Bolt", ["W"], %{"commander" => "legal"}),
+               CatalogTestSupport.legality_card("White Ward", ["W"], %{"commander" => "legal"})
+             ])
+
+    assert {:ok, deck} = Catalog.create_deck(%{"name" => "Swap Chat", "format" => "commander"})
+    CatalogTestSupport.add_deck_card!(deck, "Test Commander", 1, "commander")
+    CatalogTestSupport.add_deck_card!(deck, "Silver Bolt", 1, "mainboard")
+
+    test_pid = self()
+
+    Req.Test.stub(@stub, fn conn ->
+      {:ok, request_body, conn} = Plug.Conn.read_body(conn)
+      messages = Jason.decode!(request_body)["messages"]
+      send(test_pid, {:messages, messages})
+
+      json_response(conn, 200, %{
+        "choices" => [
+          %{
+            "message" => %{
+              "content" =>
+                Jason.encode!(%{
+                  "answer" => "Swap in [[White Ward]].",
+                  "recommended_cuts" => [],
+                  "recommended_additions" => ["White Ward"]
+                })
+            }
+          }
+        ]
+      })
+    end)
+
+    assert {:ok, one_off} = AI.ask_deck_question(deck, "Is this deck fast?")
+
+    assert {:ok, first} =
+             AI.ask_deck_question(deck, "What replaces Silver Bolt?",
+               thread_id: "swap-thread",
+               swap_context: %{cuts: ["Silver Bolt"], adds: []}
+             )
+
+    assert first.swap_context == %{"cuts" => ["Silver Bolt"], "adds" => []}
+    assert :ok = AI.answer_deck_question(first.id)
+    assert_received {:messages, [system, user]}
+    assert system["content"] =~ "Swap cards workbench"
+    assert user["content"] =~ ~s("staged_swap":{"cuts":["Silver Bolt"],"adds":[]})
+
+    assert {:ok, second} =
+             AI.ask_deck_question(deck, "Anything cheaper?", thread_id: "swap-thread")
+
+    assert :ok = AI.answer_deck_question(second.id)
+    assert_received {:messages, [_system, prior_user, prior_assistant, latest]}
+    assert prior_user == %{"role" => "user", "content" => "What replaces Silver Bolt?"}
+    assert prior_assistant == %{"role" => "assistant", "content" => "Swap in [[White Ward]]."}
+    assert latest["content"] =~ "Anything cheaper?"
+    refute latest["content"] =~ "staged_swap"
+
+    assert Enum.map(Catalog.list_deck_question_answers(deck), & &1.id) == [one_off.id]
+
+    assert Enum.map(Catalog.list_deck_question_thread(deck, "swap-thread"), & &1.id) == [
+             first.id,
+             second.id
+           ]
+
+    assert Catalog.get_deck_question_answer(second.id).recommendations == %{
+             "cuts" => [],
+             "additions" => ["White Ward"]
+           }
+  end
+
   defp insert_settings!(model) do
     {:ok, settings} =
       %Settings{id: 1}

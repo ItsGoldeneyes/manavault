@@ -102,7 +102,11 @@ Deck workflows include:
   legality rules on the staged list and shows which issues the swap
   introduces or resolves; applying commits every change in one transaction
   and releases collection copies that no longer fit. Illegal results can
-  still be applied.
+  still be applied. The add column also toggles to **Ask AI**, a light chat
+  scoped to the workbench session: each turn sends the deck, the staged cuts
+  and adds, and the last six turns, and every recommended cut or add appears
+  as a chip that stages it with one tap. Chat turns reuse the Ask AI pipeline
+  and catalog checks but stay out of the Ask AI history.
 - public share links with owner controls to rotate the bearer link or disable
   sharing immediately
 - read-only shared deck pages with copy/export/playtest actions

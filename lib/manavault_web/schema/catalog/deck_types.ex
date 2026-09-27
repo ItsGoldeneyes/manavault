@@ -474,6 +474,11 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     field :adds, non_null(list_of(non_null(:deck_swap_add_input)))
   end
 
+  input_object :deck_swap_context_input do
+    field :cuts, non_null(list_of(non_null(:string)))
+    field :adds, non_null(list_of(non_null(:string)))
+  end
+
   object :deck_swap_preview do
     field :legality, non_null(:deck_legality)
     field :card_count, non_null(:integer)

@@ -10,6 +10,10 @@ defmodule Manavault.Catalog.DeckQuestionAnswer do
     field :status, :string, default: "completed"
     field :error, :string
     field :model, :string
+    # Swap cards chat turns share a client-generated thread id and carry the
+    # names staged in the workbench when the question was asked.
+    field :thread_id, :string
+    field :swap_context, :map
 
     belongs_to :deck, Manavault.Catalog.Deck
 
@@ -18,13 +22,24 @@ defmodule Manavault.Catalog.DeckQuestionAnswer do
 
   def changeset(question_answer, attrs) do
     question_answer
-    |> cast(attrs, [:question, :answer, :recommendations, :status, :error, :model, :deck_id])
+    |> cast(attrs, [
+      :question,
+      :answer,
+      :recommendations,
+      :status,
+      :error,
+      :model,
+      :deck_id,
+      :thread_id,
+      :swap_context
+    ])
     |> validate_required([:question, :status, :deck_id])
     |> validate_inclusion(:status, ~w(pending completed failed))
     |> validate_length(:question, max: 1_000)
     |> validate_length(:answer, max: 100_000)
     |> validate_length(:error, max: 2_000)
     |> validate_length(:model, max: 200)
+    |> validate_length(:thread_id, max: 64)
     |> validate_answer_state()
     |> foreign_key_constraint(:deck_id)
   end

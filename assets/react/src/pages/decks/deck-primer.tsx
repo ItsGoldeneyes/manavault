@@ -7,6 +7,7 @@ import remarkMath from "remark-math"
 import { useState } from "react"
 import { ManaSymbol } from "../../components/ui/mana-symbols"
 import { overlayLayers } from "../../components/ui/overlay-layers"
+import { cn } from "../../lib/utils"
 import "katex/dist/katex.min.css"
 
 type MarkdownNode = {
@@ -31,12 +32,19 @@ const skippedRichTextParents = new Set([
 export function DeckMarkdown({
   cardReferences = false,
   children,
+  className,
 }: {
   cardReferences?: boolean
   children: string
+  className?: string
 }) {
   return (
-    <article className="min-w-0 max-w-[72ch] break-words text-base leading-7 text-base-content/80">
+    <article
+      className={cn(
+        "min-w-0 max-w-[72ch] break-words text-base leading-7 text-base-content/80",
+        className,
+      )}
+    >
       <Markdown
         skipHtml
         remarkPlugins={[remarkGfm, remarkMath, [remarkManaVault, { cardReferences }]]}
