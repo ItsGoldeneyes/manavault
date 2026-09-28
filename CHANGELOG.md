@@ -8,6 +8,119 @@ See [docs/releasing.md](docs/releasing.md) for maintainer instructions.
 
 ---
 
+## [1.4.0] - 2026-09-28
+
+### Bug Fixes
+
+- Provide authoritative deck counts to AI ([`283195e1`](../../commit/283195e178d558037aef442862f31892bc2e7bdc))
+- Prevent truncated deck AI answers ([`54a48a9b`](../../commit/54a48a9b8eb65393eadb4778c5464d32d9eef39b))
+- Increase deck AI completion budgets ([`48ba8b46`](../../commit/48ba8b46274cf4ca324eb4bf7140cb92c478f78b))
+- Enforce deck AI response invariants ([`a42b7de7`](../../commit/a42b7de7df8242b7974961a4341539a1b08cbe66))
+- Import Moxfield dual card names ([`8b7385e5`](../../commit/8b7385e51bb32b4bc483c8446abc49fe68539df1))
+- Add mobile Safari bottom clearance ([`b25f6e72`](../../commit/b25f6e72fb4ab1bf65f74a8bfc89eba8cfbfe7d0))
+- **decks:** Consolidate active deck count ([`6b857957`](../../commit/6b85795773d8a371c186445a5fd9c8619aed7961))
+- **decks:** Respect finish when switching allocations ([`d79ac532`](../../commit/d79ac5324796a1f0e4430b8a1675456dd49c5e15))
+- **ai:** Process deck questions asynchronously ([`395e45d7`](../../commit/395e45d7cd8228c253e3f2ffeea7820a03420fb7))
+- **settings:** Reject sockets without sessions ([`57d6353c`](../../commit/57d6353c40207742eae9a6f03f5ebd3750d78334))
+- **settings:** Authenticate log subscriptions ([`93db9fa0`](../../commit/93db9fa0dba9238c712cc9abc20f429ddf4da777))
+- **ai:** Make bracket analysis holistic ([`d876a9ae`](../../commit/d876a9aec24c62f29f50ad01ae3e743ad1c48057))
+- **security:** Remediate container vulnerabilities ([`34c9a22e`](../../commit/34c9a22e9ead617400b76adaa854811e9a9b8688))
+- Sort permanent cards by their front-face type ([`4a13eb8f`](../../commit/4a13eb8ffb570610617442b410d8951175ee0a5f))
+- **jobs:** Recover orphaned catalog sync executions ([`ab76c650`](../../commit/ab76c650ed6cf9668c287f3b8703a9d209f89629))
+- **catalog:** Release write locks between metric refresh batches ([`f66e52ef`](../../commit/f66e52efe58786f2a36c8d5723234b096e674469))
+- **catalog:** Parse EDHREC commander continuation pages ([`10da94f2`](../../commit/10da94f2cefc5e153693aa9757d09e073e198d91))
+- **ui:** Keep dropdowns and card previews above dialogs ([`ecad2d2b`](../../commit/ecad2d2bf0c5192ad58683709d76b365c5c27bf6))
+- **decks:** Pick only active decks and reset skips on play ([`a6d8aa14`](../../commit/a6d8aa145c338e1293e95a913f281a043dd32b1b))
+- Deallocate cards moved to considering ([`880d906a`](../../commit/880d906a972ee9f5127e782f50c38ff8a821b94c))
+- Exclude proxies from deck pricing ([`4c40a2ca`](../../commit/4c40a2ca13ab67039446420b48b20d684fd65f98))
+- **security:** Enforce GraphQL CSRF in every auth mode and make owner sessions revocable ([`273c795d`](../../commit/273c795d7c857d8997ce1ba6146c0cbbcc334808))
+- **security:** Harden auth lockout recovery and document proxy hardening flags ([`d105be16`](../../commit/d105be16caafd550acc230598c878a2284415385))
+- **ai:** Limit consistency advice to card changes ([`40b3b696`](../../commit/40b3b696171bb433c3fec4d7b191f86db9b6dbf8))
+- Remove unsupported directive from deck allocation requests ([`a36f9e36`](../../commit/a36f9e3685c545080a8a518ed101124464679ad4))
+- Stop deck analysis from labeling suggestions with collection status ([`2cee4366`](../../commit/2cee4366604181b16a252905a3f420e4e37aa35a))
+- **ios:** Load saved server URL inside the native shell ([`890a772a`](../../commit/890a772abbec78b45e595ac2c7b3b415ebcb843e))
+- **native:** Respect Android system bar insets injected by Capacitor ([`6696a3a2`](../../commit/6696a3a244d278b6359eed3d9a964aca06fa6cc7))
+
+### CI
+
+- Keep container build layers cached across commits ([`db2ae210`](../../commit/db2ae21004fc95504b26b414ee6c67118ef75fac))
+
+### Chores
+
+- **deps:** Bump mise-action to 4.3.0 and repair quality CI ([`6a6c4ae8`](../../commit/6a6c4ae8824b18c1484060e234da42eaa74536ac))
+- **deps:** Bump softprops/action-gh-release from 3.0.2 to 3.0.3 ([`e1e62ce1`](../../commit/e1e62ce1118ab4bd589bfcf6a175e50676c4a79b))
+- **deps:** Bump docker/setup-buildx-action from 4.2.0 to 4.3.0 ([`a2815c9a`](../../commit/a2815c9ae2a6d9b5c8a7b61730e060bf9067fe61))
+- **deps:** Bump docker/login-action from 4.4.0 to 4.6.0 ([`5da53e59`](../../commit/5da53e5998e16263d1ea182134b00025e5a77533))
+- **deps:** Bump actions/checkout from 7.0.0 to 7.0.1 ([`acc98669`](../../commit/acc9866920bc3ef600cc4d9f261e488292c273db))
+- **backlog:** Add security and code standard remediation tasks ([`bf662741`](../../commit/bf662741095fab6c5839cc4a28470956c9ed71af))
+- **backlog:** Repair duplicate TASK-30 identifiers ([`220330ea`](../../commit/220330ea0e23249f94f4f3502b47f5207bc1c4d8))
+- **deps:** Resolve JavaScript dependency advisories ([`57b9122d`](../../commit/57b9122d8d96f52e71ccabb19f54996d1e1c8e83))
+- **orb:** Speed up setup ([`837b7aa8`](../../commit/837b7aa8073e2d87e0fd7adf0c0f6b85d49f1d5c))
+- **backlog:** Record published scanner bundle release ([`a7101911`](../../commit/a710191186762559d3e145b309ff4652f88b4470))
+
+### Documentation
+
+- **dev:** Generate GraphQL types from an Absinthe SDL dump instead of live introspection ([`304df8d1`](../../commit/304df8d1aeb77dd114293c53aca36bd752fec5d9))
+
+### Features
+
+- Sort collection by value gain ([`219433f6`](../../commit/219433f6a59c2b200839ec2247972099ccbd4847))
+- Add AI deck analysis and bracket ratings ([`524f27d3`](../../commit/524f27d38ce1a5f67498da173327744c7b8dbdb0))
+- Add one-off deck questions ([`d4162e0e`](../../commit/d4162e0e5e89f82347400eaea2a9793f60538a89))
+- Persist deck AI question history ([`7eaf968a`](../../commit/7eaf968ab4df7bcbcf08b9a2c355b4286c5d7193))
+- **ai:** Improve deck Q&A accuracy and rendering ([`d43d3b75`](../../commit/d43d3b759fee073d5985c890ef80f22a527bfa8c))
+- Add custom AI deck analysis instructions ([`9ee36d13`](../../commit/9ee36d13e4162c09fcd642dae186e2db5acdd5f3))
+- Show AI deck analysis progress ([`cd148a52`](../../commit/cd148a52cc214fad7458525a13fdb702bc05a0b7))
+- Apply deck Q&A recommendations ([`b5e3959e`](../../commit/b5e3959e163918dbd70dd0d3194f9d41b7b8b678))
+- **decks:** Show Commander Spellbook combos ([`ecffe42d`](../../commit/ecffe42dd8a7cd1b6bc4e2e7e617db6b5703e3aa))
+- **jobs:** Migrate background work to Oban ([`fcfdd32e`](../../commit/fcfdd32e54c694027a66b1ecf9d918a1c69d7780))
+- **ai:** Show model metadata for deck insights ([`ed90615c`](../../commit/ed90615c398739a3f4dc01199b704d32b751621e))
+- **ai:** Expand deck analysis guidance ([`9a07d21c`](../../commit/9a07d21c90e78afd2b4af5f2c38a4fe1cd83b3d6))
+- **ai:** Refresh all deck analyses ([`29a41211`](../../commit/29a41211802bf515323d338689f4b02e2ef84959))
+- **settings:** Add live server logs ([`99270b13`](../../commit/99270b1313041ede2967afa55f63ab8a1a2cbc79))
+- **decks:** Add weighted random deck picker ([`6781fcab`](../../commit/6781fcabcb3212c900af686d86641b1524925af0))
+- **decks:** Allow editing play history ([`6cd0895a`](../../commit/6cd0895a0258059285ee0896f36cccd1fedced00))
+- **decks:** Add Recommander deck recommendations ([`fdffc7bf`](../../commit/fdffc7bfca0bc4447aa69cb48f1a7abcffbe9463))
+- **decks:** Analyze external decklists ([`ae695a2c`](../../commit/ae695a2c2962c0b007eab9ab3b6e9724e1694cef))
+- Toggle auto-sort summaries between source and destination ([`2025693d`](../../commit/2025693d5d0d073ea593dfe070bf8811f9060967))
+- **decks:** Control random play inclusion and exclude archives from home count ([`556cb112`](../../commit/556cb112174eee7516334bc4988b49ebc7b3643f))
+- **ai:** Frame deck analysis around deck structure, role balance, and synergy ([`2d85a681`](../../commit/2d85a681b1b79d38a235a167a5cf718f7beafbc5))
+- **api:** Add personal deck access keys (#153) ([`02656c1c`](../../commit/02656c1c3be2eb3f69e2921eecedc6fd375ab3bc))
+- **appearance:** Add color palettes saved on the owner account ([`8dcc75ec`](../../commit/8dcc75ec4ef3ce8e5e8c101b5481a3b88fc210bc))
+- **ai:** Let the model look up catalog cards during analysis and questions ([`a154eaf9`](../../commit/a154eaf9b1879d0354eeeaffaef2be1c28efed2d))
+- Filter collection by purchase price, added date, and multiple sets ([`b5e893c3`](../../commit/b5e893c35636a8e3e64326d87c51da99c9462b3e))
+- Add Swap cards workbench for staged deck cuts and adds ([`0b122e39`](../../commit/0b122e391d6cc8c4a0aede30c87d6cbc56a956d0))
+- Add AI chat for cuts and adds in Swap cards ([`7cbc7aa4`](../../commit/7cbc7aa411c7d989e40e0d21dcc33d395b489a14))
+- Add AI collection status tool that favors free owned cards ([`0490f597`](../../commit/0490f5978b4b000758948fa1cf5faa2867ddd62c))
+- **scanner:** Add in-browser card scanner with OTA model bundles ([`7114d779`](../../commit/7114d779d761c8bb1ce950ef3bdd1cebd91da144))
+- **scanner:** Make locked sets restrict recognition ([`03c98870`](../../commit/03c9887001a166273fb4ad371251b3271284d80d))
+- **scanner:** Scan and show the whole camera image ([`c3a8a2bd`](../../commit/c3a8a2bd4fa1c3971b9b8fce05e5933e64d6a3b8))
+
+### Performance
+
+- **catalog:** Cover search and price queries with indexes ([`5c0eb428`](../../commit/5c0eb42860c3a3cdce45c17037e8be2a1c58aa18))
+
+### Refactoring
+
+- **catalog:** Drop unused scryfall_printing_search FTS table ([`1cb79307`](../../commit/1cb793077ac28c92ed598d149c7dc0ba2d58b4c7))
+- **catalog:** Move deck resolver workflows and Repo access into Catalog actions ([`640fc768`](../../commit/640fc7682d780f208875f2f9c1471715650519b3))
+- **catalog:** Split collection and trade contexts into actions and bound auto-sort and export work ([`b71ab012`](../../commit/b71ab01205dac3e4d6764cfd3298709cb95c0ba8))
+- **ai,backup,scryfall:** Split contexts into actions, bound deck analysis listing, batch printing reconciliation ([`d64298fb`](../../commit/d64298fba94ec7a5409ca781e36e7a0dbc6748cc))
+- **web:** Render shell and login from templates, use configured host for absolute URLs, add CSP ([`c44a8f27`](../../commit/c44a8f274c44d004ada1767b92ec8c463076308a))
+- **react:** Split cards page, validate remote link hrefs, type Prism, initialize AI settings form once ([`0e165a30`](../../commit/0e165a300f34e3926a71a05d07f1ceb551bdee1d))
+- **decks:** Decompose deck detail page, deck stack card, and deck GraphQL documents ([`6d38012b`](../../commit/6d38012bf47a07c8942d23be84c3975474f88a43))
+- **collection:** Decompose collection page, import/export dialogs, and collection GraphQL documents ([`dde1f175`](../../commit/dde1f17506663410ebf232acd9aaaa4181984902))
+- **catalog:** Move location fetching from the decks context into collection locations ([`f9bed03e`](../../commit/f9bed03ed72dd35a8d4bacb901accd597385838d))
+- **scanner:** Move model training to cfbender/oracle ([`4bb6789e`](../../commit/4bb6789ed48ab200eb2173d120eeaf630b57ef22))
+
+### Style
+
+- **react:** Format files added by the remediation refactors ([`f4140bb8`](../../commit/f4140bb8e234d1f74d4d0533623fa1c03f2b8524))
+
+### Tests
+
+- **web:** Read the frontend deck query from its new documents module ([`771014a6`](../../commit/771014a646300bc26868412c167768c220b8c987))
+
 ## [1.3.0] - 2026-08-17
 
 ### Bug Fixes
