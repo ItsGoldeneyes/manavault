@@ -4,6 +4,24 @@ The scanner (`/scan`) identifies cards entirely in the browser. Phoenix serves t
 and resolves recognized artwork to catalog printings; it runs no inference. User-facing behavior is
 in [features.md](features.md#card-scanner).
 
+## Models and releases
+
+Models are trained and exported in [cfbender/oracle](https://github.com/cfbender/oracle), which
+also serves The Gathering. A ManaVault model is a GitHub release in this repository tagged
+`scanner-bundle-<version>`, published but never marked latest (the Android shell treats the
+latest release as the newest app version). When a new set is released, rebuild the gallery on the
+training box and publish; no retraining is needed:
+
+```sh
+cd oracle
+mise run update-gallery
+mise run export -- --checkpoint models/recogniser.pt --detector models/detector.pt
+mise run publish -- data/bundles/<version> --to github:cfbender/manavault
+```
+
+Servers install the newest published release within six hours (or on restart); browsers switch
+the next time the scanner opens. To roll back, unpublish or delete the newest release.
+
 ## Bundles (server)
 
 ManaVault serves browser card-recognition models from `DATA_DIR/scanner`. Each version is a

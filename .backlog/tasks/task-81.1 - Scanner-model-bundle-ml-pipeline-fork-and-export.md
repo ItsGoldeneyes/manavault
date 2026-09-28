@@ -1,10 +1,10 @@
 ---
 id: TASK-81.1
 title: 'Scanner model bundle: ml pipeline fork and export'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-28 20:18'
-updated_date: '2026-09-28 22:05'
+updated_date: '2026-09-28 22:25'
 labels: []
 dependencies: []
 parent_task_id: TASK-81
@@ -19,9 +19,9 @@ manavault needs its own recognition bundle, separate from the-gathering's, so it
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ml/ in manavault can build a gallery and export a bundle (manifest, arts, detector, embed, search ONNX graphs)
+- [x] #1 ml/ in manavault can build a gallery and export a bundle (manifest, arts, detector, embed, search ONNX graphs)
 - [x] #2 An initial bundle exported from the-gathering's production weights is published as a GitHub release asset
-- [ ] #3 ml/README documents gallery refresh, export and publish
+- [x] #3 ml/README documents gallery refresh, export and publish
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -30,4 +30,12 @@ manavault needs its own recognition bundle, separate from the-gathering's, so it
 ml/ forked from the-gathering with starting weights. Initial bundle retrain-20260925T043526910942Z is uploaded to a DRAFT GitHub release (not published; publishing needs the owner's approval, and the updater ignores drafts). Export/gallery build not re-run in this orb (no GPU/gallery); phone fine-tuning runs on the owner's machine via thread T-01a0e9b2-236a-768b-9223-753b7c7ff188.
 
 Published release scanner-bundle-retrain-20260925T043526910942Z (not marked latest, so the Android app update check still sees v1.3.0). Verified BundleUpdateWorker.check_for_update() against the public release: {:ok, :installed} in 5 s into a fresh bundle dir, then {:ok, :current}.
+
+Moved out of ManaVault: ml/ was a byte-identical copy of the-gathering's ml/, so it now lives in its own repository, https://github.com/cfbender/oracle (split with history, 52 upstream commits). Oracle gained a github:OWNER/REPO publish target (release per bundle tagged scanner-bundle-<version>, never latest, upload sizes verified; retrain/nightly read and snapshot the current release), mise tasks, a README with the new-set recipe, and a bundle contract test that checks both apps' TypeScript. 127 Oracle tests pass. ManaVault's docs/scanner.md points there.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Scanner models live in cfbender/oracle (split from the-gathering with history), which builds galleries, exports bundles and publishes them as ManaVault GitHub releases; the initial bundle retrain-20260925T043526910942Z is published and verified installing through BundleUpdateWorker. Verified with Oracle's 127 unit tests (including the bundle contract against ManaVault's scanner code) and a live updater install.
+<!-- SECTION:FINAL_SUMMARY:END -->
