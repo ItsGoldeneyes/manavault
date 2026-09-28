@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router"
 import { CameraOff, List, LoaderCircle, Settings2, X } from "lucide-react"
 import { useEffect, useState } from "react"
+import {
+  restoreNativeSystemBarsTheme,
+  setNativeSystemBarsTheme,
+} from "../../lib/native-system-bars"
 import { Button } from "../../components/ui/button"
 import { PrintingSheet } from "./printing-sheet"
 import type { RecognizerState } from "./recognition/use-recognizer"
@@ -37,6 +41,12 @@ export function ScanPage() {
     start()
     return stop
   }, [start, stop])
+
+  // The scanner is always dark, whatever the app theme: light status bar icons while open.
+  useEffect(() => {
+    setNativeSystemBarsTheme("dark")
+    return restoreNativeSystemBarsTheme
+  }, [])
 
   // Browsers keep audio locked until a user gesture; the first tap anywhere unlocks it.
   useEffect(() => {

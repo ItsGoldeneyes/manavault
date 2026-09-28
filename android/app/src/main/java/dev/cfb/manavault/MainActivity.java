@@ -9,6 +9,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.WebView;
+
+import java.util.Locale;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -19,6 +22,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.CapConfig;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
+import com.getcapacitor.WebViewListener;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 public class MainActivity extends BridgeActivity {
@@ -26,6 +30,9 @@ public class MainActivity extends BridgeActivity {
     private static final int APP_CHROME_COLOR = Color.rgb(24, 4, 13);
     private static final String PREFERENCES_NAME = "NativeShell";
     private static final String SERVER_URL_KEY = "serverUrl";
+
+    /** System bar and cutout insets in px; the page receives them as CSS variables. */
+    private Insets safeArea = Insets.NONE;
 
 
     @Override
@@ -39,43 +46,69 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InAppHttpNavigationPlugin.class);
         registerPlugin(SharedImportPlugin.class);
         registerPlugin(NativeShellPlugin.class);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        // Edge to edge on every Android version (Android 15+ enforces it anyway): page
+        // backgrounds run behind transparent system bars and the page pads its own content.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         super.onCreate(savedInstanceState);
 
-        getWindow().setStatusBarColor(APP_CHROME_COLOR);
-        getWindow().setNavigationBarColor(APP_CHROME_COLOR);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
 
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         controller.setAppearanceLightStatusBars(false);
         controller.setAppearanceLightNavigationBars(false);
 
-        keepWebViewClearOfSystemBars();
+        passSafeAreaToPage();
     }
 
     /**
-     * Android 15+ draws apps edge to edge and ignores the status/navigation bar colors, so the
-     * WebView would sit under the system bars. Rather than rely on the page reading the insets
-     * (Capacitor's SystemBars CSS handling is disabled in capacitor.config.json because some
-     * WebViews reported them as 0), pad the WebView's container by the bar and cutout insets
-     * and paint the padding in the app chrome color. The on-screen keyboard shrinks the bottom.
+     * The page draws under the system bars and reads their size from --safe-area-inset-*
+     * (assets/css/app.css takes the larger of that and env()), which this sets after every
+     * insets change and page load. Capacitor's own SystemBars CSS handling is disabled in
+     * capacitor.config.json because it left those variables at 0 on some devices. Only the
+     * on-screen keyboard shrinks the WebView.
      */
-    private void keepWebViewClearOfSystemBars() {
-        View container = (View) getBridge().getWebView().getParent();
+    private void passSafeAreaToPage() {
+        WebView webView = getBridge().getWebView();
+        View container = (View) webView.getParent();
         container.setBackgroundColor(APP_CHROME_COLOR);
         ViewCompat.setOnApplyWindowInsetsListener(container, (view, insets) -> {
-            int types = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
-            Insets bars = insets.getInsets(types);
-            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             boolean keyboard = insets.isVisible(WindowInsetsCompat.Type.ime());
-            view.setPadding(bars.left, bars.top, bars.right, keyboard ? Math.max(ime.bottom, bars.bottom) : bars.bottom);
-            // Hand the WebView zero insets (not CONSUMED, which stops later recalculation), so
-            // env(safe-area-inset-*) is 0 inside the already padded area.
-            return new WindowInsetsCompat.Builder(insets)
-                    .setInsets(types, Insets.NONE)
-                    .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
-                    .build();
+            int keyboardHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            view.setPadding(0, 0, 0, keyboard ? keyboardHeight : 0);
+            safeArea = Insets.of(bars.left, bars.top, bars.right, keyboard ? 0 : bars.bottom);
+            injectSafeArea(webView);
+            return insets;
+        });
+        getBridge().addWebViewListener(new WebViewListener() {
+            @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                injectSafeArea(view);
+            }
+
+            @Override
+            public void onPageLoaded(WebView view) {
+                injectSafeArea(view);
+            }
         });
         ViewCompat.requestApplyInsets(container);
+    }
+
+    private void injectSafeArea(WebView webView) {
+        float density = getResources().getDisplayMetrics().density;
+        String script = String.format(
+                Locale.US,
+                "(function(s){s.setProperty('--safe-area-inset-top','%.1fpx');"
+                        + "s.setProperty('--safe-area-inset-right','%.1fpx');"
+                        + "s.setProperty('--safe-area-inset-bottom','%.1fpx');"
+                        + "s.setProperty('--safe-area-inset-left','%.1fpx');})"
+                        + "(document.documentElement.style)",
+                safeArea.top / density,
+                safeArea.right / density,
+                safeArea.bottom / density,
+                safeArea.left / density);
+        webView.post(() -> webView.evaluateJavascript(script, null));
     }
 
     @Override

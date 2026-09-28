@@ -1,4 +1,5 @@
 import { useMutation } from "@apollo/client/react"
+import { setNativeSystemBarsTheme } from "./native-system-bars"
 import {
   createContext,
   type Dispatch,
@@ -135,6 +136,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(theme)
     setResolvedTheme(resolveTheme(theme))
   }, [theme])
+
+  useEffect(() => setNativeSystemBarsTheme(resolvedTheme), [resolvedTheme])
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme-style", themeStyle)
