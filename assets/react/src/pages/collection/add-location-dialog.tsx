@@ -135,7 +135,7 @@ export function AddLocationDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : close())}>
       <DialogContent
-        className="max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_2rem)] max-w-3xl overflow-y-auto sm:max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_4rem)]"
+        className="max-h-[calc(100dvh_-_var(--safe-top)_-_var(--safe-bottom)_-_2rem)] max-w-3xl overflow-y-auto sm:max-h-[calc(100dvh_-_var(--safe-top)_-_var(--safe-bottom)_-_4rem)]"
         labelledBy="add-location-title"
       >
         <DialogHeader>

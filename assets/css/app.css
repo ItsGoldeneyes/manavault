@@ -97,6 +97,13 @@
 
 :root {
   --set-symbol-common-color: #000;
+  /* Safe-area insets. Capacitor's Android SystemBars plugin draws the WebView edge to edge and
+     injects --safe-area-inset-* because some Android WebViews report env() as 0; browsers and
+     iOS use env(). The larger value wins, so neither source is counted twice. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
 }
 
 [data-theme="dark"] {
@@ -163,7 +170,8 @@ html[data-theme-style="glass"] .app-shell-root {
 }
 
 html[data-theme-style="glass"] .card,
-html[data-theme-style="glass"] section[role="dialog"]:not(.fullscreen-printing-dialog, .scan-sheet) {
+html[data-theme-style="glass"]
+  section[role="dialog"]:not(.fullscreen-printing-dialog, .scan-sheet) {
   background-color: var(--glass-surface);
   border-color: var(--glass-border);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
@@ -290,28 +298,28 @@ html[data-theme-style="glass"] :is(.btn-outline, .btn-ghost):hover {
 }
 
 .app-shell-header {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: calc(1rem + env(safe-area-inset-left, 0px));
-  padding-right: calc(1rem + env(safe-area-inset-right, 0px));
+  padding-top: var(--safe-top);
+  padding-left: calc(1rem + var(--safe-left));
+  padding-right: calc(1rem + var(--safe-right));
 }
 
 .app-shell-main {
-  height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
-  padding-left: calc(1rem + env(safe-area-inset-left, 0px));
-  padding-right: calc(1rem + env(safe-area-inset-right, 0px));
+  height: calc(100dvh - 4rem - var(--safe-top));
+  padding-left: calc(1rem + var(--safe-left));
+  padding-right: calc(1rem + var(--safe-right));
   /* iOS Safari overlays its bottom toolbar without including it in the hardware safe area. */
-  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(6rem + var(--safe-bottom));
 }
 
 @media (max-width: 39.999rem) {
   .native-shell .app-shell-main {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(2rem + var(--safe-bottom));
   }
 }
 
 @media (display-mode: standalone) {
   .app-shell-main {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(2rem + var(--safe-bottom));
   }
 }
 
@@ -324,34 +332,34 @@ body[data-scroll-locked] .app-shell-main {
 @media (min-width: 40rem) {
   .app-shell-header,
   .app-shell-main {
-    padding-left: calc(1.5rem + env(safe-area-inset-left, 0px));
-    padding-right: calc(1.5rem + env(safe-area-inset-right, 0px));
+    padding-left: calc(1.5rem + var(--safe-left));
+    padding-right: calc(1.5rem + var(--safe-right));
   }
 
   .app-shell-main {
-    padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(3rem + var(--safe-bottom));
   }
 }
 
 @media (min-width: 64rem) {
   .app-shell-header,
   .app-shell-main {
-    padding-left: calc(2rem + env(safe-area-inset-left, 0px));
-    padding-right: calc(2rem + env(safe-area-inset-right, 0px));
+    padding-left: calc(2rem + var(--safe-left));
+    padding-right: calc(2rem + var(--safe-right));
   }
 
   .app-shell-main {
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5rem + var(--safe-bottom));
   }
 }
 
 .app-shell-main--full {
   box-sizing: border-box;
   height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
 }
 
 .manavault-import-dialog {
@@ -621,5 +629,10 @@ body[data-scroll-locked] .app-shell-main {
 
 /* Active foil/etched finish chip: the only place the scanner uses a foil sheen. */
 .scan-foil-chip {
-  background: linear-gradient(115deg, oklch(86% 0.1 85), oklch(88% 0.08 200) 45%, oklch(86% 0.1 320));
+  background: linear-gradient(
+    115deg,
+    oklch(86% 0.1 85),
+    oklch(88% 0.08 200) 45%,
+    oklch(86% 0.1 320)
+  );
 }

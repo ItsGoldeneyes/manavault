@@ -140,7 +140,7 @@ export function FullscreenPrintingDialog({
           labelledBy="fullscreen-card-title"
         >
           <motion.div
-            className="relative z-10 flex h-full flex-col gap-3 pb-3 pl-[calc(env(safe-area-inset-left)+0.75rem)] pr-[calc(env(safe-area-inset-right)+0.75rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:gap-4 sm:p-6"
+            className="relative z-10 flex h-full flex-col gap-3 pb-3 pl-[calc(var(--safe-left)+0.75rem)] pr-[calc(var(--safe-right)+0.75rem)] pt-[calc(var(--safe-top)+0.75rem)] sm:gap-4 sm:p-6"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.18 }}
@@ -204,7 +204,7 @@ export function FullscreenPrintingDialog({
               </Button>
             </div>
 
-            <div className="relative mb-0 flex min-h-0 flex-1 items-center justify-center pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:mb-12 sm:pb-0">
+            <div className="relative mb-0 flex min-h-0 flex-1 items-center justify-center pb-[calc(var(--safe-bottom)+0.75rem)] sm:mb-12 sm:pb-0">
               {canNavigate ? (
                 <Button
                   type="button"

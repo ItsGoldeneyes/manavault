@@ -224,7 +224,7 @@ function SwapFooter({
   const willBeIllegal = legality.kind === "preview" && legality.status === "illegal"
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-base-300 px-4 py-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] sm:pb-3">
+    <div className="flex flex-wrap items-center gap-3 border-t border-base-300 px-4 py-3 pb-[calc(0.75rem_+_var(--safe-bottom))] sm:pb-3">
       <div className="min-w-0 flex-1 text-sm">
         {applyError ? (
           <p role="alert" className="text-error">

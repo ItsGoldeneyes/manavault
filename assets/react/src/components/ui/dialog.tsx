@@ -124,7 +124,7 @@ export function DialogContent({
         style={{ zIndex: overlayLayers.dialog }}
       />
       <div
-        className="pointer-events-none fixed inset-0 flex items-stretch justify-center overflow-hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] sm:items-center sm:overflow-y-auto sm:pb-[calc(env(safe-area-inset-bottom)_+_2rem)] sm:pl-[calc(env(safe-area-inset-left)_+_1rem)] sm:pr-[calc(env(safe-area-inset-right)_+_1rem)] sm:pt-[calc(env(safe-area-inset-top)_+_2rem)]"
+        className="pointer-events-none fixed inset-0 flex items-stretch justify-center overflow-hidden pb-[var(--safe-bottom)] pl-[var(--safe-left)] pr-[var(--safe-right)] pt-[var(--safe-top)] sm:items-center sm:overflow-y-auto sm:pb-[calc(var(--safe-bottom)_+_2rem)] sm:pl-[calc(var(--safe-left)_+_1rem)] sm:pr-[calc(var(--safe-right)_+_1rem)] sm:pt-[calc(var(--safe-top)_+_2rem)]"
         style={{ zIndex: overlayLayers.dialog }}
       >
         <DialogPrimitive.Content
@@ -148,7 +148,7 @@ export function DialogContent({
         >
           <section
             className={cn(
-              "pointer-events-auto flex h-full max-h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-auto rounded-none border-y border-base-300 bg-base-100 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_4rem)] sm:rounded-box sm:border",
+              "pointer-events-auto flex h-full max-h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-auto rounded-none border-y border-base-300 bg-base-100 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh_-_var(--safe-top)_-_var(--safe-bottom)_-_4rem)] sm:rounded-box sm:border",
               className,
             )}
             {...props}

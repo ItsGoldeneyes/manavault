@@ -118,7 +118,7 @@ export function ScanListSheet({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-base-300 px-5 py-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between gap-3 border-t border-base-300 px-5 py-3 pb-[calc(0.75rem_+_var(--safe-bottom))]">
             <Button
               type="button"
               variant="ghost"

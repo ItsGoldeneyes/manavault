@@ -336,7 +336,7 @@ export function CardAddDialog(props: CardAddDialogProps) {
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : close())}>
       <DialogContent
         className={cn(
-          "max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_2rem)] overflow-y-auto sm:max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_4rem)]",
+          "max-h-[calc(100dvh_-_var(--safe-top)_-_var(--safe-bottom)_-_2rem)] overflow-y-auto sm:max-h-[calc(100dvh_-_var(--safe-top)_-_var(--safe-bottom)_-_4rem)]",
           mode === "deck" ? "max-w-xl" : "max-w-2xl",
         )}
         labelledBy="add-card-dialog-title"
