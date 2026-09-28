@@ -8,6 +8,18 @@ See [docs/releasing.md](docs/releasing.md) for maintainer instructions.
 
 ---
 
+## [1.4.2] - 2026-09-28
+
+### Bug Fixes
+
+- **android:** Keep backgrounds behind the system bars ([`090acee7`](../../commit/090acee707af6f38f7f83934ed4f1cc0b71511ef))
+- **scanner:** Clean up the camera view on Android ([`30fc02b5`](../../commit/30fc02b509c4bca5c00195dff38a86d4f6ee5b9c))
+
+### Features
+
+- **scanner:** Collect labelled scans for training recognition ([`788d11f7`](../../commit/788d11f7b9e323ecf93f56d6cf6a10bbeb01defb))
+- **pricing:** Follow lowest near-mint TCGplayer listing ([`10a93f24`](../../commit/10a93f24f48591b8225be0f63c94871df5ef04f2))
+
 ## [1.4.1] - 2026-09-28
 
 ### Bug Fixes
