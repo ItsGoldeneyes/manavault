@@ -41,6 +41,8 @@ export type FrameOutcome =
   | { type: "tracking"; candidate: Candidate | null }
   /** Identified, but it is the card that was just logged. */
   | { type: "duplicate"; candidate: Candidate }
+  /** Clearly a card from outside the locked sets; not logged. */
+  | { type: "outside-lock"; candidate: Candidate }
   /** Log this card. */
   | { type: "accept"; candidate: Candidate }
 
@@ -59,15 +61,35 @@ export function cardInView(result: Identification) {
   )
 }
 
+/**
+ * `allowed` is the set lock: only candidates it accepts can be logged, and the margin is
+ * measured among them. When the best match overall is disallowed and clearly beats every
+ * allowed one, the card in view is from another set and nothing is logged.
+ */
 export function evaluateFrame(
   tracker: ScanTracker,
   result: Identification,
+  allowed: (candidate: Candidate) => boolean = () => true,
 ): { tracker: ScanTracker; outcome: FrameOutcome } {
   if (!cardInView(result)) {
     return { tracker: { ...tracker, streakKey: null, streak: 0 }, outcome: { type: "empty" } }
   }
 
-  const [first, second] = result.candidates
+  const candidates = result.candidates.filter(allowed)
+  const best = result.candidates[0]
+  if (
+    best &&
+    !allowed(best) &&
+    best.score >= SCAN_THRESHOLDS.minScore &&
+    best.score - (candidates[0]?.score ?? 0) >= SCAN_THRESHOLDS.clearMargin
+  ) {
+    return {
+      tracker: { ...tracker, streakKey: null, streak: 0 },
+      outcome: { type: "outside-lock", candidate: best },
+    }
+  }
+
+  const [first, second] = candidates
   if (!first || first.score < SCAN_THRESHOLDS.minScore) {
     return {
       tracker: { ...tracker, streakKey: null, streak: 0 },

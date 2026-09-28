@@ -31,7 +31,11 @@ test("locked sets win over artwork, ownership and age", () => {
     printing("owned", { ownedCount: 2 }),
     printing("locked", { setCode: "LEB", illustrationId: "art-b", releasedAt: "1993-10-01" }),
   ]
-  assert.equal(choosePrinting(options, { illustrationId: "art-a" }, { ...prefs, lockedSets: ["leb", "2ed"] }).scryfallId, "locked")
+  assert.equal(
+    choosePrinting(options, { illustrationId: "art-a" }, { ...prefs, lockedSets: ["leb", "2ed"] })
+      .scryfallId,
+    "locked",
+  )
 })
 
 test("the scanned artwork beats owned and newer printings", () => {
@@ -39,7 +43,10 @@ test("the scanned artwork beats owned and newer printings", () => {
     printing("other-art-new", { illustrationId: "art-b", releasedAt: "2024-01-01", ownedCount: 3 }),
     printing("same-art-old", { releasedAt: "2001-01-01" }),
   ]
-  assert.equal(choosePrinting(options, { illustrationId: "art-a" }, prefs).scryfallId, "same-art-old")
+  assert.equal(
+    choosePrinting(options, { illustrationId: "art-a" }, prefs).scryfallId,
+    "same-art-old",
+  )
 })
 
 test("then owned, then English non-promo, then newest", () => {
@@ -61,10 +68,16 @@ test("then owned, then English non-promo, then newest", () => {
 })
 
 test("ignore promos drops promos unless nothing else is left", () => {
-  const options = [printing("promo", { promo: true, releasedAt: "2025-01-01", ownedCount: 4 }), printing("regular")]
+  const options = [
+    printing("promo", { promo: true, releasedAt: "2025-01-01", ownedCount: 4 }),
+    printing("regular"),
+  ]
   assert.equal(choosePrinting(options, {}, prefs).scryfallId, "regular")
   assert.equal(choosePrinting(options, {}, { ...prefs, ignorePromos: false }).scryfallId, "promo")
-  assert.equal(choosePrinting([printing("only-promo", { promo: true })], {}, prefs).scryfallId, "only-promo")
+  assert.equal(
+    choosePrinting([printing("only-promo", { promo: true })], {}, prefs).scryfallId,
+    "only-promo",
+  )
   assert.equal(choosePrinting([], {}, prefs), null)
 })
 

@@ -10,6 +10,7 @@ defmodule Manavault.Catalog.Search.Queries do
 
   defdelegate get_printing_by_scryfall_id(scryfall_id), to: Printings
   defdelegate scanner_printings(scryfall_id, illustration_id \\ nil), to: Printings
+  defdelegate set_illustration_ids(set_codes), to: Printings
   defdelegate get_printing(set_code, collector_number), to: Printings
   defdelegate get_card_with_printings(oracle_id), to: Printings
   defdelegate search_printings(filters, opts \\ []), to: Printings

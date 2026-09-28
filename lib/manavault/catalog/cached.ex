@@ -28,6 +28,14 @@ defmodule Manavault.Catalog.Cached do
   def scanner_printings(scryfall_id, illustration_id \\ nil),
     do: Search.scanner_printings(scryfall_id, illustration_id)
 
+  def set_illustration_ids(set_codes) do
+    codes = set_codes |> Enum.map(&String.downcase/1) |> Enum.uniq() |> Enum.sort()
+
+    cached(Cache.catalog_tag(), {:set_illustration_ids, codes}, fn ->
+      Search.set_illustration_ids(codes)
+    end)
+  end
+
   def get_printing(set_code, collector_number) do
     cached(Cache.catalog_tag(), {:printing_by_set_number, set_code, collector_number}, fn ->
       Search.get_printing(set_code, collector_number)

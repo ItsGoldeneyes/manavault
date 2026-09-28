@@ -3,7 +3,11 @@ import { useNavigate } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { queueSharedImport } from "../../lib/native-shared-import"
 import { useLocalStorageState } from "../../lib/use-local-storage"
-import { printingOption, ScannerPrintingsDocument } from "./documents"
+import {
+  printingOption,
+  ScannerPrintingsDocument,
+  ScannerSetIllustrationsDocument,
+} from "./documents"
 import { chooseFinish, choosePrinting, type Finish, type PrintingOption } from "./printing-choice"
 import type { Candidate, Quad } from "./recognition/pipeline"
 import { useRecognizer } from "./recognition/use-recognizer"
@@ -59,6 +63,12 @@ function newEntryId() {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+/** The set lock as a candidate filter; `loading` while its illustrations are fetched. */
+type SetLock =
+  | { status: "off" }
+  | { status: "loading" }
+  | { status: "ready"; allow: (candidate: Candidate) => boolean }
+
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 /**
@@ -91,6 +101,44 @@ export function useScanSession({ paused }: { paused: boolean }) {
   const trackerRef = useRef<ScanTracker>(INITIAL_TRACKER)
   const entriesRef = useRef(entries)
   entriesRef.current = entries
+  const lockRef = useRef<SetLock>({ status: "off" })
+  const lockedSetsKey = settings.lockedSets.join(",")
+
+  // A locked set restricts recognition to artwork printed in those sets. The browser only
+  // knows each artwork's representative printing, so the server lists the illustrations.
+  useEffect(() => {
+    const sets = lockedSetsKey ? lockedSetsKey.split(",") : []
+    if (sets.length === 0) {
+      lockRef.current = { status: "off" }
+      return
+    }
+    let cancelled = false
+    lockRef.current = { status: "loading" }
+    apollo
+      .query({ query: ScannerSetIllustrationsDocument, variables: { setCodes: sets } })
+      .then(({ data }) => {
+        if (cancelled) return
+        const illustrations = new Set(data?.scannerSetIllustrations ?? [])
+        const codes = new Set(sets)
+        lockRef.current = {
+          status: "ready",
+          allow: (candidate) =>
+            codes.has(candidate.set.toLowerCase()) ||
+            (candidate.illustration_id !== undefined &&
+              illustrations.has(candidate.illustration_id)),
+        }
+      })
+      .catch(() => {
+        // Without the list, fall back to the representative printing's set.
+        if (!cancelled) {
+          const codes = new Set(sets)
+          lockRef.current = { status: "ready", allow: (c) => codes.has(c.set.toLowerCase()) }
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [apollo, lockedSetsKey])
 
   const updateEntry = useCallback(
     (id: string, update: (entry: ScanEntry) => ScanEntry) =>
@@ -175,7 +223,16 @@ export function useScanSession({ paused }: { paused: boolean }) {
         try {
           const result = await identify(frame)
           if (cancelled || pausedRef.current) continue
-          const { tracker, outcome } = evaluateFrame(trackerRef.current, result)
+          const lock = lockRef.current
+          if (lock.status === "loading") {
+            await sleep(100)
+            continue
+          }
+          const { tracker, outcome } = evaluateFrame(
+            trackerRef.current,
+            result,
+            lock.status === "ready" ? lock.allow : undefined,
+          )
           trackerRef.current = tracker
           if (outcome.type === "accept") logScan(outcome.candidate)
           setView((current) => ({

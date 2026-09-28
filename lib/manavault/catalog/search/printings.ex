@@ -82,6 +82,20 @@ defmodule Manavault.Catalog.Search.Printings do
     )
   end
 
+  @doc "Distinct illustration IDs printed in any of the given sets (the scanner's set lock)."
+  def set_illustration_ids([]), do: []
+
+  def set_illustration_ids(set_codes) when is_list(set_codes) do
+    codes = Enum.map(set_codes, &String.downcase/1)
+
+    Repo.all(
+      from printing in Printing,
+        where: printing.set_code in ^codes and not is_nil(printing.illustration_id),
+        distinct: true,
+        select: printing.illustration_id
+    )
+  end
+
   def get_printing(set_code, collector_number)
       when is_binary(set_code) and is_binary(collector_number) do
     Repo.one(

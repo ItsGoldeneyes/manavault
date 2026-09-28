@@ -29,6 +29,12 @@ export const ScannerPrintingsDocument = graphql(`
   }
 `)
 
+export const ScannerSetIllustrationsDocument = graphql(`
+  query ScannerSetIllustrations($setCodes: [String!]!) {
+    scannerSetIllustrations(setCodes: $setCodes)
+  }
+`)
+
 type ScannerPrinting = ScannerPrintingsQuery["scannerPrintings"][number]
 
 export function printingOption(printing: ScannerPrinting): PrintingOption {

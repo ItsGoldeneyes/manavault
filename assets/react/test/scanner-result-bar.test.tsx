@@ -68,6 +68,14 @@ test("chips change finish, printing and language", async () => {
 })
 
 test("empty state explains how to scan", () => {
-  render(<ScanResultBar entry={null} onAddCopy={vi.fn()} onFinish={vi.fn()} onPrinting={vi.fn()} onLanguage={vi.fn()} />)
+  render(
+    <ScanResultBar
+      entry={null}
+      onAddCopy={vi.fn()}
+      onFinish={vi.fn()}
+      onPrinting={vi.fn()}
+      onLanguage={vi.fn()}
+    />,
+  )
   expect(screen.getByText(/Scanned cards appear here/)).toBeTruthy()
 })

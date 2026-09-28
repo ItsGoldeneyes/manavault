@@ -41,6 +41,12 @@ defmodule ManavaultWeb.Schema.Catalog.CardOperations do
       resolve(&QueryResolvers.scanner_printings/3)
     end
 
+    @desc "Illustration IDs printed in any of the given sets; the card scanner's set lock."
+    field :scanner_set_illustrations, non_null(list_of(non_null(:id))) do
+      arg(:set_codes, non_null(list_of(non_null(:string))))
+      resolve(&QueryResolvers.scanner_set_illustrations/3)
+    end
+
     field :card_edhrec, non_null(:card_edhrec) do
       arg(:name, non_null(:string))
       resolve(&QueryResolvers.card_edhrec/3)

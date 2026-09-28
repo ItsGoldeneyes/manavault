@@ -70,6 +70,25 @@ defmodule ManavaultWeb.Schema.ScannerPrintingsTest do
     assert [] = query(conn, "unknown", "missing-art")
   end
 
+  test "lists the illustrations printed in the locked sets", %{conn: conn} do
+    {:ok, _result} =
+      Catalog.import_cards([
+        printing("fra-1", "art-fra", "2026-08-01", "1") |> Map.put("set", "fra"),
+        printing("spg-1", "art-spg", "2026-08-01", "2") |> Map.put("set", "spg"),
+        printing("dsk-1", "art-dsk", "2024-09-01", "3") |> Map.put("set", "dsk")
+      ])
+
+    body =
+      conn
+      |> post("/api/graphql", %{
+        "query" => "query($s: [String!]!) { scannerSetIllustrations(setCodes: $s) }",
+        "variables" => %{"s" => ["FRA", "spg", "none"]}
+      })
+      |> json_response(200)
+
+    assert Enum.sort(body["data"]["scannerSetIllustrations"]) == ["art-fra", "art-spg"]
+  end
+
   defp query(conn, scryfall_id, illustration_id) do
     body =
       conn

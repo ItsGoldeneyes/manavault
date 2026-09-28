@@ -52,6 +52,10 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
     {:ok, Catalog.scanner_printings(id, Map.get(args, :illustration_id))}
   end
 
+  def scanner_set_illustrations(_parent, %{set_codes: set_codes}, _resolution) do
+    {:ok, Catalog.set_illustration_ids(Enum.take(set_codes, 50))}
+  end
+
   def reload_scryfall_catalog(_parent, _args, _resolution) do
     case Catalog.reload_scryfall_catalog_async() do
       {:ok, _job} ->

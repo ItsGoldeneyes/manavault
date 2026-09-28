@@ -21,6 +21,7 @@ defmodule Manavault.Catalog do
   defdelegate suggest_card_names(term, opts \\ []), to: Search
   defdelegate get_printing_by_scryfall_id(scryfall_id), to: Cached
   defdelegate scanner_printings(scryfall_id, illustration_id \\ nil), to: Cached
+  defdelegate set_illustration_ids(set_codes), to: Cached
   defdelegate get_printing(set_code, collector_number), to: Cached
   defdelegate get_card_with_printings(oracle_id), to: Cached
   defdelegate search_printings(filters, opts \\ []), to: Cached

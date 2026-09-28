@@ -55,7 +55,7 @@ export function ScanPage() {
     >
       <ScanViewfinder videoRef={camera.videoRef} view={view} />
 
-      <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-[calc(env(safe-area-inset-top)_+_0.75rem)]">
+      <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-[calc(var(--safe-top)_+_0.75rem)]">
         <Link
           to="/collection"
           search={{ importFile: false }}
@@ -99,7 +99,7 @@ export function ScanPage() {
       {camera.state.status === "error" ? (
         <CameraErrorPanel message={camera.state.message} onRetry={start} />
       ) : (
-        <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] pt-10">
+        <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-[calc(var(--safe-bottom)_+_0.75rem)] pt-10">
           <StatusPill camera={camera.state} recognizer={recognizer.state} view={view} />
           <ScanResultBar
             entry={latest}
@@ -194,6 +194,11 @@ function statusText(recognizer: RecognizerState, view: ScanView): { text: string
   switch (view.outcome) {
     case "tracking":
       return { text: "Hold steady…", busy: false }
+    case "outside-lock":
+      return {
+        text: `Not in locked sets: ${view.candidate?.name ?? ""} (${view.candidate?.set.toUpperCase() ?? ""})`,
+        busy: false,
+      }
     case "duplicate":
       return { text: "Already logged · tap +1 for another copy", busy: false }
     case "accept":
@@ -206,7 +211,7 @@ function statusText(recognizer: RecognizerState, view: ScanView): { text: string
 /** Only shown when the camera cannot start: what went wrong and a way to retry. */
 function CameraErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="absolute inset-0 flex items-end justify-center bg-base-100 px-5 pb-[calc(env(safe-area-inset-bottom)_+_2rem)] pt-24 sm:items-center">
+    <div className="absolute inset-0 flex items-end justify-center bg-base-100 px-5 pb-[calc(var(--safe-bottom)_+_2rem)] pt-24 sm:items-center">
       <div className="w-full max-w-md">
         <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-box border-[1.5px] border-base-300 bg-base-200">
           <CameraOff className="h-7 w-7 text-error" aria-hidden="true" />

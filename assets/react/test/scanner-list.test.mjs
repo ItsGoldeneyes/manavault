@@ -44,14 +44,18 @@ function entry(id, overrides = {}) {
 }
 
 test("totals use each entry's finish price and quantity", () => {
-  const entries = [entry("a", { quantity: 2 }), entry("b", { finish: "foil" }), entry("c", { prices: { nonfoil: null, foil: null, etched: null } })]
+  const entries = [
+    entry("a", { quantity: 2 }),
+    entry("b", { finish: "foil" }),
+    entry("c", { prices: { nonfoil: null, foil: null, etched: null } }),
+  ]
   assert.equal(totalValueCents(entries), 150 * 2 + 900)
   assert.equal(totalQuantity(entries), 4)
 })
 
 test("CSV uses the collection import columns, oldest scan first, with quoting", () => {
   const csv = scanListCsv([
-    entry("new", { name: 'Borrowing 100,000 Arrows', finish: "foil", quantity: 3, language: "ja" }),
+    entry("new", { name: "Borrowing 100,000 Arrows", finish: "foil", quantity: 3, language: "ja" }),
     entry("old", { resolved: false }),
   ])
   assert.equal(
@@ -93,16 +97,34 @@ test("withPrinting swaps the printing but keeps quantity", () => {
 })
 
 test("search matches name, set and number terms", () => {
-  const entries = [entry("a"), entry("b", { name: "Counterspell", setCode: "7ed", collectorNumber: "67" })]
-  assert.deepEqual(filterEntries(entries, "counter 7ed").map((e) => e.id), ["b"])
-  assert.deepEqual(filterEntries(entries, "  ").map((e) => e.id), ["a", "b"])
+  const entries = [
+    entry("a"),
+    entry("b", { name: "Counterspell", setCode: "7ed", collectorNumber: "67" }),
+  ]
+  assert.deepEqual(
+    filterEntries(entries, "counter 7ed").map((e) => e.id),
+    ["b"],
+  )
+  assert.deepEqual(
+    filterEntries(entries, "  ").map((e) => e.id),
+    ["a", "b"],
+  )
 })
 
 test("stored lists and settings are sanitised", () => {
-  assert.deepEqual(normalizeScanList([entry("ok"), { id: "bad" }, null, entry("zero", { quantity: 0 })]).map((e) => e.id), ["ok"])
+  assert.deepEqual(
+    normalizeScanList([entry("ok"), { id: "bad" }, null, entry("zero", { quantity: 0 })]).map(
+      (e) => e.id,
+    ),
+    ["ok"],
+  )
   assert.deepEqual(normalizeScanList("nope"), [])
   assert.deepEqual(normalizeScanSettings(null), DEFAULT_SCAN_SETTINGS)
-  const settings = normalizeScanSettings({ lockedSets: ["LEB", " leb ", 3, ""], dingThresholdCents: -5, preferFoil: true })
+  const settings = normalizeScanSettings({
+    lockedSets: ["LEB", " leb ", 3, ""],
+    dingThresholdCents: -5,
+    preferFoil: true,
+  })
   assert.deepEqual(settings.lockedSets, ["leb"])
   assert.equal(settings.dingThresholdCents, 100)
   assert.equal(settings.preferFoil, true)
@@ -142,7 +164,13 @@ test("bundle files are downloaded once per version and old versions pruned", asy
     return new Response(new Uint8Array([1, 2, 3, 4]))
   }
   const progress = []
-  const first = await fetchBundleFile("/f/v1/a", { version: "v1", size: 4, cacheStorage, fetcher, onProgress: (n) => progress.push(n) })
+  const first = await fetchBundleFile("/f/v1/a", {
+    version: "v1",
+    size: 4,
+    cacheStorage,
+    fetcher,
+    onProgress: (n) => progress.push(n),
+  })
   assert.equal(first.cached, false)
   assert.deepEqual([...first.bytes], [1, 2, 3, 4])
   assert.equal(progress.at(-1), 4)
@@ -151,10 +179,16 @@ test("bundle files are downloaded once per version and old versions pruned", asy
   assert.equal(second.cached, true)
   assert.equal(requests, 1)
 
-  await assert.rejects(fetchBundleFile("/f/v1/b", { version: "v1", size: 9, cacheStorage, fetcher }), /expected 9 bytes/)
+  await assert.rejects(
+    fetchBundleFile("/f/v1/b", { version: "v1", size: 9, cacheStorage, fetcher }),
+    /expected 9 bytes/,
+  )
 
   await cacheStorage.open("manavault-pwa-v1")
   await fetchBundleFile("/f/v2/a", { version: "v2", cacheStorage, fetcher })
   await pruneBundleCaches("v2", cacheStorage)
-  assert.deepEqual([...cacheStorage.stores.keys()].sort(), ["manavault-pwa-v1", scannerCacheName("v2")])
+  assert.deepEqual([...cacheStorage.stores.keys()].sort(), [
+    "manavault-pwa-v1",
+    scannerCacheName("v2"),
+  ])
 })
