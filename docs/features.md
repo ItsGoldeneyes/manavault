@@ -81,13 +81,15 @@ Collection workflows include:
 browser, the installed PWA and the Capacitor apps. It opens straight into the
 camera; the browser or OS asks for camera access once.
 
-- Hold one card at a time inside the frame. Cards are recognized and logged
+- Hold one card at a time in view (a phone scanner stand works well; the whole
+  camera image is scanned). Cards are recognized and logged
   automatically, with no tap. The same card is never logged twice in a row;
   tap the result or **+1** to count another copy.
 - Recognition matches the artwork, so reprints that share art cannot be told
   apart by the camera. The default printing is a locked set if any, then the
   scanned art, then a printing you already own, then the newest English
-  non-promo printing. Chips on the result change finish (normal/foil/etched),
+  non-promo printing. Locked sets also restrict recognition: only cards printed
+  in them are logged, and anything else shows "Not in locked sets". Chips on the result change finish (normal/foil/etched),
   printing, and language.
 - Settings: lock one or more sets, ignore promos, prefer foil, show the running
   total value, and sounds (a click per scan, a ding at $1 and a bigger ding at

@@ -11,28 +11,22 @@ export type CameraState =
       message: string
     }
 
-/** Frames sent to the recognizer: a square from the middle of the video, at this size. */
+/** Frames sent to the recognizer are this many pixels square. */
 export const FRAME_SIZE = 640
-/** Share of the video's shorter side the frame square covers. */
-export const FRAME_COVERAGE = 0.92
+const FRAME_BACKGROUND = "rgb(18, 18, 18)"
 
 /**
- * The frame square in video pixels: centred in the part of the video that is visible under
- * `object-fit: cover` in a `viewWidth` × `viewHeight` box, so what the guide shows is what
- * gets scanned. The guide overlay draws the same square.
+ * How the whole video fits into the square frame (like `object-fit: contain`): the frame shows
+ * the camera's full field of view, so a card anywhere in view is found, for example one that
+ * sits off-centre under a scanner stand's lens. `scale` maps video pixels to frame pixels.
  */
-export function frameSquare(
-  videoWidth: number,
-  videoHeight: number,
-  viewWidth = videoWidth,
-  viewHeight = videoHeight,
-) {
-  const viewAspect =
-    viewWidth > 0 && viewHeight > 0 ? viewWidth / viewHeight : videoWidth / videoHeight
-  const visibleWidth = Math.min(videoWidth, videoHeight * viewAspect)
-  const visibleHeight = Math.min(videoHeight, videoWidth / viewAspect)
-  const side = Math.min(visibleWidth, visibleHeight) * FRAME_COVERAGE
-  return { x: (videoWidth - side) / 2, y: (videoHeight - side) / 2, side }
+export function frameGeometry(videoWidth: number, videoHeight: number) {
+  const scale = FRAME_SIZE / Math.max(videoWidth, videoHeight)
+  return {
+    scale,
+    offsetX: (FRAME_SIZE - videoWidth * scale) / 2,
+    offsetY: (FRAME_SIZE - videoHeight * scale) / 2,
+  }
 }
 
 /**
@@ -106,7 +100,7 @@ export function useCamera() {
 
   useEffect(() => stop, [stop])
 
-  /** The centre square of the current video frame as RGBA pixels, or null before video. */
+  /** The whole current video frame fitted into the square frame, or null before video. */
   const grabFrame = useCallback((): RgbaImage | null => {
     const video = videoRef.current
     if (!video || video.readyState < 2 || !video.videoWidth) return null
@@ -116,13 +110,10 @@ export function useCamera() {
     canvas.height = FRAME_SIZE
     const context = canvas.getContext("2d", { willReadFrequently: true })
     if (!context) return null
-    const { x, y, side } = frameSquare(
-      video.videoWidth,
-      video.videoHeight,
-      video.clientWidth,
-      video.clientHeight,
-    )
-    context.drawImage(video, x, y, side, side, 0, 0, FRAME_SIZE, FRAME_SIZE)
+    const { scale, offsetX, offsetY } = frameGeometry(video.videoWidth, video.videoHeight)
+    context.fillStyle = FRAME_BACKGROUND
+    context.fillRect(0, 0, FRAME_SIZE, FRAME_SIZE)
+    context.drawImage(video, offsetX, offsetY, video.videoWidth * scale, video.videoHeight * scale)
     const pixels = context.getImageData(0, 0, FRAME_SIZE, FRAME_SIZE)
     return { data: pixels.data, width: FRAME_SIZE, height: FRAME_SIZE }
   }, [])

@@ -68,13 +68,17 @@ Code lives in `assets/react/src/pages/scan/`.
   `manavault-pwa-*` caches.
 - Inference is onnxruntime-web 1.30 on single-threaded WASM, which needs no cross-origin isolation
   and so works in the website, PWA and Capacitor WebViews. The CSP allows `'wasm-unsafe-eval'`.
-- Each frame is the centre square of the visible video (92% of its short side), resampled to
-  640 px. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
+- Each frame is the whole camera image fitted into a 640 px square (the preview is uncropped,
+  `object-fit: contain`), so a card anywhere in view is found, including off-centre under a
+  scanner stand's lens. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
   card), embeds the card's art-frame crops and searches the gallery (top 5).
 - `scan-decision.ts` decides when to log. A card is in view when the detector's upright vote is at
   least 0.5 and its short side at least 60 px. A match is logged on one frame at a score of 0.75
   or more with a 0.08 lead over the runner-up, otherwise after two agreeing frames scoring at least
   0.6. The same card (both faces count as one) is not logged again until a different card is.
+  With locked sets, only artwork printed in those sets can be logged
+  (`scannerSetIllustrations(setCodes)` lists their illustration IDs); a card that clearly
+  matches something outside them is reported as "Not in locked sets" instead.
 - `printing-choice.ts` picks the default printing and finish; `scan-list.ts` builds the import
   CSV (`name,set_code,collector_number,quantity,finish,language,scryfall_id`), which is handed to
   the collection import through `queueSharedImport` in `lib/native-shared-import.ts`.
