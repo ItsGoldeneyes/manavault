@@ -9,6 +9,9 @@
     "StatusBar": {
       "overlaysWebView": false,
       "backgroundColor": "#18040d"
+    },
+    "SystemBars": {
+      "insetsHandling": "disable"
     }
   },
   "android": {

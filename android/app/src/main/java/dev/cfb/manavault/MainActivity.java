@@ -7,9 +7,13 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.webkit.CookieManager;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.CapConfig;
@@ -44,6 +48,34 @@ public class MainActivity extends BridgeActivity {
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         controller.setAppearanceLightStatusBars(false);
         controller.setAppearanceLightNavigationBars(false);
+
+        keepWebViewClearOfSystemBars();
+    }
+
+    /**
+     * Android 15+ draws apps edge to edge and ignores the status/navigation bar colors, so the
+     * WebView would sit under the system bars. Rather than rely on the page reading the insets
+     * (Capacitor's SystemBars CSS handling is disabled in capacitor.config.json because some
+     * WebViews reported them as 0), pad the WebView's container by the bar and cutout insets
+     * and paint the padding in the app chrome color. The on-screen keyboard shrinks the bottom.
+     */
+    private void keepWebViewClearOfSystemBars() {
+        View container = (View) getBridge().getWebView().getParent();
+        container.setBackgroundColor(APP_CHROME_COLOR);
+        ViewCompat.setOnApplyWindowInsetsListener(container, (view, insets) -> {
+            int types = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+            Insets bars = insets.getInsets(types);
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean keyboard = insets.isVisible(WindowInsetsCompat.Type.ime());
+            view.setPadding(bars.left, bars.top, bars.right, keyboard ? Math.max(ime.bottom, bars.bottom) : bars.bottom);
+            // Hand the WebView zero insets (not CONSUMED, which stops later recalculation), so
+            // env(safe-area-inset-*) is 0 inside the already padded area.
+            return new WindowInsetsCompat.Builder(insets)
+                    .setInsets(types, Insets.NONE)
+                    .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
+                    .build();
+        });
+        ViewCompat.requestApplyInsets(container);
     }
 
     @Override
