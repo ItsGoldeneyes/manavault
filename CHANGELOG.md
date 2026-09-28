@@ -8,6 +8,13 @@ See [docs/releasing.md](docs/releasing.md) for maintainer instructions.
 
 ---
 
+## [1.4.1] - 2026-09-28
+
+### Bug Fixes
+
+- **android:** Pad the WebView by the system bar insets natively ([`7a9787d6`](../../commit/7a9787d67d2fb678b550b9dea6e9fae3dba234b0))
+- **scanner:** Delay notices and show the card scan straight away ([`0a2c1aae`](../../commit/0a2c1aae747e9862f926402227567aa3af2f1a90))
+
 ## [1.4.0] - 2026-09-28
 
 ### Bug Fixes
