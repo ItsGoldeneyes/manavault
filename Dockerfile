@@ -17,44 +17,38 @@ FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS node-runtime
 FROM ${BUILDER_IMAGE} AS builder
 
 ARG AUBE_VERSION
-ARG MANAVAULT_ASSET_VERSION
 COPY --from=node-runtime /usr/local /usr/local
 
-ENV MISE_DATA_DIR=/mise
-ENV MISE_CACHE_DIR=/mise/cache
-ENV PATH="/mise/installs/aube/${AUBE_VERSION}:/usr/local/bin:${PATH}"
-
-RUN apk add --no-cache build-base git curl ca-certificates xz tar
+RUN apk add --no-cache build-base git curl ca-certificates tar
 
 WORKDIR /app
 
-# Pin mise to a verified release instead of piping a remote installer to the
-# shell (curl https://mise.run | sh), so a compromise of mise.run can't inject
-# code into the build. Update MISE_VERSION + the checksums together.
+# aube is the JavaScript package manager used by the repo (pnpm-compatible).
+# Pin the release and verify its checksum instead of piping a remote installer
+# to the shell. Update AUBE_VERSION and both checksums together (musl builds,
+# since the builder is Alpine).
 ARG TARGETARCH
-ARG MISE_VERSION=v2026.6.14
-ARG MISE_SHA256_AMD64=491dd31ff1e0201c7866046f4110125392a481f0fd37e01e5e622fa12670b77b
-ARG MISE_SHA256_ARM64=947541d82684732cf27327d0d1914b471c0edb5ed6db8507f81b4ad8b67ba7cf
-
+ARG AUBE_SHA256_AMD64=6761c69514475a87b375d02a3782ebbab1dfdf181a584ee6b6c91814a882cb37
+ARG AUBE_SHA256_ARM64=07da9245c5ac2ef540ed59f795aeee6986d8a9ed5127d4d9c97cbfd1cc05c308
 RUN set -eu; \
   arch="${TARGETARCH:-$(uname -m)}"; \
   case "$arch" in \
-    amd64|x86_64) mise_arch=x64; mise_sha="$MISE_SHA256_AMD64" ;; \
-    arm64|aarch64) mise_arch=arm64; mise_sha="$MISE_SHA256_ARM64" ;; \
+    amd64|x86_64) aube_arch=x86_64; aube_sha="$AUBE_SHA256_AMD64" ;; \
+    arm64|aarch64) aube_arch=aarch64; aube_sha="$AUBE_SHA256_ARM64" ;; \
     *) echo "unsupported build arch: ${arch}" >&2; exit 1 ;; \
   esac; \
-  curl -fsSL "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-${mise_arch}-musl.tar.gz" -o /tmp/mise.tar.gz; \
-  echo "${mise_sha}  /tmp/mise.tar.gz" | sha256sum -c -; \
-  tar -xzf /tmp/mise.tar.gz -C /tmp; \
-  mv /tmp/mise/bin/mise /usr/local/bin/mise; \
-  rm -rf /tmp/mise /tmp/mise.tar.gz; \
-  printf '[tools]\naube = "%s"\n' "$AUBE_VERSION" > .mise.toml; \
-  mise install -y
+  curl -fsSL "https://github.com/aubepkg/aube/releases/download/v${AUBE_VERSION}/aube-v${AUBE_VERSION}-${aube_arch}-unknown-linux-musl.tar.gz" -o /tmp/aube.tar.gz; \
+  echo "${aube_sha}  /tmp/aube.tar.gz" | sha256sum -c -; \
+  tar -xzf /tmp/aube.tar.gz -C /tmp aube; \
+  install /tmp/aube /usr/local/bin/aube; \
+  rm -f /tmp/aube /tmp/aube.tar.gz; \
+  aube --version
 
 RUN mix local.hex --force && mix local.rebar --force
 
+# The asset version is read at runtime only (ManavaultWeb.AssetVersion), so it is set in the
+# runner stage. A per-commit value here would invalidate every layer below on every build.
 ENV MIX_ENV=prod
-ENV MANAVAULT_ASSET_VERSION=${MANAVAULT_ASSET_VERSION}
 
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
@@ -63,12 +57,16 @@ RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
+# Install JavaScript packages before copying the code, so they stay cached until the
+# lockfile changes.
+COPY package.json aube-lock.yaml ./
+RUN aube install --frozen-lockfile
+
 COPY priv priv
 COPY lib lib
-COPY package.json aube-lock.yaml vite.config.ts codegen.ts capacitor.config.json ./
+COPY vite.config.ts codegen.ts capacitor.config.json ./
 COPY assets assets
 
-RUN aube install --frozen-lockfile
 RUN mix compile
 RUN mix assets.deploy
 
