@@ -2,7 +2,7 @@ import { useEffect, useState, type RefObject } from "react"
 import { cn } from "../../lib/utils"
 import type { Quad } from "./recognition/pipeline"
 import { frameGeometry } from "./use-camera"
-import type { ScanView } from "./use-scan-session"
+import type { ScanView } from "./scan-view"
 
 /**
  * Camera preview, uncropped (`object-fit: contain`): the whole camera image is what gets

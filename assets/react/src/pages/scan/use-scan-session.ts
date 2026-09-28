@@ -9,14 +9,13 @@ import {
   ScannerSetIllustrationsDocument,
 } from "./documents"
 import { chooseFinish, choosePrinting, type Finish, type PrintingOption } from "./printing-choice"
-import type { Candidate, Quad } from "./recognition/pipeline"
+import type { Candidate } from "./recognition/pipeline"
 import { useRecognizer } from "./recognition/use-recognizer"
 import {
   cardKey,
   evaluateFrame,
   forgetLastLogged,
   INITIAL_TRACKER,
-  type FrameOutcome,
   type ScanTracker,
 } from "./scan-decision"
 import {
@@ -35,21 +34,9 @@ import {
   type ScanSettings,
 } from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
+import { IDLE_VIEW, nextView, type ScanView } from "./scan-view"
 import { useCamera } from "./use-camera"
 
-/** What the viewfinder shows for the latest frame. */
-export interface ScanView {
-  outcome: FrameOutcome["type"] | "idle"
-  /** Detected card corners in frame pixels (see `FRAME_SIZE`), when a card is in view. */
-  quad: Quad | null
-  candidate: Candidate | null
-  /** Milliseconds for the latest identification. */
-  ms: number | null
-  /** Increments on every logged scan, to replay the confirmation flash. */
-  logged: number
-}
-
-const IDLE_VIEW: ScanView = { outcome: "idle", quad: null, candidate: null, ms: null, logged: 0 }
 /** Breathing room between frames so the UI thread and battery are not saturated. */
 const FRAME_GAP_MS = 40
 
@@ -192,7 +179,9 @@ export function useScanSession({ paused }: { paused: boolean }) {
         language: candidate.lang ?? "en",
         quantity: 1,
         prices: { nonfoil: null, foil: null, etched: null },
-        imageUrl: candidate.url ?? null,
+        // The full card scan of the recognized printing, not its art crop, so the thumbnail
+        // does not jump from landscape art to a card when the catalog lookup finishes.
+        imageUrl: candidate.url?.replace("/art_crop/", "/normal/") ?? null,
         resolved: false,
         scannedAt: Date.now(),
       }
@@ -235,13 +224,8 @@ export function useScanSession({ paused }: { paused: boolean }) {
           )
           trackerRef.current = tracker
           if (outcome.type === "accept") logScan(outcome.candidate)
-          setView((current) => ({
-            outcome: outcome.type,
-            quad: outcome.type === "empty" ? null : result.quad,
-            candidate: outcome.type === "empty" ? null : outcome.candidate,
-            ms: result.timings.total,
-            logged: current.logged + (outcome.type === "accept" ? 1 : 0),
-          }))
+          const now = performance.now()
+          setView((current) => nextView(current, outcome, result, now))
         } catch {
           if (cancelled) return
           await sleep(250)

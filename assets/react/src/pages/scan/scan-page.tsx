@@ -11,7 +11,8 @@ import { ScanSettingsSheet } from "./scan-settings-sheet"
 import { unlockScanSounds } from "./scan-sounds"
 import { ScanViewfinder } from "./scan-viewfinder"
 import type { CameraState } from "./use-camera"
-import { useScanSession, type ScanView } from "./use-scan-session"
+import type { ScanView } from "./scan-view"
+import { useScanSession } from "./use-scan-session"
 
 type Sheet =
   | { type: "none" }
@@ -204,7 +205,7 @@ function statusText(recognizer: RecognizerState, view: ScanView): { text: string
     case "accept":
       return { text: `Logged ${view.candidate?.name ?? ""}`, busy: false }
     default:
-      return { text: "Hold one card inside the frame", busy: false }
+      return { text: "Hold one card in view", busy: false }
   }
 }
 

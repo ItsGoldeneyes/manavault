@@ -26,7 +26,7 @@ export function ScanResultBar({
     return (
       <div className="flex items-center gap-3 rounded-box border-[1.5px] border-base-300 bg-base-100/95 px-4 py-4 text-sm text-base-content/75 shadow-lg">
         <ScanLine className="h-5 w-5 shrink-0 text-base-content/60" aria-hidden="true" />
-        Scanned cards appear here. Hold one card at a time inside the frame.
+        Scanned cards appear here. Hold one card at a time in view of the camera.
       </div>
     )
   }
