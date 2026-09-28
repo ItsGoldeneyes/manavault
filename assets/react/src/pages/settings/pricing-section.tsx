@@ -20,7 +20,8 @@ const sourceLabels: Record<string, { label: string; description: string }> = {
   },
   tcgplayer: {
     label: "TCGplayer",
-    description: "Market prices via tcgtracking.com, including special treatments. Updated daily.",
+    description:
+      "Lowest NM listing via tcgtracking.com (best available condition or market price when no NM is listed), including special treatments. Updated daily.",
   },
   cardkingdom: {
     label: "Card Kingdom",

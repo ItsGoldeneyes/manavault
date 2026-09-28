@@ -210,7 +210,7 @@ defmodule Manavault.PricingTest do
   end
 
   describe "TcgTracking.rows/2" do
-    test "joins products with market pricing and ignores low-only prices" do
+    test "prices from the pricing block's NM low, falling back to market" do
       cards = %{
         "products" => [
           %{"id" => 1, "scryfall_id" => "aaa"},
@@ -233,8 +233,55 @@ defmodule Manavault.PricingTest do
       rows = TcgTracking.rows(cards, pricing) |> Enum.sort_by(&{&1.scryfall_id, &1.finish})
 
       assert rows == [
-               %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 3593},
+               %{scryfall_id: "aaa", finish: "foil", price_cents: 3999},
+               %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 3509},
                %{scryfall_id: "bbb", finish: "etched", price_cents: 957}
+             ]
+    end
+
+    test "follows the lowest English NM listing, then the best available condition" do
+      cards = %{
+        "products" => [
+          %{"id" => 1, "scryfall_id" => "aaa"},
+          %{"id" => 2, "scryfall_id" => "bbb"},
+          %{"id" => 3, "scryfall_id" => "ccc"}
+        ]
+      }
+
+      pricing = %{
+        "prices" => %{
+          "1" => %{"tcg" => %{"Normal" => %{"low" => 10.0, "market" => 12.0}}},
+          "2" => %{"tcg" => []},
+          "3" => %{"tcg" => %{"Normal" => %{"market" => 4.5}}}
+        }
+      }
+
+      skus = %{
+        "products" => %{
+          "1" => %{
+            "11" => sku("NM", "Normal", 9.5),
+            "12" => sku("LP", "Normal", 7.0),
+            "13" => sku("NM", "Normal", 3.0, "JP"),
+            "14" => sku("MP", "Foil", 20.0),
+            "15" => sku("HP", "Foil", 15.0)
+          },
+          "2" => %{
+            "21" => sku("NM", "Normal", nil),
+            "22" => sku("MP", "Normal", 90.0),
+            "23" => sku("LP", "Normal", 105.0)
+          },
+          "3" => %{"31" => sku("NM", "Normal", nil), "32" => sku("NM", "Normal", nil, "DE")}
+        }
+      }
+
+      rows =
+        TcgTracking.rows(cards, pricing, skus) |> Enum.sort_by(&{&1.scryfall_id, &1.finish})
+
+      assert rows == [
+               %{scryfall_id: "aaa", finish: "foil", price_cents: 2000},
+               %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 950},
+               %{scryfall_id: "bbb", finish: "nonfoil", price_cents: 10_500},
+               %{scryfall_id: "ccc", finish: "nonfoil", price_cents: 450}
              ]
     end
 
@@ -256,7 +303,7 @@ defmodule Manavault.PricingTest do
       }
 
       assert TcgTracking.rows(cards, pricing) == [
-               %{scryfall_id: "42a1986c", finish: "foil", price_cents: 67_549}
+               %{scryfall_id: "42a1986c", finish: "foil", price_cents: 65_098}
              ]
     end
 
@@ -270,6 +317,10 @@ defmodule Manavault.PricingTest do
       assert TcgTracking.rows(cards, pricing) == []
       assert TcgTracking.rows(%{}, %{}) == []
     end
+  end
+
+  defp sku(condition, variant, low, language \\ "EN") do
+    %{"cnd" => condition, "var" => variant, "lng" => language, "low" => low}
   end
 
   describe "Sync.replace_vendor_prices/2" do
