@@ -23,6 +23,12 @@ defmodule ManavaultWeb.Router do
     plug ManavaultWeb.Plugs.GraphQLCSRFProtection
   end
 
+  # Read-only JSON/file endpoints for the signed-in owner. GETs carry no CSRF risk, so the
+  # GraphQL CSRF plug (POST-only) is not part of this stack.
+  pipeline :authenticated_read_api do
+    plug ManavaultWeb.Plugs.Authentication, :api
+  end
+
   pipeline :personal_api do
     plug ManavaultWeb.Plugs.ApiKeyAuthentication
   end
@@ -66,6 +72,7 @@ defmodule ManavaultWeb.Router do
     get "/collection/locations/:id", AppController, :index
     get "/collection/:id/edit", AppController, :index
     get "/trade", AppController, :index
+    get "/scan", AppController, :index
     post "/logout", AuthController, :delete
   end
 
@@ -96,6 +103,13 @@ defmodule ManavaultWeb.Router do
     pipe_through [:api, :authenticated_api]
 
     forward "/api/graphql", Absinthe.Plug, schema: ManavaultWeb.Schema
+  end
+
+  scope "/api/scanner", ManavaultWeb do
+    pipe_through [:api, :authenticated_read_api]
+
+    get "/bundle", ScannerBundleController, :show
+    get "/bundles/:version/:name", ScannerBundleController, :file
   end
 
   # Other scopes may use custom stacks.

@@ -52,6 +52,8 @@ defmodule ManavaultWeb.StaticAssetTest do
     assert conn.resp_body =~ ~s|self.addEventListener("fetch"|
     assert conn.resp_body =~ ~s|CACHE_NAME = "manavault-pwa-v#{AssetVersion.current()}"|
     assert conn.resp_body =~ ~s|OFFLINE_URL = "/offline.html"|
+    # Scanner model caches (manavault-scanner-*) must survive app updates.
+    assert conn.resp_body =~ ~s|name.startsWith("manavault-pwa-") && name !== CACHE_NAME|
   end
 
   test "serves the offline fallback page", %{conn: conn} do

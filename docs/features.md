@@ -75,6 +75,31 @@ Collection workflows include:
 - bulk selection for loaded or matching items, with add-to-deck, add-to-list,
   move, and delete flows
 
+## Card Scanner
+
+`/scan` (the **Scan** nav item) identifies cards from the camera, in the
+browser, the installed PWA and the Capacitor apps. It opens straight into the
+camera; the browser or OS asks for camera access once.
+
+- Hold one card at a time inside the frame. Cards are recognized and logged
+  automatically, with no tap. The same card is never logged twice in a row;
+  tap the result or **+1** to count another copy.
+- Recognition matches the artwork, so reprints that share art cannot be told
+  apart by the camera. The default printing is a locked set if any, then the
+  scanned art, then a printing you already own, then the newest English
+  non-promo printing. Chips on the result change finish (normal/foil/etched),
+  printing, and language.
+- Settings: lock one or more sets, ignore promos, prefer foil, show the running
+  total value, and sounds (a click per scan, a ding at $1 and a bigger ding at
+  $10 by default; both thresholds are configurable).
+- The scanned list stays on the device until cleared. It supports search,
+  quantity edits, per-card chips, delete, and clear. **Add to collection**
+  opens the collection import preview with the list as CSV (exact Scryfall IDs,
+  finish, and language); nothing is added until the import is confirmed.
+- The recognition model (about 50 MB) downloads on first use and is cached on
+  the device per version. See [scanner.md](scanner.md) for model storage and
+  updates.
+
 ## Decks
 
 Decks model requested cards separately from owned collection items. A deck card
@@ -240,6 +265,8 @@ The web UI is responsive and installable as a PWA. Optional Capacitor shells add
 - native back/app control behavior
 - Android text/CSV Share, Open with, and file intents
 - native import handoff into the collection import dialog
+- camera access for the card scanner (Android `CAMERA` permission, iOS
+  `NSCameraUsageDescription`)
 - Android release update checks
 - iOS project sync for Xcode builds
 

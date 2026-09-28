@@ -1,0 +1,143 @@
+import type { Finish, FinishPrices, PrintingOption } from "./printing-choice"
+
+/** One row of the scanned list; the newest scan is first. */
+export interface ScanEntry {
+  id: string
+  /** Card key of the recognized artwork (see `cardKey`). */
+  cardKey: string
+  illustrationId: string | null
+  name: string
+  scryfallId: string
+  setCode: string
+  setName: string | null
+  collectorNumber: string
+  rarity: string | null
+  finish: Finish
+  finishes: Finish[]
+  language: string
+  quantity: number
+  prices: FinishPrices
+  imageUrl: string | null
+  /** False until the catalog printing lookup finished. */
+  resolved: boolean
+  scannedAt: number
+}
+
+export const SCAN_LANGUAGES = [
+  ["en", "English"],
+  ["ja", "Japanese"],
+  ["de", "German"],
+  ["fr", "French"],
+  ["it", "Italian"],
+  ["es", "Spanish"],
+  ["pt", "Portuguese"],
+  ["ko", "Korean"],
+  ["ru", "Russian"],
+  ["zhs", "Chinese (Simplified)"],
+  ["zht", "Chinese (Traditional)"],
+] as const
+
+export function entryPriceCents(entry: Pick<ScanEntry, "finish" | "prices">): number | null {
+  return entry.prices[entry.finish]
+}
+
+export function totalValueCents(entries: ScanEntry[]) {
+  return entries.reduce((sum, entry) => sum + (entryPriceCents(entry) ?? 0) * entry.quantity, 0)
+}
+
+export function totalQuantity(entries: ScanEntry[]) {
+  return entries.reduce((sum, entry) => sum + entry.quantity, 0)
+}
+
+/** Applies a catalog printing (and its language) to an entry, keeping its quantity. */
+export function withPrinting(
+  entry: ScanEntry,
+  printing: PrintingOption,
+  finish: Finish,
+): ScanEntry {
+  return {
+    ...entry,
+    name: printing.name,
+    scryfallId: printing.scryfallId,
+    setCode: printing.setCode,
+    setName: printing.setName,
+    collectorNumber: printing.collectorNumber,
+    rarity: printing.rarity,
+    finish,
+    finishes: printing.finishes,
+    language: printing.lang,
+    prices: printing.prices,
+    imageUrl: printing.imageUrl ?? entry.imageUrl,
+    resolved: true,
+  }
+}
+
+export function filterEntries(entries: ScanEntry[], query: string) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return entries
+  return entries.filter((entry) => {
+    const text =
+      `${entry.name} ${entry.setCode} ${entry.setName ?? ""} ${entry.collectorNumber}`.toLowerCase()
+    return terms.every((term) => text.includes(term))
+  })
+}
+
+const CSV_HEADERS = [
+  "name",
+  "set_code",
+  "collector_number",
+  "quantity",
+  "finish",
+  "language",
+  "scryfall_id",
+] as const
+
+/**
+ * The collection import's CSV columns, oldest scan first; `scryfall_id` pins the exact
+ * printing. Unresolved entries still carry the recognized gallery printing, which is valid.
+ */
+export function scanListCsv(entries: ScanEntry[]) {
+  const rows = [...entries]
+    .reverse()
+    .map((entry) =>
+      [
+        entry.name,
+        entry.setCode,
+        entry.collectorNumber,
+        String(entry.quantity),
+        entry.finish,
+        entry.language,
+        entry.scryfallId,
+      ]
+        .map(csvCell)
+        .join(","),
+    )
+  return [CSV_HEADERS.join(","), ...rows].join("\n") + "\n"
+}
+
+function csvCell(value: string) {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+export function formatCents(cents: number | null) {
+  if (cents === null) return "—"
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(cents / 100)
+}
+
+/** Parsed stored list; malformed rows are dropped rather than breaking the page. */
+export function normalizeScanList(value: unknown): ScanEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (entry): entry is ScanEntry =>
+      Boolean(entry) &&
+      typeof entry === "object" &&
+      typeof entry.id === "string" &&
+      typeof entry.scryfallId === "string" &&
+      typeof entry.quantity === "number" &&
+      entry.quantity > 0,
+  )
+}

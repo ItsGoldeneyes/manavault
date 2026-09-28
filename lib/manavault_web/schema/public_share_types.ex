@@ -162,6 +162,7 @@ defmodule ManavaultWeb.Schema.PublicShareTypes do
     field :set_code, :string
     field :set_name, :string
     field :collector_number, :string
+    field :illustration_id, :id
     field :lang, :string
     field :rarity, :string
 

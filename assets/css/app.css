@@ -163,7 +163,7 @@ html[data-theme-style="glass"] .app-shell-root {
 }
 
 html[data-theme-style="glass"] .card,
-html[data-theme-style="glass"] section[role="dialog"]:not(.fullscreen-printing-dialog) {
+html[data-theme-style="glass"] section[role="dialog"]:not(.fullscreen-printing-dialog, .scan-sheet) {
   background-color: var(--glass-surface);
   border-color: var(--glass-border);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
@@ -578,4 +578,48 @@ body[data-scroll-locked] .app-shell-main {
   .deck-tag-feedback {
     animation-duration: 1ms;
   }
+}
+
+/* Card scanner: the detected card flashes when a scan is logged, and the result bar
+   settles in with the new card. */
+.scan-quad-logged {
+  animation: scan-quad-logged 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scan-quad-logged {
+  0% {
+    fill-opacity: 0.45;
+  }
+
+  100% {
+    fill-opacity: 0.18;
+  }
+}
+
+.scan-result-enter {
+  animation: scan-result-enter 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scan-result-enter {
+  0% {
+    opacity: 0.4;
+    transform: translateY(12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-quad-logged,
+  .scan-result-enter {
+    animation: none;
+  }
+}
+
+/* Active foil/etched finish chip: the only place the scanner uses a foil sheen. */
+.scan-foil-chip {
+  background: linear-gradient(115deg, oklch(86% 0.1 85), oklch(88% 0.08 200) 45%, oklch(86% 0.1 320));
 }

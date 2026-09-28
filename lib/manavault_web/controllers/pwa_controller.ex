@@ -147,7 +147,11 @@ defmodule ManavaultWeb.PwaController do
         caches
           .keys()
           .then((names) =>
-            Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))),
+            Promise.all(
+              names
+                .filter((name) => name.startsWith("manavault-pwa-") && name !== CACHE_NAME)
+                .map((name) => caches.delete(name)),
+            ),
           )
           .then(() => self.clients.claim()),
       )

@@ -68,6 +68,7 @@ config :manavault, ManavaultWeb.Endpoint,
 config :manavault, dev_routes: true
 
 config :manavault, vite_dev_server?: true
+config :manavault, :scanner_bundle_dir, Path.expand("../data/scanner", __DIR__)
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

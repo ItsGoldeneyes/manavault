@@ -1,0 +1,138 @@
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { BundleInfo, Identification, WorkerRequest, WorkerResponse } from "./messages"
+import type { RgbaImage } from "./pipeline"
+
+export type RecognizerState =
+  | { status: "idle" }
+  | { status: "checking" }
+  /** No bundle is installed on the server yet (`/api/scanner/bundle` → 404). */
+  | { status: "unavailable" }
+  | { status: "loading"; version: string; loaded: number; total: number; cached: boolean }
+  | { status: "ready"; version: string; arts: number; loadMs: number }
+  | { status: "failed"; message: string }
+
+interface Pending {
+  resolve: (result: Identification) => void
+  reject: (error: Error) => void
+}
+
+/**
+ * Owns the recognition worker while the scanner page is open. `start` asks the server which
+ * bundle is current (so a new model is picked up on the next scanner start), then the worker
+ * loads it from Cache Storage or downloads it. `identify` resolves with one frame's result.
+ */
+export function useRecognizer() {
+  const [state, setState] = useState<RecognizerState>({ status: "idle" })
+  const workerRef = useRef<Worker | null>(null)
+  const pendingRef = useRef(new Map<number, Pending>())
+  const nextIdRef = useRef(0)
+
+  const start = useCallback(() => {
+    if (workerRef.current) return
+    setState({ status: "checking" })
+    let worker: Worker
+    try {
+      worker = new Worker(new URL("./recognizer.worker.ts", import.meta.url), { type: "module" })
+    } catch (error) {
+      setState({ status: "failed", message: errorMessage(error) })
+      return
+    }
+    workerRef.current = worker
+    const pending = pendingRef.current
+
+    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      const message = event.data
+      switch (message.type) {
+        case "progress":
+          setState((current) =>
+            current.status === "loading"
+              ? {
+                  ...current,
+                  loaded: message.loaded,
+                  total: message.total,
+                  cached: message.cached,
+                }
+              : current,
+          )
+          break
+        case "ready":
+          setState({
+            status: "ready",
+            version: message.version,
+            arts: message.arts,
+            loadMs: message.ms,
+          })
+          break
+        case "load_failed":
+          setState({ status: "failed", message: message.message })
+          break
+        case "identified":
+          settle(pending, message.id)?.resolve(message.result)
+          break
+        case "failed":
+          settle(pending, message.id)?.reject(new Error(message.message))
+          break
+      }
+    }
+    worker.onerror = (event) => {
+      const message = event.message || "The scanner worker crashed"
+      setState({ status: "failed", message })
+      for (const id of pending.keys()) settle(pending, id)?.reject(new Error(message))
+    }
+
+    fetch("/api/scanner/bundle", { credentials: "same-origin", cache: "no-cache" })
+      .then(async (response) => {
+        if (workerRef.current !== worker) return
+        if (response.status === 404) {
+          setState({ status: "unavailable" })
+          return
+        }
+        if (!response.ok) throw new Error(`Scanner bundle: HTTP ${response.status}`)
+        const { data } = (await response.json()) as { data: BundleInfo }
+        setState({ status: "loading", version: data.version, loaded: 0, total: 0, cached: false })
+        post(worker, { type: "load", bundle: data })
+      })
+      .catch((error: unknown) => {
+        if (workerRef.current !== worker) return
+        setState({ status: "failed", message: errorMessage(error) })
+      })
+  }, [])
+
+  const stop = useCallback(() => {
+    workerRef.current?.terminate()
+    workerRef.current = null
+    const pending = pendingRef.current
+    for (const id of pending.keys()) settle(pending, id)?.reject(new Error("Scanner closed"))
+    setState({ status: "idle" })
+  }, [])
+
+  useEffect(() => stop, [stop])
+
+  /** Transfers the frame's pixels to the worker; `image` is unusable afterwards. */
+  const identify = useCallback((image: RgbaImage) => {
+    return new Promise<Identification>((resolve, reject) => {
+      const worker = workerRef.current
+      if (!worker) return reject(new Error("Scanner not running"))
+      const id = (nextIdRef.current += 1)
+      pendingRef.current.set(id, { resolve, reject })
+      const rgba = image.data.buffer as ArrayBuffer
+      post(worker, { type: "identify", id, rgba, width: image.width, height: image.height }, [rgba])
+    })
+  }, [])
+
+  return { state, start, stop, identify }
+}
+
+function post(worker: Worker, message: WorkerRequest, transfer: Transferable[] = []) {
+  worker.postMessage(message, transfer)
+}
+
+function settle(pending: Map<number, Pending>, id: number) {
+  const entry = pending.get(id)
+  pending.delete(id)
+  return entry
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}

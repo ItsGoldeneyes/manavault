@@ -13,6 +13,75 @@ defmodule Manavault.Catalog.Search.Printings do
     |> Repo.preload(:card)
   end
 
+  def scanner_printings(scryfall_id, illustration_id \\ nil) when is_binary(scryfall_id) do
+    scryfall_id = strip_face_suffix(scryfall_id)
+
+    case scanner_printing(scryfall_id, illustration_id) do
+      nil ->
+        []
+
+      printing ->
+        target_illustration_id = illustration_id || printing.illustration_id
+        owned_counts = printing_owned_counts(printing.oracle_id)
+
+        Printing
+        |> where([candidate], candidate.oracle_id == ^printing.oracle_id)
+        |> scanner_order(target_illustration_id, printing.scryfall_id)
+        |> limit(300)
+        |> preload(:card)
+        |> Repo.all()
+        |> Enum.map(&%{&1 | owned_count: Map.get(owned_counts, &1.scryfall_id, 0)})
+    end
+  end
+
+  # Scanner gallery IDs name separate printed faces `<uuid>-<face>`; only a suffix after a
+  # complete UUID is a face, since a UUID's own last group can be all digits.
+  @face_suffix ~r/\A([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-\d+\z/i
+
+  defp strip_face_suffix(id) do
+    case Regex.run(@face_suffix, id) do
+      [_match, uuid] -> uuid
+      nil -> id
+    end
+  end
+
+  defp scanner_printing(scryfall_id, illustration_id) do
+    Repo.get(Printing, scryfall_id) || printing_by_illustration_id(illustration_id)
+  end
+
+  defp printing_by_illustration_id(nil), do: nil
+
+  defp printing_by_illustration_id(illustration_id) do
+    Repo.one(
+      from printing in Printing, where: printing.illustration_id == ^illustration_id, limit: 1
+    )
+  end
+
+  defp scanner_order(query, nil, found_id) do
+    order_by(query, [printing],
+      asc: fragment("CASE WHEN ? = ? THEN 0 ELSE 1 END", printing.scryfall_id, ^found_id),
+      desc: printing.released_at,
+      asc: printing.set_code,
+      asc: printing.collector_number
+    )
+  end
+
+  defp scanner_order(query, illustration_id, found_id) do
+    order_by(query, [printing],
+      asc:
+        fragment(
+          "CASE WHEN ? = ? OR ? = ? THEN 0 ELSE 1 END",
+          printing.illustration_id,
+          ^illustration_id,
+          printing.scryfall_id,
+          ^found_id
+        ),
+      desc: printing.released_at,
+      asc: printing.set_code,
+      asc: printing.collector_number
+    )
+  end
+
   def get_printing(set_code, collector_number)
       when is_binary(set_code) and is_binary(collector_number) do
     Repo.one(

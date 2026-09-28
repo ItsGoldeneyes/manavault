@@ -48,6 +48,10 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
 
   def card_edhrec(_parent, %{name: name}, _resolution), do: Catalog.card_edhrec(name)
 
+  def scanner_printings(_parent, %{scryfall_id: id} = args, _resolution) do
+    {:ok, Catalog.scanner_printings(id, Map.get(args, :illustration_id))}
+  end
+
   def reload_scryfall_catalog(_parent, _args, _resolution) do
     case Catalog.reload_scryfall_catalog_async() do
       {:ok, _job} ->

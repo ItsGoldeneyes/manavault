@@ -35,6 +35,12 @@ defmodule ManavaultWeb.Schema.Catalog.CardOperations do
       resolve(&QueryResolvers.card/3)
     end
 
+    field :scanner_printings, non_null(list_of(non_null(:printing))) do
+      arg(:scryfall_id, non_null(:id))
+      arg(:illustration_id, :id)
+      resolve(&QueryResolvers.scanner_printings/3)
+    end
+
     field :card_edhrec, non_null(:card_edhrec) do
       arg(:name, non_null(:string))
       resolve(&QueryResolvers.card_edhrec/3)

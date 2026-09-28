@@ -137,6 +137,7 @@ defmodule ManavaultWeb.Schema.Catalog.CardTypes do
     field :set_code, :string
     field :set_name, :string
     field :collector_number, :string
+    field :illustration_id, :id
     field :lang, :string
     field :rarity, :string
 
@@ -146,6 +147,21 @@ defmodule ManavaultWeb.Schema.Catalog.CardTypes do
       resolve(fn printing, _, _ ->
         {:ok, ValueResolvers.decode_json_field(printing, :finishes, [])}
       end)
+    end
+
+    field :promo_types, list_of(:string) do
+      resolve(fn printing, _, _ ->
+        {:ok, ValueResolvers.decode_json_field(printing, :promo_types, [])}
+      end)
+    end
+
+    field :promo, non_null(:boolean),
+      resolve: fn printing, _, _ -> {:ok, printing.promo == true} end
+
+    @desc "Current price in cents for a finish, from the selected price source with finish fallback."
+    field :price_cents, :integer do
+      arg(:finish, :string)
+      resolve(&CardFields.printing_price_cents/3)
     end
 
     field :image_url, :string do

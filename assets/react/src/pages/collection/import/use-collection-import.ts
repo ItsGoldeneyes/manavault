@@ -38,6 +38,8 @@ export type CollectionImportState = {
   purchaseMode: CollectionImportPurchaseMode
   purchasePrice: string
   sharedFileName: string | null
+  /** Where shared text came from, e.g. "scanner" for the in-app card scanner. */
+  sharedSource: string | null
   preview: CollectionImportPreview | null
   setupOpen: boolean
 }
@@ -51,6 +53,7 @@ type ImportAction =
       format: CollectionImportFormat
       text: string
       shared: boolean
+      sharedSource?: string | null
     }
   | { type: "preview"; preview: CollectionImportPreview | null }
 
@@ -65,6 +68,7 @@ const initialState: CollectionImportState = {
   purchaseMode: "per_card",
   purchasePrice: "",
   sharedFileName: null,
+  sharedSource: null,
   preview: null,
   setupOpen: false,
 }
@@ -84,6 +88,7 @@ function importReducer(state: CollectionImportState, action: ImportAction): Coll
       importText: action.text,
       preview: null,
       sharedFileName: action.shared ? action.fileName : null,
+      sharedSource: action.shared ? (action.sharedSource ?? null) : null,
     }
   }
   return { ...state, ...action.values }
@@ -173,7 +178,14 @@ export function useCollectionImport({
       initialImport.fileName || "",
       initialImport.mimeType || "",
     )
-    dispatch({ type: "source", fileName, format, text: initialImport.text, shared: true })
+    dispatch({
+      type: "source",
+      fileName,
+      format,
+      text: initialImport.text,
+      shared: true,
+      sharedSource: initialImport.source,
+    })
     previewImport({ fileName, format, locationId: state.locationId, text: initialImport.text })
   }, [initialImport, open, previewImport, state.locationId])
 

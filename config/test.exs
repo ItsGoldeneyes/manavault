@@ -27,6 +27,8 @@ config :manavault, Manavault.Mailer, adapter: Swoosh.Adapters.Test
 
 config :manavault, :pricing_store, false
 config :manavault, :auth_disabled, true
+config :manavault, :scanner_bundle_dir, Path.join(System.tmp_dir!(), "manavault-scanner-test")
+config :manavault, :scanner_bundle_source, "off"
 
 config :manavault, Oban, testing: :manual
 

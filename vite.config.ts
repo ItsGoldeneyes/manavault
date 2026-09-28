@@ -56,8 +56,9 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: [".onamp.dev"],
     proxy: {
-      "^/$": phoenixProxy,
-      "^/(settings|cards|decks|collection|trade|login|logout|vendors|health|dev)(/|$)":
+      // Proxy keys are matched against the URL including its query string.
+      "^/(\\?|$)": phoenixProxy,
+      "^/(settings|cards|decks|collection|trade|scan|login|logout|vendors|health|dev)(/|\\?|$)":
         phoenixProxy,
       "/share": phoenixProxy,
       "/api": phoenixProxy,

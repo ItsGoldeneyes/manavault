@@ -4,6 +4,7 @@ defmodule Manavault.ObanConfigTest do
   alias Manavault.Backup.CloudBackupWorker
   alias Manavault.Catalog.{ScryfallAssetsWorker, ScryfallCatalogWorker}
   alias Manavault.Pricing.VendorSyncWorker
+  alias Manavault.Scanner.BundleUpdateWorker
 
   test "background queues and periodic jobs are centrally configured" do
     config = Application.fetch_env!(:manavault, Oban)
@@ -19,6 +20,8 @@ defmodule Manavault.ObanConfigTest do
              {"@daily", ScryfallCatalogWorker},
              {"@reboot", ScryfallAssetsWorker},
              {"@daily", ScryfallAssetsWorker},
+             {"@reboot", BundleUpdateWorker},
+             {"0 */6 * * *", BundleUpdateWorker},
              {"@reboot", VendorSyncWorker},
              {"*/30 * * * *", VendorSyncWorker},
              {"* * * * *", CloudBackupWorker}

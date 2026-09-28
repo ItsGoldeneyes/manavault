@@ -55,6 +55,8 @@ config :manavault, Oban,
        {"@daily", Manavault.Catalog.ScryfallCatalogWorker},
        {"@reboot", Manavault.Catalog.ScryfallAssetsWorker},
        {"@daily", Manavault.Catalog.ScryfallAssetsWorker},
+       {"@reboot", Manavault.Scanner.BundleUpdateWorker},
+       {"0 */6 * * *", Manavault.Scanner.BundleUpdateWorker},
        {"@reboot", Manavault.Pricing.VendorSyncWorker},
        {"*/30 * * * *", Manavault.Pricing.VendorSyncWorker},
        {"* * * * *", Manavault.Backup.CloudBackupWorker}

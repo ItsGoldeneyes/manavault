@@ -11,6 +11,7 @@ defmodule Manavault.Catalog.Printing do
     field :set_code, :string
     field :set_name, :string
     field :collector_number, :string
+    field :illustration_id, :string
     field :lang, :string
     field :flavor_name, :string
     field :normalized_flavor_name, :string
@@ -18,6 +19,7 @@ defmodule Manavault.Catalog.Printing do
     field :rarity, :string
     field :finishes, :string, default: "[]"
     field :promo_types, :string, default: "[]"
+    field :promo, :boolean, default: false
     field :image_uris, :string, default: "{}"
     field :prices, :string, default: "{}"
     field :released_at, :date
@@ -43,6 +45,8 @@ defmodule Manavault.Catalog.Printing do
       :set_code,
       :set_name,
       :collector_number,
+      :illustration_id,
+      :promo,
       :lang,
       :flavor_name,
       :flavor_text,

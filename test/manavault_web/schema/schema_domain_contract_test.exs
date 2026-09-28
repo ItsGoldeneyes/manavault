@@ -51,6 +51,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
                "node",
                "pricingSettings",
                "randomDeck",
+               "scannerPrintings",
                "setSuggestions",
                "sharedDeck",
                "tradeBinderShareToken",
@@ -148,6 +149,9 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
     assert argument(query_fields["cardEdhrec"], "name") == {"String!", nil}
     assert type_signature(query_fields["cardNameSuggestions"]["type"]) == "[String!]!"
     assert argument(query_fields["cardNameSuggestions"], "limit") == {"Int", "5"}
+    assert type_signature(query_fields["scannerPrintings"]["type"]) == "[Printing!]!"
+    assert argument(query_fields["scannerPrintings"], "scryfallId") == {"ID!", nil}
+    assert argument(query_fields["scannerPrintings"], "illustrationId") == {"ID", nil}
     assert type_signature(query_fields["apiKeys"]["type"]) == "[ApiKey!]!"
     assert type_signature(query_fields["collectionItemCount"]["type"]) == "Int!"
 

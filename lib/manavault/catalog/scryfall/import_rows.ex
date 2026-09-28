@@ -72,6 +72,7 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
         set_code: String.downcase(card["set"] || ""),
         set_name: card["set_name"],
         collector_number: card["collector_number"] || "",
+        illustration_id: illustration_id(card),
         flavor_name: flavor_name,
         normalized_flavor_name: normalize_flavor_name(flavor_name),
         flavor_text: flavor_text(card),
@@ -79,6 +80,7 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
         rarity: card["rarity"],
         finishes: encode_json(card["finishes"] || []),
         promo_types: encode_json(card["promo_types"] || []),
+        promo: card["promo"] == true,
         image_uris: encode_json(image_uris(card)),
         prices: encode_json(card["prices"] || %{}),
         released_at: parse_date(card["released_at"]),
@@ -89,6 +91,14 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
   end
 
   defp printing_row(_card, _now), do: []
+
+  defp illustration_id(%{"illustration_id" => id}) when is_binary(id), do: id
+
+  defp illustration_id(%{"card_faces" => faces}) when is_list(faces) do
+    Enum.find_value(faces, &Map.get(&1, "illustration_id"))
+  end
+
+  defp illustration_id(_card), do: nil
 
   defp colors(%{"colors" => colors}) when is_list(colors), do: colors
 

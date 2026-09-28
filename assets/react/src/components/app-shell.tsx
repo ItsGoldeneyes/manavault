@@ -7,6 +7,7 @@ import {
   Menu,
   Monitor,
   Moon,
+  ScanLine,
   Search,
   Settings,
   Sun,
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/" as const, label: "Home", icon: Home },
   { to: "/cards" as const, label: "Cards", icon: Search },
   { to: "/collection" as const, label: "Collection", icon: Boxes },
+  { to: "/scan" as const, label: "Scan", icon: ScanLine },
   { to: "/decks" as const, label: "Decks", icon: Layers },
   { to: "/trade" as const, label: "Trade", icon: ArrowLeftRight },
   { to: "/settings" as const, label: "Settings", icon: Settings },
@@ -85,6 +87,8 @@ export function AppShell() {
   const isShareRoute = pathname.startsWith("/share/")
   const isHomeRoute = pathname === "/"
   const isPlaytestRoute = pathname.includes("/playtest")
+  // The scanner is a full-screen camera view with its own chrome.
+  const isScanRoute = pathname === "/scan"
   const isCardRoute =
     !isPlaytestRoute &&
     (pathname === "/cards" ||
@@ -107,7 +111,7 @@ export function AppShell() {
           className={cn(
             "app-shell-header sticky top-0 z-30",
             isHomeRoute ? "bg-transparent" : "bg-base-100/95 backdrop-blur",
-            (isShareRoute || isPlaytestRoute) && "hidden",
+            (isShareRoute || isPlaytestRoute || isScanRoute) && "hidden",
           )}
         >
           <div className="navbar min-h-16 px-0">

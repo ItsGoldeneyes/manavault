@@ -82,6 +82,11 @@ export function receiveNativeOpenPayload(
   return false
 }
 
+/** Hands in-app text (for example the card scanner's CSV) to the collection import overlay. */
+export function queueSharedImport(payload: SharedImportPayload) {
+  if (isSharedImportPayload(payload)) receiveSharedImport(payload)
+}
+
 export function takeSharedImport() {
   const payload = pendingImport
   pendingImport = null

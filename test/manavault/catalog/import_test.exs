@@ -10,7 +10,8 @@ defmodule Manavault.Catalog.ImportTest do
   }
 
   test "import_cards stores identities and printings and safely updates on rerun" do
-    assert {:ok, %{cards_count: 1, printings_count: 1}} = Catalog.import_cards([@black_lotus])
+    card = Map.put(@black_lotus, "illustration_id", "illustration-top-level")
+    assert {:ok, %{cards_count: 1, printings_count: 1}} = Catalog.import_cards([card])
 
     assert %Card{
              name: "Black Lotus",
@@ -25,8 +26,10 @@ defmodule Manavault.Catalog.ImportTest do
              oracle_id: "oracle-1",
              set_code: "lea",
              collector_number: "232",
+             illustration_id: "illustration-top-level",
              released_at: ~D[1993-08-05]
-           } = Catalog.get_printing_by_scryfall_id("scryfall-printing-1")
+           } =
+             Catalog.get_printing_by_scryfall_id("scryfall-printing-1")
 
     assert %Printing{scryfall_id: "scryfall-printing-1"} = Catalog.get_printing("LEA", "232")
     assert [%Card{oracle_id: "oracle-1"}] = Catalog.search_cards("lotus")
@@ -41,7 +44,11 @@ defmodule Manavault.Catalog.ImportTest do
     assert [%{set_code: "lea", set_name: "Limited Edition Alpha"}] = Catalog.search_sets("alpha")
 
     assert {:ok, %{cards_count: 1, printings_count: 1}} =
-             Catalog.import_cards([Map.put(@renamed_lotus, "game_changer", true)])
+             Catalog.import_cards([
+               @renamed_lotus
+               |> Map.put("game_changer", true)
+               |> Map.put("illustration_id", "illustration-updated")
+             ])
 
     assert Repo.aggregate(Card, :count) == 1
     assert Repo.aggregate(Printing, :count) == 1
@@ -52,8 +59,23 @@ defmodule Manavault.Catalog.ImportTest do
              rulings_uri: "https://api.scryfall.com/cards/oracle-1/rulings-updated"
            } = Repo.get!(Card, "oracle-1")
 
-    assert %Printing{prices: prices} = Repo.get!(Printing, "scryfall-printing-1")
+    assert %Printing{prices: prices, illustration_id: "illustration-updated"} =
+             Repo.get!(Printing, "scryfall-printing-1")
+
     assert Jason.decode!(prices) == %{"usd" => "1.00"}
+  end
+
+  test "import_cards uses the first face illustration when the top-level value is absent" do
+    card =
+      @black_lotus
+      |> Map.delete("illustration_id")
+      |> Map.put("card_faces", [
+        %{"illustration_id" => "front-illustration"},
+        %{"illustration_id" => "back-illustration"}
+      ])
+
+    assert {:ok, _result} = Catalog.import_cards([card])
+    assert %Printing{illustration_id: "front-illustration"} = Repo.get!(Printing, card["id"])
   end
 
   test "import_cards excludes memorabilia and token set printings" do

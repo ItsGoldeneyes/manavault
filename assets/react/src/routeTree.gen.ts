@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from "./routes/__root"
 import { Route as IndexRouteImport } from "./routes/index"
+import { Route as ScanRouteImport } from "./routes/scan"
 import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as CardsIndexRouteImport } from "./routes/cards/index"
 import { Route as CardsIdRouteImport } from "./routes/cards/$id"
@@ -28,6 +29,11 @@ import { Route as ShareWantsTokenRouteImport } from "./routes/share/wants/$token
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScanRoute = ScanRouteImport.update({
+  id: "/scan",
+  path: "/scan",
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -103,6 +109,7 @@ const ShareWantsTokenRoute = ShareWantsTokenRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
+  "/scan": typeof ScanRoute
   "/settings": typeof SettingsRoute
   "/cards/$id": typeof CardsIdRoute
   "/collection/new": typeof CollectionNewRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
+  "/scan": typeof ScanRoute
   "/settings": typeof SettingsRoute
   "/cards/$id": typeof CardsIdRoute
   "/collection/new": typeof CollectionNewRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
+  "/scan": typeof ScanRoute
   "/settings": typeof SettingsRoute
   "/cards/$id": typeof CardsIdRoute
   "/collection/new": typeof CollectionNewRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/"
+    | "/scan"
     | "/settings"
     | "/cards/$id"
     | "/collection/new"
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
+    | "/scan"
     | "/settings"
     | "/cards/$id"
     | "/collection/new"
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
   id:
     | "__root__"
     | "/"
+    | "/scan"
     | "/settings"
     | "/cards/$id"
     | "/collection/new"
@@ -209,6 +221,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ScanRoute: typeof ScanRoute
   SettingsRoute: typeof SettingsRoute
   CardsIdRoute: typeof CardsIdRoute
   CollectionNewRoute: typeof CollectionNewRoute
@@ -232,6 +245,13 @@ declare module "@tanstack/react-router" {
       path: "/"
       fullPath: "/"
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/scan": {
+      id: "/scan"
+      path: "/scan"
+      fullPath: "/scan"
+      preLoaderRoute: typeof ScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/settings": {
@@ -337,6 +357,7 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ScanRoute: ScanRoute,
   SettingsRoute: SettingsRoute,
   CardsIdRoute: CardsIdRoute,
   CollectionNewRoute: CollectionNewRoute,

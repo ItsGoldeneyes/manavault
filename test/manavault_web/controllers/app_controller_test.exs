@@ -24,7 +24,7 @@ defmodule ManavaultWeb.AppControllerTest do
     assert content_security_policy =~ "default-src 'self'"
     assert content_security_policy =~ "worker-src 'self' blob:"
     assert content_security_policy =~ "https://*.scryfall.io"
-    refute content_security_policy =~ "unsafe-eval"
+    refute content_security_policy =~ "'unsafe-eval'"
     refute content_security_policy =~ "5173"
     refute content_security_policy =~ "ws://"
   end
@@ -88,10 +88,12 @@ defmodule ManavaultWeb.AppControllerTest do
     dev_policy = ContentSecurityPolicy.policy(true)
     prod_policy = ContentSecurityPolicy.policy(false)
 
-    assert dev_policy =~ "script-src 'self' 'unsafe-eval' http://localhost:5173"
+    assert dev_policy =~
+             "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' http://localhost:5173"
+
     assert dev_policy =~ "ws://127.0.0.1:*"
-    assert prod_policy =~ "script-src 'self';"
-    refute prod_policy =~ "unsafe-eval"
+    assert prod_policy =~ "script-src 'self' 'wasm-unsafe-eval';"
+    refute prod_policy =~ "'unsafe-eval'"
     refute prod_policy =~ "5173"
   end
 

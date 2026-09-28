@@ -254,6 +254,7 @@ Production mutable application data defaults under `/data`:
 
 - `/data/manavault.db` - SQLite database
 - `/data/cache/scryfall` - Scryfall cache; this can be regenerated
+- `/data/scanner` - card scanner model bundles; downloaded automatically
 - `/data/backups` - ManaVault backup artifacts
 - `/data/restores` - staged restore artifacts
 
@@ -362,6 +363,9 @@ Common optional values:
 - `DATA_DIR` - mutable data root. Defaults to `/data`.
 - `DATABASE_PATH` - SQLite database path. Defaults to `/data/manavault.db`.
 - `POOL_SIZE` - Ecto pool size. Defaults to `5`.
+- `SCANNER_BUNDLE_SOURCE` - where scanner model updates come from: `github`
+  (default, the newest published `scanner-bundle-*` release), an HTTPS URL
+  ending in `manifest.json`, or `off`. See [scanner.md](scanner.md).
 - `MANAVAULT_ASSET_VERSION` - cache-busting version used by the HTML shell, PWA
   manifest, and service worker. Published GitHub container builds set this to the
   commit SHA automatically. Defaults to the application version when unset.

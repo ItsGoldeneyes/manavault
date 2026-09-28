@@ -530,7 +530,7 @@ export function addToListAction(
   return { icon: <ListPlus className="h-4 w-4" />, label: "Add to list", ...options }
 }
 
-function SetIcon({ rarity, setCode }: { rarity?: string | null; setCode?: string | null }) {
+export function SetIcon({ rarity, setCode }: { rarity?: string | null; setCode?: string | null }) {
   const color = rarityColor(rarity)
   const code = String(setCode || "")
     .trim()

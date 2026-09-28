@@ -43,6 +43,8 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>ManaVault uses the camera to scan and identify your Magic cards.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>ManaVault can save exported collection backups when you choose to create them.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

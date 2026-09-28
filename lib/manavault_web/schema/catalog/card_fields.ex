@@ -125,6 +125,10 @@ defmodule ManavaultWeb.Schema.Catalog.CardFields do
     {:ok, Price.text_for_printing(printing)}
   end
 
+  def printing_price_cents(%Printing{} = printing, args, _resolution) do
+    {:ok, Price.price_cents_for_printing(printing, Map.get(args, :finish))}
+  end
+
   defp legality_entries(%{} = legalities) do
     legalities
     |> Enum.flat_map(fn

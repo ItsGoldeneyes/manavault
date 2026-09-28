@@ -119,6 +119,7 @@ release commands.
 - [Feature reference](docs/features.md) - concepts and product-area behavior.
 - [Self-hosting](docs/self-hosting.md) - Docker, data layout, auth, environment
   variables, backups, and restores.
+- [Card scanner](docs/scanner.md) - scanner models, updates, and the browser pipeline.
 - [Personal API](docs/api.md) - create read-only API keys and list decks for
   integrations such as The Gathering.
 - [Development](docs/development.md) - local setup, tests, and native shell dev

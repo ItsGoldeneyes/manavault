@@ -95,7 +95,9 @@ config :manavault,
   forwarded_ip_header: System.get_env("MANAVAULT_FORWARDED_IP_HEADER", "x-forwarded-for"),
   secure_cookies: secure_cookies,
   session_max_age_days: session_max_age_days,
-  trade_manavault_destination_allowlist: trade_manavault_destination_allowlist
+  trade_manavault_destination_allowlist: trade_manavault_destination_allowlist,
+  scanner_bundle_source:
+    System.get_env("SCANNER_BUNDLE_SOURCE", if(config_env() == :test, do: "off", else: "github"))
 
 if config_env() == :prod do
   if !auth_disabled && is_nil(admin_password_hash) do
@@ -130,6 +132,7 @@ if config_env() == :prod do
         Path.dirname(database_path),
         Path.join(data_dir, "cache/scryfall"),
         Path.join(data_dir, "cache/scryfall/assets"),
+        Path.join(data_dir, "scanner"),
         share_preview_cache_dir,
         Path.join(data_dir, "backups")
       ] do
@@ -141,7 +144,8 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
 
   config :manavault,
-    scryfall_assets_dir: Path.join(data_dir, "cache/scryfall/assets")
+    scryfall_assets_dir: Path.join(data_dir, "cache/scryfall/assets"),
+    scanner_bundle_dir: Path.join(data_dir, "scanner")
 
   config :manavault, ManavaultWeb.DeckSharePreview.ArtifactCache,
     cache_dir: share_preview_cache_dir

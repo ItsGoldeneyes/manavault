@@ -38,8 +38,10 @@ defmodule ManavaultWeb.Plugs.ContentSecurityPolicy do
     )
   end
 
-  defp script_src(true), do: "script-src 'self' 'unsafe-eval' #{@dev_origins}"
-  defp script_src(false), do: "script-src 'self'"
+  # 'wasm-unsafe-eval' lets the card scanner compile onnxruntime's WebAssembly without
+  # permitting JavaScript eval.
+  defp script_src(true), do: "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' #{@dev_origins}"
+  defp script_src(false), do: "script-src 'self' 'wasm-unsafe-eval'"
 
   defp connect_src(true) do
     "connect-src 'self' https://api.github.com https://api.mtgstocks.com https://json-cloudflare.edhrec.com #{@dev_origins} ws://localhost:* ws://127.0.0.1:* wss:"

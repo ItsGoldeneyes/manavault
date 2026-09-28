@@ -25,6 +25,9 @@ defmodule Manavault.Catalog.Cached do
     end)
   end
 
+  def scanner_printings(scryfall_id, illustration_id \\ nil),
+    do: Search.scanner_printings(scryfall_id, illustration_id)
+
   def get_printing(set_code, collector_number) do
     cached(Cache.catalog_tag(), {:printing_by_set_number, set_code, collector_number}, fn ->
       Search.get_printing(set_code, collector_number)

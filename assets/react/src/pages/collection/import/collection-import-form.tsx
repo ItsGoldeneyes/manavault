@@ -110,7 +110,13 @@ export function CollectionImportForm({
           className="file-input file-input-bordered w-full bg-base-100"
           onChange={(event) => void chooseFile(event.target.files?.[0])}
         />
-        {state.sharedFileName ? (
+        {state.sharedFileName && state.sharedSource === "scanner" ? (
+          <p className="rounded-box border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+            Scanned cards: “{state.sharedFileName}”. Review the preview below before importing —
+            nothing is added to your collection until you choose Import. The scanned list stays on
+            the scanner until you clear it.
+          </p>
+        ) : state.sharedFileName ? (
           <p className="rounded-box border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
             Opened from another app: “{state.sharedFileName}”. Review the preview below before
             importing — nothing is added to your collection until you choose Import. (The Android
