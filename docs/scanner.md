@@ -88,6 +88,23 @@ frames (real card scans composited with rotation, perspective, blur and noise): 
 identified correctly with a median of 267 ms per frame on single-threaded WASM, while empty tables
 and blank paper had upright votes of 0.17 or less.
 
+## Training data
+
+With **Collect training data** on (scanner settings, off by default), every logged scan uploads
+the 640 px frame the recognizer saw, its detected quad, the recognized card, scores and bundle
+version to `POST /api/scanner/corrections` (signed-in session and CSRF). Changing the entry's
+printing or finish, or choosing **Wrong card?** in the printing sheet, relabels the capture
+without re-sending the image; deleting a scan marks it skipped, since its label is not trusted.
+The last label per capture wins.
+
+The server stores them in `DATA_DIR/scanner/corrections/` (`labels.jsonl` plus
+`<capture_id>/crop.jpg`, the same layout as The Gathering's table corrections) and exports them at
+`GET /api/scanner/corrections?cursor=N` and `GET /api/scanner/corrections/:id/crop` for the
+owner's session or `Authorization: Bearer $SCANNER_CORRECTIONS_TOKEN` (32+ characters; export is
+disabled without it). On the training box, Oracle imports them with
+`CARDID_SERVER=https://<host>/api/scanner/corrections` and that token as
+`CARDID_CORRECTIONS_TOKEN`; see Oracle's README, "Real phone captures from ManaVault".
+
 ## Testing without a phone
 
 Chromium can use a video file as the camera, which exercises the whole pipeline:

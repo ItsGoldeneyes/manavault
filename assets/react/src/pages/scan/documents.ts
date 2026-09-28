@@ -29,6 +29,27 @@ export const ScannerPrintingsDocument = graphql(`
   }
 `)
 
+/** "Wrong card?": catalog cards by name, each with a printing to look the card up by. */
+export const ScannerCardSearchDocument = graphql(`
+  query ScannerCardSearch($q: String!) {
+    cards(q: $q, first: 8) {
+      edges {
+        node {
+          id
+          name
+          typeLine
+          primaryPrinting {
+            id
+            scryfallId
+            setCode
+            imageUrl
+          }
+        }
+      }
+    }
+  }
+`)
+
 export const ScannerSetIllustrationsDocument = graphql(`
   query ScannerSetIllustrations($setCodes: [String!]!) {
     scannerSetIllustrations(setCodes: $setCodes)

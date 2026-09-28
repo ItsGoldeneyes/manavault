@@ -94,6 +94,11 @@ camera; the browser or OS asks for camera access once.
 - Settings: lock one or more sets, ignore promos, prefer foil, show the running
   total value, and sounds (a click per scan, a ding at $1 and a bigger ding at
   $10 by default; both thresholds are configurable).
+- **Wrong card?** in the printing picker searches the catalog by name and swaps
+  a misrecognized scan for the right card.
+- **Collect training data** (off by default) uploads each scan's camera frame
+  and card to your server so the recognition model can be retrained on your
+  phone, stand and foils; see [scanner.md](scanner.md#training-data).
 - The scanned list stays on the device until cleared. It supports search,
   quantity edits, per-card chips, delete, and clear. **Add to collection**
   opens the collection import preview with the list as CSV (exact Scryfall IDs,

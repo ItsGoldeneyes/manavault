@@ -34,6 +34,19 @@ defmodule Manavault.Scanner.BundleTest do
     refute File.exists?(Path.join(root, "v1"))
   end
 
+  test "never prunes the scanner training corrections", %{root: root} do
+    File.mkdir_p!(Path.join([root, "corrections", "capture"]))
+
+    Enum.each(~w(v1 v2 v3), fn version ->
+      {manifest, incoming} = bundle(root, version)
+      assert {:ok, _path} = Bundle.install(manifest, incoming)
+    end)
+
+    assert File.dir?(Path.join([root, "corrections", "capture"]))
+    corrections = %{"version" => "corrections", "files" => %{}}
+    assert {:error, :invalid_version} = Bundle.install(corrections, root)
+  end
+
   test "creates a compressed arts file during installation", %{root: root} do
     {manifest, incoming} = bundle(root, "v1")
     assert {:ok, _path} = Bundle.install(manifest, incoming)

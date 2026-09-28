@@ -97,7 +97,8 @@ config :manavault,
   session_max_age_days: session_max_age_days,
   trade_manavault_destination_allowlist: trade_manavault_destination_allowlist,
   scanner_bundle_source:
-    System.get_env("SCANNER_BUNDLE_SOURCE", if(config_env() == :test, do: "off", else: "github"))
+    System.get_env("SCANNER_BUNDLE_SOURCE", if(config_env() == :test, do: "off", else: "github")),
+  scanner_corrections_token: System.get_env("SCANNER_CORRECTIONS_TOKEN")
 
 if config_env() == :prod do
   if !auth_disabled && is_nil(admin_password_hash) do

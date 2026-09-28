@@ -199,6 +199,9 @@ defmodule Manavault.Scanner.Bundle do
     end
   end
 
+  # "corrections" holds scanner training data beside the versions and must never be pruned.
   defp valid_version?(version),
-    do: version not in ["current", "previous"] and Regex.match?(@version_pattern, version)
+    do:
+      version not in ["current", "previous", "corrections"] and
+        Regex.match?(@version_pattern, version)
 end

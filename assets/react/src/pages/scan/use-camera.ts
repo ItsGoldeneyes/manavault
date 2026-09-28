@@ -118,7 +118,21 @@ export function useCamera() {
     return { data: pixels.data, width: FRAME_SIZE, height: FRAME_SIZE }
   }, [])
 
-  return { videoRef, state, start, stop, grabFrame }
+  /**
+   * The last grabbed frame as a JPEG data URL within the server's 190 KB limit, for training
+   * uploads. The canvas still holds that frame until the next `grabFrame`.
+   */
+  const lastFrameJpeg = useCallback((): string | null => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    for (const quality of [0.9, 0.8, 0.7, 0.55, 0.4]) {
+      const url = canvas.toDataURL("image/jpeg", quality)
+      if (url.length - "data:image/jpeg;base64,".length <= 190_000) return url
+    }
+    return null
+  }, [])
+
+  return { videoRef, state, start, stop, grabFrame, lastFrameJpeg }
 }
 
 function cameraError(error: unknown): CameraState {

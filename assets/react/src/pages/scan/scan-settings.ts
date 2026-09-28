@@ -10,6 +10,8 @@ export interface ScanSettings {
   dingThresholdCents: number
   bigDingThresholdCents: number
   showTotal: boolean
+  /** Upload each logged scan's camera frame to this server for training recognition. */
+  collectTraining: boolean
 }
 
 export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
@@ -20,6 +22,7 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   dingThresholdCents: 100,
   bigDingThresholdCents: 1000,
   showTotal: true,
+  collectTraining: false,
 }
 
 /** Stored settings from an older version or a hand-edited value fall back field by field. */
@@ -51,6 +54,7 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     dingThresholdCents: cents("dingThresholdCents"),
     bigDingThresholdCents: cents("bigDingThresholdCents"),
     showTotal: bool("showTotal"),
+    collectTraining: bool("collectTraining"),
   }
 }
 

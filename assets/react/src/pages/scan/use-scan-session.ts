@@ -9,6 +9,7 @@ import {
   ScannerSetIllustrationsDocument,
 } from "./documents"
 import { chooseFinish, choosePrinting, type Finish, type PrintingOption } from "./printing-choice"
+import type { Identification } from "./recognition/messages"
 import type { Candidate } from "./recognition/pipeline"
 import { useRecognizer } from "./recognition/use-recognizer"
 import {
@@ -35,7 +36,8 @@ import {
 } from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
 import { IDLE_VIEW, nextView, type ScanView } from "./scan-view"
-import { useCamera } from "./use-camera"
+import { trainingCapture, trainingSample, uploadTrainingSample } from "./scan-training"
+import { FRAME_SIZE, useCamera } from "./use-camera"
 
 /** Breathing room between frames so the UI thread and battery are not saturated. */
 const FRAME_GAP_MS = 40
@@ -89,6 +91,14 @@ export function useScanSession({ paused }: { paused: boolean }) {
   const entriesRef = useRef(entries)
   entriesRef.current = entries
   const lockRef = useRef<SetLock>({ status: "off" })
+  const bundleVersionRef = useRef<string | null>(null)
+  bundleVersionRef.current = recognizer.state.status === "ready" ? recognizer.state.version : null
+
+  /** Re-sends an uploaded capture's label; `null` marks it skipped. */
+  const relabel = useCallback((entry: ScanEntry, label: string | null = entry.scryfallId) => {
+    if (entry.training)
+      void uploadTrainingSample(trainingSample(entry.training, label, entry.finish))
+  }, [])
   const lockedSetsKey = settings.lockedSets.join(",")
 
   // A locked set restricts recognition to artwork printed in those sets. The browser only
@@ -156,13 +166,16 @@ export function useScanSession({ paused }: { paused: boolean }) {
       }
       const finish = chooseFinish(printing.finishes, settingsRef.current.preferFoil)
       updateEntry(entry.id, (current) => withPrinting(current, printing, finish))
+      if (finish !== entry.finish) relabel({ ...entry, finish })
       playScanSound(soundForPrice(printing.prices[finish], settingsRef.current))
     },
-    [apollo, updateEntry],
+    [apollo, relabel, updateEntry],
   )
 
+  const { lastFrameJpeg } = camera
+
   const logScan = useCallback(
-    (candidate: Candidate) => {
+    (candidate: Candidate, result: Identification) => {
       const key = cardKey(candidate.id)
       const entry: ScanEntry = {
         id: newEntryId(),
@@ -185,10 +198,17 @@ export function useScanSession({ paused }: { paused: boolean }) {
         resolved: false,
         scannedAt: Date.now(),
       }
+      // Training upload of the frame the recognizer just saw (the canvas still holds it).
+      const version = bundleVersionRef.current
+      const image = settingsRef.current.collectTraining && version ? lastFrameJpeg() : null
+      if (image && version) {
+        entry.training = trainingCapture(newEntryId(), candidate, result, FRAME_SIZE, version)
+        void uploadTrainingSample(trainingSample(entry.training, candidate.id, entry.finish, image))
+      }
       setEntries((list) => [entry, ...list])
       void resolveEntry(entry)
     },
-    [resolveEntry, setEntries],
+    [lastFrameJpeg, resolveEntry, setEntries],
   )
 
   const running = camera.state.status === "live" && recognizer.state.status === "ready"
@@ -223,7 +243,7 @@ export function useScanSession({ paused }: { paused: boolean }) {
             lock.status === "ready" ? lock.allow : undefined,
           )
           trackerRef.current = tracker
-          if (outcome.type === "accept") logScan(outcome.candidate)
+          if (outcome.type === "accept") logScan(outcome.candidate, result)
           const now = performance.now()
           setView((current) => nextView(current, outcome, result, now))
         } catch {
@@ -271,9 +291,12 @@ export function useScanSession({ paused }: { paused: boolean }) {
       if (entriesRef.current[0]?.id === id) {
         trackerRef.current = forgetLastLogged(trackerRef.current)
       }
+      // A deleted scan may have been a misrecognition, so its training label is not trusted.
+      const entry = entriesRef.current.find((candidate) => candidate.id === id)
+      if (entry) relabel(entry, null)
       setEntries((list) => list.filter((entry) => entry.id !== id))
     },
-    [setEntries],
+    [relabel, setEntries],
   )
 
   const setQuantity = useCallback(
@@ -285,8 +308,12 @@ export function useScanSession({ paused }: { paused: boolean }) {
   )
 
   const setFinish = useCallback(
-    (id: string, finish: Finish) => updateEntry(id, (entry) => ({ ...entry, finish })),
-    [updateEntry],
+    (id: string, finish: Finish) => {
+      const entry = entriesRef.current.find((candidate) => candidate.id === id)
+      if (entry && entry.finish !== finish) relabel({ ...entry, finish })
+      updateEntry(id, (current) => ({ ...current, finish }))
+    },
+    [relabel, updateEntry],
   )
 
   const setLanguage = useCallback(
@@ -295,17 +322,41 @@ export function useScanSession({ paused }: { paused: boolean }) {
   )
 
   const setPrinting = useCallback(
-    (id: string, printing: PrintingOption) =>
-      updateEntry(id, (entry) =>
-        withPrinting(
+    (id: string, printing: PrintingOption) => {
+      const entry = entriesRef.current.find((candidate) => candidate.id === id)
+      if (!entry) return
+      const next = withPrinting(
+        entry,
+        printing,
+        printing.finishes.includes(entry.finish)
+          ? entry.finish
+          : chooseFinish(printing.finishes, settingsRef.current.preferFoil),
+      )
+      relabel(next)
+      updateEntry(id, () => next)
+    },
+    [relabel, updateEntry],
+  )
+
+  /** "Wrong card?": the entry becomes a different card; its capture is relabelled. */
+  const replaceCard = useCallback(
+    (id: string, printing: PrintingOption) => {
+      const entry = entriesRef.current.find((candidate) => candidate.id === id)
+      if (!entry) return
+      const next: ScanEntry = {
+        ...withPrinting(
           entry,
           printing,
-          printing.finishes.includes(entry.finish)
-            ? entry.finish
-            : chooseFinish(printing.finishes, settingsRef.current.preferFoil),
+          chooseFinish(printing.finishes, settingsRef.current.preferFoil),
         ),
-      ),
-    [updateEntry],
+        cardKey: printing.scryfallId,
+        illustrationId: printing.illustrationId,
+        training: entry.training ? { ...entry.training, face: "" } : entry.training,
+      }
+      relabel(next)
+      updateEntry(id, () => next)
+    },
+    [relabel, updateEntry],
   )
 
   const clear = useCallback(() => {
@@ -341,6 +392,7 @@ export function useScanSession({ paused }: { paused: boolean }) {
     setFinish,
     setLanguage,
     setPrinting,
+    replaceCard,
     removeEntry,
     clear,
     addToCollection,

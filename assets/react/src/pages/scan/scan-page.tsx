@@ -140,6 +140,9 @@ export function ScanPage() {
           if (printingEntry) session.setPrinting(printingEntry.id, printing)
           close()
         }}
+        onReplace={(printing) => {
+          if (printingEntry) session.replaceCard(printingEntry.id, printing)
+        }}
       />
     </div>
   )

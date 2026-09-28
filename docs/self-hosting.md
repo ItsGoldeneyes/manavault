@@ -363,6 +363,9 @@ Common optional values:
 - `DATA_DIR` - mutable data root. Defaults to `/data`.
 - `DATABASE_PATH` - SQLite database path. Defaults to `/data/manavault.db`.
 - `POOL_SIZE` - Ecto pool size. Defaults to `5`.
+- `SCANNER_CORRECTIONS_TOKEN` - read-only token (32+ characters) that lets Oracle's
+  importer download scanner training captures from `/api/scanner/corrections`. Unset
+  disables token access. See [scanner.md](scanner.md#training-data).
 - `SCANNER_BUNDLE_SOURCE` - where scanner model updates come from: `github`
   (default, the newest published `scanner-bundle-*` release), an HTTPS URL
   ending in `manifest.json`, or `off`. See [scanner.md](scanner.md).

@@ -97,6 +97,15 @@ export function ScanSettingsSheet({
             />
           </section>
 
+          <section className="px-5 py-2">
+            <ToggleRow
+              label="Collect training data"
+              description="Upload each scan's camera frame and its card to your server so future models recognize your cards better. Deleting a scan discards its label."
+              checked={settings.collectTraining}
+              onChange={(collectTraining) => update({ collectTraining })}
+            />
+          </section>
+
           <section className="px-5 py-4 text-sm text-base-content/70">
             <h3 className="mb-1 text-sm font-bold text-base-content">Recognition model</h3>
             <RecognizerSummary state={recognizer} lastMs={lastMs} />

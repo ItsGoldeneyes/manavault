@@ -1,4 +1,5 @@
 import type { Finish, FinishPrices, PrintingOption } from "./printing-choice"
+import type { TrainingCapture } from "./scan-training"
 
 /** One row of the scanned list; the newest scan is first. */
 export interface ScanEntry {
@@ -21,6 +22,8 @@ export interface ScanEntry {
   /** False until the catalog printing lookup finished. */
   resolved: boolean
   scannedAt: number
+  /** Set when the scan was uploaded for training; relabelled when the card is corrected. */
+  training?: TrainingCapture | null
 }
 
 export const SCAN_LANGUAGES = [

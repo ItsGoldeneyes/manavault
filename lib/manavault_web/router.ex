@@ -29,6 +29,10 @@ defmodule ManavaultWeb.Router do
     plug ManavaultWeb.Plugs.Authentication, :api
   end
 
+  pipeline :scanner_export do
+    plug ManavaultWeb.Plugs.ScannerExportAuth
+  end
+
   pipeline :personal_api do
     plug ManavaultWeb.Plugs.ApiKeyAuthentication
   end
@@ -103,6 +107,21 @@ defmodule ManavaultWeb.Router do
     pipe_through [:api, :authenticated_api]
 
     forward "/api/graphql", Absinthe.Plug, schema: ManavaultWeb.Schema
+  end
+
+  # Scanner training data: uploads from the signed-in scanner, exports for Oracle's importer
+  # (bearer token or the owner's session; see Plugs.ScannerExportAuth).
+  scope "/api/scanner", ManavaultWeb do
+    pipe_through [:api, :authenticated_api]
+
+    post "/corrections", ScannerCorrectionController, :create
+  end
+
+  scope "/api/scanner", ManavaultWeb do
+    pipe_through [:api, :scanner_export]
+
+    get "/corrections", ScannerCorrectionController, :index
+    get "/corrections/:id/crop", ScannerCorrectionController, :crop
   end
 
   scope "/api/scanner", ManavaultWeb do

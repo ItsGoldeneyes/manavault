@@ -1,5 +1,6 @@
-import { useQuery } from "@apollo/client/react"
-import { Check } from "lucide-react"
+import { useApolloClient, useQuery } from "@apollo/client/react"
+import { Check, Search } from "lucide-react"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogClose,
@@ -7,9 +8,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog"
+import { Button } from "../../components/ui/button"
+import { Input } from "../../components/ui/input"
 import { cn } from "../../lib/utils"
-import { printingOption, ScannerPrintingsDocument } from "./documents"
-import { rankPrintings, type PrintingOption } from "./printing-choice"
+import { printingOption, ScannerCardSearchDocument, ScannerPrintingsDocument } from "./documents"
+import { choosePrinting, rankPrintings, type PrintingOption } from "./printing-choice"
 import { formatCents, type ScanEntry } from "./scan-list"
 import type { ScanSettings } from "./scan-settings"
 
@@ -21,13 +24,20 @@ export function PrintingSheet({
   entry,
   settings,
   onSelect,
+  onReplace,
   onClose,
 }: {
   entry: ScanEntry | null
   settings: ScanSettings
   onSelect: (printing: PrintingOption) => void
+  /** "Wrong card?": the entry becomes this printing of another card. */
+  onReplace: (printing: PrintingOption) => void
   onClose: () => void
 }) {
+  const [searching, setSearching] = useState(false)
+  const entryId = entry?.id
+  useEffect(() => setSearching(false), [entryId])
+
   return (
     <Dialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
       {entry ? (
@@ -39,7 +49,27 @@ export function PrintingSheet({
             </div>
             <DialogClose onClose={onClose} />
           </DialogHeader>
-          <PrintingList entry={entry} settings={settings} onSelect={onSelect} />
+          {searching ? (
+            <WrongCardSearch
+              settings={settings}
+              onCancel={() => setSearching(false)}
+              onChoose={(printing) => {
+                onReplace(printing)
+                setSearching(false)
+              }}
+            />
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-2.5 text-sm">
+                <span className="text-base-content/70">Not {entry.name}?</span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setSearching(true)}>
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                  Wrong card?
+                </Button>
+              </div>
+              <PrintingList entry={entry} settings={settings} onSelect={onSelect} />
+            </>
+          )}
         </DialogContent>
       ) : null}
     </Dialog>
@@ -136,5 +166,105 @@ function PrintingList({
         )
       })}
     </ul>
+  )
+}
+
+/** Finds the right card by name; its default printing replaces the scan's card. */
+function WrongCardSearch({
+  settings,
+  onChoose,
+  onCancel,
+}: {
+  settings: ScanSettings
+  onChoose: (printing: PrintingOption) => void
+  onCancel: () => void
+}) {
+  const apollo = useApolloClient()
+  const [text, setText] = useState("")
+  const [query, setQuery] = useState("")
+  const [choosing, setChoosing] = useState<string | null>(null)
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setQuery(text.trim()), 250)
+    return () => window.clearTimeout(timeout)
+  }, [text])
+  const { data, loading } = useQuery(ScannerCardSearchDocument, {
+    variables: { q: query },
+    skip: query.length < 2,
+  })
+  const cards = (data?.cards.edges ?? []).flatMap((edge) => (edge?.node ? [edge.node] : []))
+
+  async function choose(scryfallId: string) {
+    setChoosing(scryfallId)
+    try {
+      const result = await apollo.query({
+        query: ScannerPrintingsDocument,
+        variables: { scryfallId, illustrationId: null },
+      })
+      const printing = choosePrinting(
+        (result.data?.scannerPrintings ?? []).map(printingOption),
+        {},
+        settings,
+      )
+      if (printing) onChoose(printing)
+    } finally {
+      setChoosing(null)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 border-b border-base-300 px-5 py-3">
+        <Input
+          autoFocus
+          type="search"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder="Search the right card by name"
+          aria-label="Search the right card by name"
+        />
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      <ul className="divide-y divide-base-300 overflow-y-auto">
+        {query.length >= 2 && !loading && cards.length === 0 ? (
+          <li className="px-5 py-6 text-sm text-base-content/70">No card matches “{query}”.</li>
+        ) : null}
+        {cards.map((card) => {
+          const printing = card.primaryPrinting
+          if (!printing) return null
+          return (
+            <li key={card.id}>
+              <button
+                type="button"
+                disabled={choosing !== null}
+                onClick={() => void choose(printing.scryfallId)}
+                className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none disabled:opacity-60"
+              >
+                {printing.imageUrl ? (
+                  <img
+                    src={printing.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="h-14 w-10 shrink-0 rounded-[3px] object-cover"
+                  />
+                ) : (
+                  <span className="h-14 w-10 shrink-0 rounded-[3px] bg-base-300" />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold">{card.name}</span>
+                  <span className="block truncate text-xs text-base-content/70">
+                    {card.typeLine}
+                  </span>
+                </span>
+                {choosing === printing.scryfallId ? (
+                  <span className="text-xs text-base-content/60">Loading…</span>
+                ) : null}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
