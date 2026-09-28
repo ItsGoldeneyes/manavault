@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react"
+import { useEffect, useState, type PointerEvent, type RefObject } from "react"
 import { cn } from "../../lib/utils"
 import type { Quad } from "./recognition/pipeline"
 import { frameGeometry } from "./use-camera"
@@ -9,26 +9,63 @@ import type { ScanView } from "./scan-view"
  * scanned, so the brackets frame the full picture. The SVG uses the video's pixel space with
  * `meet`, which letterboxes exactly like `contain`, so detected quads line up with the card.
  */
+/** Transparent poster: without one, Android WebView shows a large play icon before playback. */
+const BLANK_POSTER =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
 export function ScanViewfinder({
   videoRef,
   view,
+  onFocusAt,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>
   view: ScanView
+  /** Tap to focus: the tapped point of the camera image, 0–1 from the top left. */
+  onFocusAt?: (x: number, y: number) => void
 }) {
   const size = useVideoSize(videoRef)
+  const [focus, setFocus] = useState<{ x: number; y: number; key: number } | null>(null)
+
+  function handlePointerDown(event: PointerEvent<HTMLVideoElement>) {
+    const box = event.currentTarget.getBoundingClientRect()
+    if (!onFocusAt || box.width === 0 || box.height === 0) return
+    onFocusAt((event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height)
+    setFocus({ x: event.clientX, y: event.clientY, key: event.timeStamp })
+  }
+
+  useEffect(() => {
+    if (!focus) return
+    const timeout = window.setTimeout(() => setFocus(null), 900)
+    return () => window.clearTimeout(timeout)
+  }, [focus])
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
+      {/* Sized to the camera image itself (no letterbox area): Android WebView paints a video's
+          letterbox bars above overlapping page content, which hid the chip row. */}
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-contain"
+        className={cn(
+          "absolute inset-0 m-auto h-auto max-h-full w-auto max-w-full",
+          !size && "invisible",
+        )}
+        style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined}
+        poster={BLANK_POSTER}
+        onPointerDown={handlePointerDown}
         autoPlay
         muted
         playsInline
         aria-label="Camera preview"
       />
       {size ? <Overlay {...size} view={view} /> : null}
+      {focus ? (
+        <span
+          key={focus.key}
+          aria-hidden="true"
+          className="scan-focus-ring pointer-events-none fixed h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90"
+          style={{ left: focus.x, top: focus.y }}
+        />
+      ) : null}
     </div>
   )
 }

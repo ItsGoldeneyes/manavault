@@ -1,6 +1,5 @@
 import { Plus, ScanLine } from "lucide-react"
 import { SetIcon } from "../../components/card-tile"
-import { cn } from "../../lib/utils"
 import type { Finish } from "./printing-choice"
 import { ScanEntryChips } from "./scan-entry-chips"
 import { entryPriceCents, formatCents, type ScanEntry } from "./scan-list"
@@ -50,14 +49,16 @@ export function ScanResultBar({
               <img
                 src={entry.imageUrl}
                 alt=""
-                className={cn(
-                  "h-16 w-[2.9rem] rounded-[3px] object-cover shadow",
-                  entry.finish !== "nonfoil" && "ring-2 ring-warning/70",
-                )}
+                className="h-16 w-[2.9rem] rounded-[3px] object-cover shadow"
               />
             ) : (
               <span className="block h-16 w-[2.9rem] rounded-[3px] bg-base-300" />
             )}
+            {entry.finish !== "nonfoil" ? (
+              <span className="scan-foil-chip absolute inset-x-0 bottom-0 rounded-b-[3px] text-center text-[0.6rem] font-black uppercase leading-4 text-black">
+                {entry.finish === "foil" ? "Foil" : "Etched"}
+              </span>
+            ) : null}
             {entry.quantity > 1 ? (
               <span className="absolute -right-2 -top-2 rounded-full bg-primary px-1.5 py-0.5 font-mono text-xs font-black text-primary-content shadow">
                 ×{entry.quantity}

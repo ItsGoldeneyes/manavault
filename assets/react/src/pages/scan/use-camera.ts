@@ -89,6 +89,7 @@ export function useCamera() {
       video.srcObject = stream
       await video.play()
       if (generation !== generationRef.current) return
+      await applyFocus(stream, { focusMode: "continuous" })
       setState({ status: "live", width: video.videoWidth, height: video.videoHeight })
     } catch (error) {
       if (generation !== generationRef.current) return
@@ -132,7 +133,43 @@ export function useCamera() {
     return null
   }, [])
 
-  return { videoRef, state, start, stop, grabFrame, lastFrameJpeg }
+  /**
+   * Focuses at a point of the camera image (0–1 from the top left), then returns to
+   * continuous autofocus. Only where the camera supports it (Chrome on Android); a no-op
+   * elsewhere.
+   */
+  const focusAt = useCallback(async (x: number, y: number) => {
+    const stream = streamRef.current
+    if (!stream) return
+    const point = { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }
+    if (await applyFocus(stream, { pointsOfInterest: [point], focusMode: "single-shot" })) {
+      window.setTimeout(() => {
+        if (streamRef.current === stream) void applyFocus(stream, { focusMode: "continuous" })
+      }, 2500)
+    }
+  }, [])
+
+  return { videoRef, state, start, stop, grabFrame, lastFrameJpeg, focusAt }
+}
+
+/** Focus constraints from the Image Capture spec, not yet in TypeScript's DOM types. */
+interface FocusConstraints {
+  focusMode?: "continuous" | "single-shot" | "manual"
+  pointsOfInterest?: { x: number; y: number }[]
+}
+
+/** Applies focus constraints the camera supports; false when it supports none of them. */
+async function applyFocus(stream: MediaStream, wanted: FocusConstraints): Promise<boolean> {
+  const track = stream.getVideoTracks()[0]
+  const capabilities = (track?.getCapabilities?.() ?? {}) as { focusMode?: string[] }
+  const modes = capabilities.focusMode ?? []
+  if (!track || (wanted.focusMode && !modes.includes(wanted.focusMode))) return false
+  try {
+    await track.applyConstraints({ advanced: [wanted as MediaTrackConstraintSet] })
+    return true
+  } catch {
+    return false
+  }
 }
 
 function cameraError(error: unknown): CameraState {

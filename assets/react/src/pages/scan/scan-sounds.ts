@@ -41,8 +41,8 @@ export function playScanSound(sound: ScanSound) {
   const audio = audioContext()
   if (!audio) return
   const now = audio.currentTime
-  const length = sound === "scan" ? 0.07 : sound === "ding" ? 0.6 : 1.1
-  const peak = sound === "scan" ? 0.08 : 0.2
+  const length = sound === "scan" ? 0.09 : sound === "ding" ? 0.6 : 1.1
+  const peak = sound === "scan" ? 0.14 : 0.2
   for (const [frequency, offset] of NOTES[sound]) {
     const oscillator = audio.createOscillator()
     const gain = audio.createGain()

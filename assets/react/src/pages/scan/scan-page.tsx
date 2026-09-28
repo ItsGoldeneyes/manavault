@@ -64,7 +64,11 @@ export function ScanPage() {
           : (document.documentElement.dataset.palette ?? undefined)
       }
     >
-      <ScanViewfinder videoRef={camera.videoRef} view={view} />
+      <ScanViewfinder
+        videoRef={camera.videoRef}
+        view={view}
+        onFocusAt={(x, y) => void camera.focusAt(x, y)}
+      />
 
       <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-[calc(var(--safe-top)_+_0.75rem)]">
         <Link

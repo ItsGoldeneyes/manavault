@@ -636,3 +636,31 @@ body[data-scroll-locked] .app-shell-main {
     oklch(86% 0.1 320)
   );
 }
+
+/* Scanner tap-to-focus indicator. */
+.scan-focus-ring {
+  animation: scan-focus-ring 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scan-focus-ring {
+  0% {
+    opacity: 0;
+    scale: 1.4;
+  }
+
+  20% {
+    opacity: 1;
+    scale: 1;
+  }
+
+  100% {
+    opacity: 0;
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-focus-ring {
+    animation-duration: 1ms;
+  }
+}
