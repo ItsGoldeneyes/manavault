@@ -120,6 +120,15 @@ disabled without it). On the training box, Oracle imports them with
 `CARDID_SERVER=https://<host>/api/scanner/corrections` and that token as
 `CARDID_CORRECTIONS_TOKEN`; see Oracle's README, "Real phone captures from ManaVault".
 
+## Improving recognition
+
+Anyone can train a better model, test it in a local ManaVault, or contribute scans and outlines:
+see Oracle's [CONTRIBUTING.md](https://github.com/cfbender/oracle/blob/main/CONTRIBUTING.md).
+It covers setup, the gallery, measuring a change, installing your own bundle here with
+`SCANNER_BUNDLE_SOURCE=off`, and how Collect training data and Check outlines feed training.
+Changes to this app's recognition code (`assets/react/src/pages/scan/recognition/`) must stay
+compatible with the bundle format; Oracle's contract test checks them.
+
 ## Testing without a phone
 
 Chromium can use a video file as the camera, which exercises the whole pipeline:

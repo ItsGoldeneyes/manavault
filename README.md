@@ -120,6 +120,7 @@ release commands.
 - [Self-hosting](docs/self-hosting.md) - Docker, data layout, auth, environment
   variables, backups, and restores.
 - [Card scanner](docs/scanner.md) - scanner models, updates, and the browser pipeline.
+- [Improving card recognition](https://github.com/cfbender/oracle/blob/main/CONTRIBUTING.md) - train, test and contribute data for the scanner's models (in Oracle).
 - [Personal API](docs/api.md) - create read-only API keys and list decks for
   integrations such as The Gathering.
 - [Development](docs/development.md) - local setup, tests, and native shell dev
