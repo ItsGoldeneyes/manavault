@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@cfbender'
 created_date: '2026-09-29 01:19'
-updated_date: '2026-09-29 01:54'
+updated_date: '2026-09-29 02:04'
 labels:
   - scanner
   - ml
@@ -38,9 +38,9 @@ The detector's outline sits offset from the card on the phone stand, but real sc
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Committed, not yet pushed (awaiting owner approval):
+Pushed 2026-09-29 (ManaVault 5755c6e, Oracle f81be04, The Gathering fa1de12):
 - Oracle f81be04: corrections pull keeps quad_source detector|manual; plausible_outline() downgrades slivers/duplicate corners; changed outlines re-warp card.png. d54e3e8 made train_detector skip the real held-out eval when no outline is trusted.
-- ManaVault 6132451: Check outlines setting (needs Collect training data); outline-editor.tsx (drag nearest corner, loupe, arrow keys; Looks right / Save outline / Skip) pauses the scan loop; resends the capture with quad_source manual via the relabel path; server validates quad_source (manual requires a quad). Verified on the portal with the fake camera: the dialog opens after an auto-logged scan, drag + loupe work, and the saved row has quad_source manual.
+- ManaVault feat commit: Check outlines setting (needs Collect training data); outline-editor.tsx (drag nearest corner, loupe, arrow keys; Looks right / Save outline / Skip) pauses the scan loop; resends the capture with quad_source manual via the relabel path; server validates quad_source (manual requires a quad). Verified on the portal with the fake camera: the dialog opens after an auto-logged scan, drag + loupe work, and the saved row has quad_source manual.
 - The Gathering fa1de12: Shift+click plus three clicks draws an outline; the worker skips the detector, orders the corners portrait, tries both upright readings; the picker always opens; the upload carries quad_source manual. 8811f64 adds VITE_PORT so both review portals run in one orb. Verified on the portal: scrambled corners identified Bouncer's Beatdown (0.96), the row stored quad_source manual in printed order, and Oracle imported it as trusted with an upright card.png.
 - Shift+click no longer means 'choose without outlining'; Wrong card? still reopens the picker.
 <!-- SECTION:NOTES:END -->
