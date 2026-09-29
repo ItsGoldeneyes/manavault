@@ -10,6 +10,7 @@ import { ToastProvider } from "./components/ui/toast"
 import { routeTree } from "./routeTree.gen"
 import { initializeNativeSharedImport, type NativeOpenPayload } from "./lib/native-shared-import"
 import { nativeAppPath, parseNativeRoute, type NativeRoute } from "./lib/native-open"
+import { initNativeSafeAreaFallback } from "./lib/native-system-bars"
 
 const router = createRouter({
   routeTree,
@@ -74,6 +75,7 @@ function handleNativeOpen(payload: NativeOpenPayload) {
 }
 
 void initializeNativeSharedImport(handleNativeOpen)
+initNativeSafeAreaFallback()
 void initializeNativeBackButton({
   pathname: () => router.latestLocation.pathname,
   navigateToDecks: () => {
