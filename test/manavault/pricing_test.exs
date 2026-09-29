@@ -210,7 +210,7 @@ defmodule Manavault.PricingTest do
   end
 
   describe "TcgTracking.rows/2" do
-    test "prices from the pricing block's NM low, falling back to market" do
+    test "prefers market prices, falling back to the pricing block's NM low" do
       cards = %{
         "products" => [
           %{"id" => 1, "scryfall_id" => "aaa"},
@@ -234,12 +234,12 @@ defmodule Manavault.PricingTest do
 
       assert rows == [
                %{scryfall_id: "aaa", finish: "foil", price_cents: 3999},
-               %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 3509},
+               %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 3593},
                %{scryfall_id: "bbb", finish: "etched", price_cents: 957}
              ]
     end
 
-    test "follows the lowest English NM listing, then the best available condition" do
+    test "without a market price, follows the lowest English NM listing, then the best condition" do
       cards = %{
         "products" => [
           %{"id" => 1, "scryfall_id" => "aaa"},
@@ -250,7 +250,7 @@ defmodule Manavault.PricingTest do
 
       pricing = %{
         "prices" => %{
-          "1" => %{"tcg" => %{"Normal" => %{"low" => 10.0, "market" => 12.0}}},
+          "1" => %{"tcg" => %{"Normal" => %{"low" => 10.0, "market" => nil}}},
           "2" => %{"tcg" => []},
           "3" => %{"tcg" => %{"Normal" => %{"market" => 4.5}}}
         }
@@ -270,7 +270,7 @@ defmodule Manavault.PricingTest do
             "22" => sku("MP", "Normal", 90.0),
             "23" => sku("LP", "Normal", 105.0)
           },
-          "3" => %{"31" => sku("NM", "Normal", nil), "32" => sku("NM", "Normal", nil, "DE")}
+          "3" => %{"31" => sku("NM", "Normal", 3.0), "32" => sku("NM", "Normal", nil, "DE")}
         }
       }
 
@@ -303,7 +303,7 @@ defmodule Manavault.PricingTest do
       }
 
       assert TcgTracking.rows(cards, pricing) == [
-               %{scryfall_id: "42a1986c", finish: "foil", price_cents: 65_098}
+               %{scryfall_id: "42a1986c", finish: "foil", price_cents: 67_549}
              ]
     end
 

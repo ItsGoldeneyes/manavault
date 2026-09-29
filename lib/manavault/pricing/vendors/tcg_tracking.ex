@@ -5,8 +5,9 @@ defmodule Manavault.Pricing.Vendors.TcgTracking do
   TCGPlayer's own API is closed to new developers, so this walks every MTG
   set on tcgtracking, joining each set's card products (which carry Scryfall
   IDs) with its per-condition SKU listings and its pricing block (TCGPlayer
-  NM market/low per finish subtype). Prices follow the lowest near-mint
-  listing, falling back to the best available condition, then to market.
+  NM market/low per finish subtype). Prices use the TCGPlayer market price,
+  falling back to the lowest near-mint listing, then the best available
+  condition, for subtypes without one.
   Individual set failures are skipped so one bad set cannot lose a whole sync;
   a set without SKU data still syncs from its pricing block.
   """
@@ -66,11 +67,12 @@ defmodule Manavault.Pricing.Vendors.TcgTracking do
   @doc """
   Joins a set's card products with its SKU listings and pricing block.
 
-  Each finish subtype is priced from English listings: the lowest near-mint
-  listing, else the lowest listing in the best available condition
-  (#{Enum.join(@fallback_conditions, " > ")}), else the TCGPlayer market price.
-  The pricing block's `low` is the near-mint low, so it covers sets without
-  SKU data. Subtypes with none of these prices are skipped.
+  Each finish subtype uses the TCGPlayer market price. Without one, it falls
+  back to English listings: the lowest near-mint listing, else the lowest
+  listing in the best available condition
+  (#{Enum.join(@fallback_conditions, " > ")}). The pricing block's `low` is the
+  near-mint low, so it covers sets without SKU data. Subtypes with none of
+  these prices are skipped.
   """
   def rows(cards, pricing, skus \\ %{})
 
@@ -145,11 +147,13 @@ defmodule Manavault.Pricing.Vendors.TcgTracking do
     end
   end
 
+  # Listing lows come from a daily snapshot that often undercuts what is
+  # actually buyable, so they only price subtypes without a market price.
   defp price_cents(price, listings) do
-    listings["NM"] ||
+    Money.to_cents(price["market"]) ||
+      listings["NM"] ||
       Money.to_cents(price["low"]) ||
-      Enum.find_value(@fallback_conditions, &listings[&1]) ||
-      Money.to_cents(price["market"])
+      Enum.find_value(@fallback_conditions, &listings[&1])
   end
 
   defp subtype_finish(subtype) do
