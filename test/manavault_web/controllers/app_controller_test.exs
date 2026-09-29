@@ -13,8 +13,8 @@ defmodule ManavaultWeb.AppControllerTest do
 
     assert response =~ ~s(id="manavault-root")
     assert response =~ ~s(name="csrf-token")
-    assert response =~ ~s(src="/shell/js/theme.js")
-    assert response =~ ~s(src="/shell/js/pwa-install.js")
+    assert response =~ ~s(src="/shell/js/theme.js?v=#{ManavaultWeb.AssetVersion.current()}")
+    assert response =~ ~s(src="/shell/js/pwa-install.js?v=#{ManavaultWeb.AssetVersion.current()}")
     refute response =~ ~s(<script>)
     assert response =~ ~s(data-theme-style="glass")
     assert response =~ ~s(<html lang="en" class="h-screen w-screen overflow-hidden")
@@ -260,6 +260,13 @@ defmodule ManavaultWeb.AppControllerTest do
     assert response =~ ~s(src="/assets/react/app.js")
     refute response =~ ~r(src="/assets/react/app\.js\?)
     refute response =~ "127.0.0.1:5173"
+
+    # The stylesheet and shell scripts are not modules; version them so a deploy never pairs
+    # the current bundle with a stylesheet the CDN or WebView cached from an older one.
+    asset_version = ManavaultWeb.AssetVersion.current()
+    assert response =~ ~s(href="/assets/css/app.css?v=#{asset_version}")
+    assert response =~ ~s(src="/shell/js/theme.js?v=#{asset_version}")
+    assert response =~ ~s(src="/shell/js/pwa-install.js?v=#{asset_version}")
   end
 
   test "GET / uses same-origin Vite assets behind the development proxy", %{conn: conn} do

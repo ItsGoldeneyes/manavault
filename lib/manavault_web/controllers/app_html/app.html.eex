@@ -28,13 +28,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#166534" />
     <title><%= @preview.title %></title>
-    <script src="/shell/js/theme.js"></script>
-    <script src="/shell/js/pwa-install.js"></script>
+    <script src="/shell/js/theme.js?v=<%= @asset_version %>"></script>
+    <script src="/shell/js/pwa-install.js?v=<%= @asset_version %>"></script>
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest?v=<%= @asset_version %>" crossorigin="use-credentials" />
-    <link rel="stylesheet" href="/assets/css/app.css" />
+    <%# Versioned per deploy: the CDN and WebViews cache these for hours, and a stale
+        stylesheet lacks the classes the current React bundle uses. %>
+    <link rel="stylesheet" href="/assets/css/app.css?v=<%= @asset_version %>" />
     <%= if @vite_dev? do %>
       <script type="module" src="/shell/js/vite-bootstrap.js"></script>
     <% else %>
