@@ -95,7 +95,11 @@ the 640 px frame the recognizer saw, its detected quad, the recognized card, sco
 version to `POST /api/scanner/corrections` (signed-in session and CSRF). Changing the entry's
 printing or finish, or choosing **Wrong card?** in the printing sheet, relabels the capture
 without re-sending the image; deleting a scan marks it skipped, since its label is not trusted.
-The last label per capture wins.
+**Identify** covers scans the recognizer never logs (unrecognized foils, cards stuck on "Hold
+steady"): it freezes the frame, the user names the card, and that frame is uploaded with the
+label plus the detected quad and the recognizer's guess when there were any. Without a quad the
+capture stays pending in Oracle until its geometry is fixed. The last label per capture wins.
+Oracle trains each app's model on its own captures with `CARDID_SOURCES=manavault-scanner`.
 
 The server stores them in `DATA_DIR/scanner/corrections/` (`labels.jsonl` plus
 `<capture_id>/crop.jpg`, the same layout as The Gathering's table corrections) and exports them at

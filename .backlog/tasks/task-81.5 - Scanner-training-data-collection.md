@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@cfbender'
 created_date: '2026-09-28 23:41'
-updated_date: '2026-09-28 23:41'
+updated_date: '2026-09-29 00:13'
 labels: []
 dependencies: []
 parent_task_id: TASK-81
@@ -36,6 +36,8 @@ Collect labelled real phone scans (foils, the owner's scanner stand) so the reco
 
 <!-- SECTION:NOTES:BEGIN -->
 Verified in Chromium with a fake camera: scans uploaded 640 px frames (~66 KB) into data/scanner/corrections with source manavault-scanner; a finish change relabelled nonfoil->foil, Wrong card? relabelled Cloudthresher->Lightning Bolt, a deletion wrote a skip row; GET /api/scanner/corrections exported the rows. ExUnit: corrections controller (store, relabel without image, skip, validation, token export) and bundle pruning keeps corrections. Oracle: corrections_endpoint + source tests; 128 Oracle tests pass.
+
+Added Identify (manual labelling of frames the scanner missed; uploads frame + detector quad + recognizer guess) and Oracle's CARDID_SOURCES filter so ManaVault's model line trains/evaluates on manavault-scanner captures only.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

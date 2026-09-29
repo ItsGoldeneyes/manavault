@@ -94,6 +94,8 @@ camera; the browser or OS asks for camera access once.
 - Settings: lock one or more sets, ignore promos, prefer foil, show the running
   total value, and sounds (a click per scan, a ding at $1 and a bigger ding at
   $10 by default; both thresholds are configurable).
+- **Identify** next to the status adds a card the scanner does not recognize:
+  it freezes the camera view and searches the card by name.
 - **Wrong card?** in the printing picker searches the catalog by name and swaps
   a misrecognized scan for the right card.
 - **Collect training data** (off by default) uploads each scan's camera frame
