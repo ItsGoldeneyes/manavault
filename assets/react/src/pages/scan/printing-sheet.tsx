@@ -50,7 +50,7 @@ export function PrintingSheet({
             <DialogClose onClose={onClose} />
           </DialogHeader>
           {searching ? (
-            <WrongCardSearch
+            <CardNameSearch
               settings={settings}
               onCancel={() => setSearching(false)}
               onChoose={(printing) => {
@@ -169,8 +169,8 @@ function PrintingList({
   )
 }
 
-/** Finds the right card by name; its default printing replaces the scan's card. */
-function WrongCardSearch({
+/** Finds a card by name and hands back its default printing (locked sets, owned, newest…). */
+export function CardNameSearch({
   settings,
   onChoose,
   onCancel,
@@ -219,8 +219,8 @@ function WrongCardSearch({
           type="search"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Search the right card by name"
-          aria-label="Search the right card by name"
+          placeholder="Search the card by name"
+          aria-label="Search the card by name"
         />
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel

@@ -10,13 +10,14 @@ import {
 } from "./documents"
 import { chooseFinish, choosePrinting, type Finish, type PrintingOption } from "./printing-choice"
 import type { Identification } from "./recognition/messages"
-import type { Candidate } from "./recognition/pipeline"
+import type { Candidate, Quad } from "./recognition/pipeline"
 import { useRecognizer } from "./recognition/use-recognizer"
 import {
   cardKey,
   evaluateFrame,
   forgetLastLogged,
   INITIAL_TRACKER,
+  markLogged,
   type ScanTracker,
 } from "./scan-decision"
 import {
@@ -36,7 +37,12 @@ import {
 } from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
 import { IDLE_VIEW, nextView, type ScanView } from "./scan-view"
-import { trainingCapture, trainingSample, uploadTrainingSample } from "./scan-training"
+import {
+  manualCapture,
+  trainingCapture,
+  trainingSample,
+  uploadTrainingSample,
+} from "./scan-training"
 import { FRAME_SIZE, useCamera } from "./use-camera"
 
 /** Breathing room between frames so the UI thread and battery are not saturated. */
@@ -57,6 +63,14 @@ type SetLock =
   | { status: "off" }
   | { status: "loading" }
   | { status: "ready"; allow: (candidate: Candidate) => boolean }
+
+/** What the camera saw when the user tapped "Identify". */
+export interface FrameSnapshot {
+  /** JPEG of the frame, only when training collection is on. */
+  image: string | null
+  quad: Quad | null
+  candidate: Candidate | null
+}
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -82,6 +96,8 @@ export function useScanSession({ paused }: { paused: boolean }) {
     },
   )
   const [view, setView] = useState<ScanView>(IDLE_VIEW)
+  const viewRef = useRef(view)
+  viewRef.current = view
 
   const settingsRef = useRef(settings)
   settingsRef.current = settings
@@ -338,6 +354,61 @@ export function useScanSession({ paused }: { paused: boolean }) {
     [relabel, updateEntry],
   )
 
+  /** Freezes what the camera sees now, before the Identify sheet pauses scanning. */
+  const snapshotFrame = useCallback((): FrameSnapshot => {
+    const { quad, candidate } = viewRef.current
+    const image = settingsRef.current.collectTraining && grabFrame() ? lastFrameJpeg() : null
+    return { image, quad, candidate }
+  }, [grabFrame, lastFrameJpeg])
+
+  /** "Identify": logs a card the scanner missed, as the user named it. */
+  const logManual = useCallback(
+    (printing: PrintingOption, snapshot: FrameSnapshot) => {
+      const finish = chooseFinish(printing.finishes, settingsRef.current.preferFoil)
+      const blank: ScanEntry = {
+        id: newEntryId(),
+        cardKey: printing.scryfallId,
+        illustrationId: printing.illustrationId,
+        name: printing.name,
+        scryfallId: printing.scryfallId,
+        setCode: printing.setCode,
+        setName: printing.setName,
+        collectorNumber: printing.collectorNumber,
+        rarity: printing.rarity,
+        finish,
+        finishes: printing.finishes,
+        language: printing.lang,
+        quantity: 1,
+        prices: printing.prices,
+        imageUrl: printing.imageUrl,
+        resolved: true,
+        scannedAt: Date.now(),
+      }
+      const entry = withPrinting(blank, printing, finish)
+      const version = bundleVersionRef.current
+      if (snapshot.image && version) {
+        entry.training = manualCapture(
+          newEntryId(),
+          snapshot.quad,
+          snapshot.candidate,
+          FRAME_SIZE,
+          version,
+        )
+        void uploadTrainingSample(
+          trainingSample(entry.training, printing.scryfallId, finish, snapshot.image),
+        )
+      }
+      // Whatever the scanner was seeing is this card: do not auto-log it right after.
+      trackerRef.current = markLogged(
+        trackerRef.current,
+        snapshot.candidate ? cardKey(snapshot.candidate.id) : null,
+      )
+      setEntries((list) => [entry, ...list])
+      playScanSound(soundForPrice(printing.prices[finish], settingsRef.current))
+    },
+    [setEntries],
+  )
+
   /** "Wrong card?": the entry becomes a different card; its capture is relabelled. */
   const replaceCard = useCallback(
     (id: string, printing: PrintingOption) => {
@@ -393,6 +464,8 @@ export function useScanSession({ paused }: { paused: boolean }) {
     setLanguage,
     setPrinting,
     replaceCard,
+    snapshotFrame,
+    logManual,
     removeEntry,
     clear,
     addToCollection,

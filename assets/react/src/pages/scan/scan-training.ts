@@ -13,12 +13,14 @@ export interface TrainingCapture {
   captureId: string
   /** "-1" when the scan recognized a card's second printed face. */
   face: "" | "-1"
-  top1: string
+  /** The recognizer's best match; absent for a manual capture with nothing recognized. */
+  top1?: string
   click: [number, number]
-  quad: [number, number][]
-  upVote: number
-  similarity: number
-  margin: number
+  /** Detected card corners; absent when the detector saw no card (the import stays pending). */
+  quad?: [number, number][]
+  upVote?: number
+  similarity?: number
+  margin?: number
   bundleVersion: string
 }
 
@@ -26,12 +28,12 @@ export interface TrainingSample {
   capture_id: string
   /** A printing of the card in view; `null` marks the capture skipped. */
   label: string | null
-  top1: string
+  top1?: string
   click: [number, number]
-  quad: [number, number][]
-  up_vote: number
-  similarity: number
-  margin: number
+  quad?: [number, number][]
+  up_vote?: number
+  similarity?: number
+  margin?: number
   finish: Finish
   bundle_version: string
   image?: string
@@ -56,6 +58,27 @@ export function trainingCapture(
     upVote: clamp(round(result.upVote), 0, 2),
     similarity: clamp(round(candidate.score), -2, 2),
     margin: clamp(round(candidate.score - (runnerUp?.score ?? 0)), 0, 4),
+    bundleVersion,
+  }
+}
+
+/**
+ * A frame the user identified by hand with "Identify": the card the recognizer missed, with
+ * whatever the detector and recognizer saw at the time.
+ */
+export function manualCapture(
+  captureId: string,
+  quad: Identification["quad"] | null,
+  top1: Candidate | null,
+  frameSize: number,
+  bundleVersion: string,
+): TrainingCapture {
+  return {
+    captureId,
+    face: "",
+    ...(top1 ? { top1: top1.id, similarity: clamp(round(top1.score), -2, 2) } : {}),
+    click: [frameSize / 2, frameSize / 2],
+    ...(quad ? { quad: quad.map(([x, y]) => [round(x), round(y)] as [number, number]) } : {}),
     bundleVersion,
   }
 }

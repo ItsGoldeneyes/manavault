@@ -1,6 +1,6 @@
 import { expect, test } from "vitest"
 
-import { trainingCapture, trainingSample } from "../src/pages/scan/scan-training"
+import { manualCapture, trainingCapture, trainingSample } from "../src/pages/scan/scan-training"
 
 const FRONT = "54772e15-d99d-4eec-ba8d-b9202a7e318b"
 const OTHER = "db6358cf-fcb9-42af-9755-dd1f39bfc8ff"
@@ -54,4 +54,18 @@ test("labels keep the scanned face, relabels omit the image, null skips", () => 
   expect(relabel.finish).toBe("nonfoil")
 
   expect(trainingSample(capture, null, "foil").label).toBeNull()
+})
+
+test("a manual Identify capture keeps what the scanner saw, or nothing", () => {
+  const scan = result(FRONT)
+  const seen = manualCapture("cap", scan.quad, scan.candidates[0]!, 640, "v1")
+  expect(seen).toMatchObject({ top1: FRONT, similarity: 0.912, face: "" })
+  expect(trainingSample(seen, OTHER, "foil").label).toBe(OTHER)
+
+  const blind = manualCapture("cap2", null, null, 640, "v1")
+  // What goes over the wire: absent fields are left out of the JSON body.
+  const sent = JSON.parse(JSON.stringify(trainingSample(blind, OTHER, "nonfoil")))
+  expect(sent).not.toHaveProperty("quad")
+  expect(sent).not.toHaveProperty("top1")
+  expect(sent.label).toBe(OTHER)
 })

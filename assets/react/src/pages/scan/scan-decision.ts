@@ -127,3 +127,8 @@ function quadShortSide({ quad }: Identification) {
   }
   return short
 }
+
+/** After a card is logged by hand, treat what the scanner sees as already logged. */
+export function markLogged(tracker: ScanTracker, key: string | null): ScanTracker {
+  return key ? { ...tracker, lastLoggedKey: key } : tracker
+}

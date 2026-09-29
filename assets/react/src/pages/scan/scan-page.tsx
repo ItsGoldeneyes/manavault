@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { CameraOff, List, LoaderCircle, Settings2, X } from "lucide-react"
+import { CameraOff, List, LoaderCircle, ScanSearch, Settings2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
   restoreNativeSystemBarsTheme,
@@ -16,13 +16,15 @@ import { unlockScanSounds } from "./scan-sounds"
 import { ScanViewfinder } from "./scan-viewfinder"
 import type { CameraState } from "./use-camera"
 import type { ScanView } from "./scan-view"
-import { useScanSession } from "./use-scan-session"
+import { useScanSession, type FrameSnapshot } from "./use-scan-session"
+import { IdentifySheet } from "./identify-sheet"
 
 type Sheet =
   | { type: "none" }
   | { type: "list" }
   | { type: "settings" }
   | { type: "printing"; id: string }
+  | { type: "identify"; snapshot: FrameSnapshot }
 
 /** Full-screen, auto-scanning camera view in the spirit of ManaBox. */
 export function ScanPage() {
@@ -115,7 +117,19 @@ export function ScanPage() {
         <CameraErrorPanel message={camera.state.message} onRetry={start} />
       ) : (
         <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-[calc(var(--safe-bottom)_+_0.75rem)] pt-10">
-          <StatusPill camera={camera.state} recognizer={recognizer.state} view={view} />
+          <div className="flex items-center justify-center gap-2">
+            <StatusPill camera={camera.state} recognizer={recognizer.state} view={view} />
+            {recognizer.state.status === "ready" && camera.state.status === "live" ? (
+              <button
+                type="button"
+                onClick={() => setSheet({ type: "identify", snapshot: session.snapshotFrame() })}
+                className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-black/60 px-3.5 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                Identify
+              </button>
+            ) : null}
+          </div>
           <ScanResultBar
             entry={latest}
             onAddCopy={session.addCopy}
@@ -145,6 +159,15 @@ export function ScanPage() {
         lastMs={view.ms}
         onChange={session.setSettings}
         onClose={close}
+      />
+      <IdentifySheet
+        open={sheet.type === "identify"}
+        settings={settings}
+        onClose={close}
+        onIdentify={(printing) => {
+          if (sheet.type === "identify") session.logManual(printing, sheet.snapshot)
+          close()
+        }}
       />
       <PrintingSheet
         entry={printingEntry}
@@ -179,7 +202,7 @@ function StatusPill({
     <p
       role="status"
       aria-live="polite"
-      className="mx-auto flex items-center gap-2 rounded-full bg-black/60 px-3.5 py-1.5 text-sm font-bold text-white"
+      className="flex min-w-0 items-center gap-2 rounded-full bg-black/60 px-3.5 py-1.5 text-sm font-bold text-white"
     >
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
       {text}
