@@ -111,7 +111,9 @@ defmodule Manavault.Scanner.Corrections do
     row =
       params
       |> Map.take(@fields)
-      |> Map.reject(fn {_key, value} -> is_nil(value) end)
+      # Absent optional fields are dropped, but a skip keeps `"label": null` (Oracle's format).
+      |> Map.reject(fn {key, value} -> is_nil(value) and key != "label" end)
+      |> Map.put_new("label", nil)
       |> Map.put("split", split_for(id))
       |> Map.put("source", "manavault-scanner")
 

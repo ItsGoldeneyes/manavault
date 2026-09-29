@@ -90,7 +90,7 @@ defmodule ManavaultWeb.ScannerCorrectionControllerTest do
     |> json_response(201)
 
     assert [_first, skipped] = Corrections.page(0).corrections
-    refute Map.has_key?(skipped, "label")
+    assert Map.fetch(skipped, "label") == {:ok, nil}
   end
 
   test "rejects malformed corrections and image-less new captures", %{conn: conn} do
