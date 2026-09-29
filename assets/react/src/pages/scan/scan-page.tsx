@@ -18,6 +18,7 @@ import type { CameraState } from "./use-camera"
 import type { ScanView } from "./scan-view"
 import { useScanSession, type FrameSnapshot } from "./use-scan-session"
 import { IdentifySheet } from "./identify-sheet"
+import { OutlineEditor } from "./outline-editor"
 
 type Sheet =
   | { type: "none" }
@@ -173,6 +174,11 @@ export function ScanPage() {
           if (sheet.type === "identify") session.logManual(printing, sheet.snapshot)
           close()
         }}
+      />
+      <OutlineEditor
+        check={session.outlineCheck}
+        onSave={session.saveOutline}
+        onSkip={session.skipOutline}
       />
       <PrintingSheet
         entry={printingEntry}

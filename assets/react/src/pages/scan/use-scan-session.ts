@@ -37,11 +37,14 @@ import {
 } from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
 import { IDLE_VIEW, nextView, type ScanView } from "./scan-view"
+import { centredOutline } from "./outline-geometry"
+import type { OutlineCheck } from "./outline-editor"
 import {
   manualCapture,
   trainingCapture,
   trainingSample,
   uploadTrainingSample,
+  withCheckedOutline,
 } from "./scan-training"
 import { FRAME_SIZE, useCamera } from "./use-camera"
 
@@ -101,8 +104,10 @@ export function useScanSession({ paused }: { paused: boolean }) {
 
   const settingsRef = useRef(settings)
   settingsRef.current = settings
+  // "Check outlines": the logged scan whose outline waits for the user; scanning pauses.
+  const [outlineCheck, setOutlineCheck] = useState<OutlineCheck | null>(null)
   const pausedRef = useRef(paused)
-  pausedRef.current = paused
+  pausedRef.current = paused || outlineCheck !== null
   const trackerRef = useRef<ScanTracker>(INITIAL_TRACKER)
   const entriesRef = useRef(entries)
   entriesRef.current = entries
@@ -182,7 +187,11 @@ export function useScanSession({ paused }: { paused: boolean }) {
       }
       const finish = chooseFinish(printing.finishes, settingsRef.current.preferFoil)
       updateEntry(entry.id, (current) => withPrinting(current, printing, finish))
-      if (finish !== entry.finish) relabel({ ...entry, finish })
+      if (finish !== entry.finish) {
+        // The outline may have been checked meanwhile; resend that, not the logged capture.
+        const latest = entriesRef.current.find((candidate) => candidate.id === entry.id)
+        relabel({ ...entry, training: latest?.training ?? entry.training, finish })
+      }
       playScanSound(soundForPrice(printing.prices[finish], settingsRef.current))
     },
     [apollo, relabel, updateEntry],
@@ -220,6 +229,11 @@ export function useScanSession({ paused }: { paused: boolean }) {
       if (image && version) {
         entry.training = trainingCapture(newEntryId(), candidate, result, FRAME_SIZE, version)
         void uploadTrainingSample(trainingSample(entry.training, candidate.id, entry.finish, image))
+        if (settingsRef.current.checkOutlines && entry.training.quad) {
+          // Set the ref now so the scan loop stops before the next frame, not after a render.
+          pausedRef.current = true
+          setOutlineCheck({ entryId: entry.id, name: entry.name, image, quad: result.quad })
+        }
       }
       setEntries((list) => [entry, ...list])
       void resolveEntry(entry)
@@ -397,6 +411,16 @@ export function useScanSession({ paused }: { paused: boolean }) {
         void uploadTrainingSample(
           trainingSample(entry.training, printing.scryfallId, finish, snapshot.image),
         )
+        // A card the scanner missed often had a bad outline, or none: a card-shaped start.
+        if (settingsRef.current.checkOutlines) {
+          pausedRef.current = true
+          setOutlineCheck({
+            entryId: entry.id,
+            name: entry.name,
+            image: snapshot.image,
+            quad: snapshot.quad ?? centredOutline(FRAME_SIZE),
+          })
+        }
       }
       // Whatever the scanner was seeing is this card: do not auto-log it right after.
       trackerRef.current = markLogged(
@@ -429,6 +453,24 @@ export function useScanSession({ paused }: { paused: boolean }) {
     },
     [relabel, updateEntry],
   )
+
+  /** The user confirmed or corrected the outline: resend the capture as ground truth. */
+  const saveOutline = useCallback(
+    (quad: Quad) => {
+      const entry = outlineCheck
+        ? entriesRef.current.find((candidate) => candidate.id === outlineCheck.entryId)
+        : undefined
+      setOutlineCheck(null)
+      if (!entry?.training) return
+      const next = { ...entry, training: withCheckedOutline(entry.training, quad) }
+      relabel(next)
+      updateEntry(entry.id, () => next)
+    },
+    [outlineCheck, relabel, updateEntry],
+  )
+
+  /** Leaves the detector's outline as it was: still a label, not detector ground truth. */
+  const skipOutline = useCallback(() => setOutlineCheck(null), [])
 
   const clear = useCallback(() => {
     trackerRef.current = forgetLastLogged(trackerRef.current)
@@ -466,6 +508,9 @@ export function useScanSession({ paused }: { paused: boolean }) {
     replaceCard,
     snapshotFrame,
     logManual,
+    outlineCheck,
+    saveOutline,
+    skipOutline,
     removeEntry,
     clear,
     addToCollection,

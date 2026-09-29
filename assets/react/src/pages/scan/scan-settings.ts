@@ -12,6 +12,8 @@ export interface ScanSettings {
   showTotal: boolean
   /** Upload each logged scan's camera frame to this server for training recognition. */
   collectTraining: boolean
+  /** With training collection on: pause on each logged scan to confirm or fix its outline. */
+  checkOutlines: boolean
   /** Camera preview zoom beyond filling the screen, for phones on a scanning stand. */
   previewZoom: number
   /** The point of the camera image (0–1) shown at the middle of the preview. */
@@ -31,6 +33,7 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   bigDingThresholdCents: 1000,
   showTotal: true,
   collectTraining: false,
+  checkOutlines: false,
   previewZoom: 1,
   previewPanX: 0.5,
   previewPanY: 0.5,
@@ -72,6 +75,7 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     bigDingThresholdCents: cents("bigDingThresholdCents"),
     showTotal: bool("showTotal"),
     collectTraining: bool("collectTraining"),
+    checkOutlines: bool("checkOutlines"),
     previewZoom: within("previewZoom", PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX),
     previewPanX: within("previewPanX", 0, 1),
     previewPanY: within("previewPanY", 0, 1),

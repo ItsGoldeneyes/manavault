@@ -9,8 +9,11 @@ defmodule Manavault.Scanner.Corrections do
       DATA_DIR/scanner/corrections/<capture_id>/label.json
 
   A relabel (a changed printing or finish) may omit the image once the capture exists; the
-  first image is never overwritten. A `null` label marks the capture skipped (the scan was
-  deleted, so its label is not trusted); Oracle's importer treats the latest row as final. Writes are serialized; repeated submissions are idempotent.
+  first image is never overwritten. An outline check resubmits the capture with the corrected
+  `quad` and `quad_source: "manual"`, which Oracle trusts for detector training. A `null`
+  label marks the capture skipped (the scan was deleted, so its label is not trusted);
+  Oracle's importer treats the latest row as final. Writes are serialized; repeated
+  submissions are idempotent.
   """
 
   alias Manavault.Scanner.Bundle
@@ -18,8 +21,10 @@ defmodule Manavault.Scanner.Corrections do
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
   # Gallery IDs name a printed face `<uuid>-1`; Oracle accepts only that suffix.
   @printing_id ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-1)?\z/
-  @fields ~w(capture_id label click quad up_vote bundle_version top1 similarity margin finish)
+  @fields ~w(capture_id label click quad quad_source up_vote bundle_version top1 similarity margin finish)
   @finishes ~w(nonfoil foil etched)
+  # `manual`: a person confirmed or drew the outline, so Oracle may train the detector on it.
+  @quad_sources ~w(detector manual)
   @max_image 190_000
   @page_size 50
 
@@ -47,7 +52,8 @@ defmodule Manavault.Scanner.Corrections do
   defp validate_fields(p) do
     if uuid?(p["capture_id"]) and (is_nil(p["label"]) or printing_id?(p["label"])) and
          point?(p["click"], 0, 640) and
-         quad?(p["quad"]) and optional_number?(p["up_vote"], 0, 2) and
+         quad?(p["quad"]) and quad_source?(p["quad_source"], p["quad"]) and
+         optional_number?(p["up_vote"], 0, 2) and
          optional_number?(p["similarity"], -2, 2) and optional_number?(p["margin"], 0, 4) and
          (is_nil(p["top1"]) or printing_id?(p["top1"])) and
          (is_nil(p["finish"]) or p["finish"] in @finishes) and
@@ -90,6 +96,10 @@ defmodule Manavault.Scanner.Corrections do
     do: length(q) == 4 and Enum.all?(q, &point?(&1, -2048, 2048))
 
   defp quad?(_quad), do: false
+
+  defp quad_source?(nil, _quad), do: true
+  defp quad_source?("manual", nil), do: false
+  defp quad_source?(source, _quad), do: source in @quad_sources
 
   # Baseline/progressive JPEG frame dimensions without decoding pixels; Oracle's importer
   # validates the image fully.

@@ -81,6 +81,24 @@ defmodule ManavaultWeb.ScannerCorrectionControllerTest do
     assert Enum.map(Corrections.page(0).corrections, & &1["label"]) == [@label, other]
   end
 
+  test "a checked outline resubmits the capture with a manual quad source", %{conn: conn} do
+    conn |> post("/api/scanner/corrections", payload()) |> json_response(201)
+    drawn = [[5, 3], [61, 5], [59, 61], [3, 59]]
+
+    conn
+    |> recycle()
+    |> post(
+      "/api/scanner/corrections",
+      payload(%{"quad" => drawn, "quad_source" => "manual"}) |> Map.delete("image")
+    )
+    |> json_response(201)
+
+    assert [first, checked] = Corrections.page(0).corrections
+    refute Map.has_key?(first, "quad_source")
+    assert checked["quad"] == drawn
+    assert checked["quad_source"] == "manual"
+  end
+
   test "a null label marks the capture skipped", %{conn: conn} do
     conn |> post("/api/scanner/corrections", payload()) |> json_response(201)
 
@@ -98,6 +116,8 @@ defmodule ManavaultWeb.ScannerCorrectionControllerTest do
           payload(%{"label" => "not-a-uuid"}),
           payload(%{"click" => [900, 10]}),
           payload(%{"finish" => "shiny"}),
+          payload(%{"quad_source" => "guessed"}),
+          payload(%{"quad_source" => "manual", "quad" => nil}),
           payload(%{"image" => "data:image/jpeg;base64,bm90IGEganBlZw=="}),
           Map.delete(payload(), "image")
         ] do

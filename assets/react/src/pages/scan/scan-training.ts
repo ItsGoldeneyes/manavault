@@ -5,7 +5,7 @@
  */
 import { currentCsrfToken } from "../../lib/csrf"
 import type { Identification } from "./recognition/messages"
-import type { Candidate } from "./recognition/pipeline"
+import type { Candidate, Quad } from "./recognition/pipeline"
 import type { Finish } from "./printing-choice"
 
 /** What an entry keeps to relabel its capture later: everything but the label and image. */
@@ -18,6 +18,9 @@ export interface TrainingCapture {
   click: [number, number]
   /** Detected card corners; absent when the detector saw no card (the import stays pending). */
   quad?: [number, number][]
+  /** "manual" once the user confirmed or dragged the outline ("Check outlines"); the corners
+   * are then ground truth Oracle may train the detector on. Absent: the detector's own. */
+  quadSource?: "manual"
   upVote?: number
   similarity?: number
   margin?: number
@@ -31,6 +34,7 @@ export interface TrainingSample {
   top1?: string
   click: [number, number]
   quad?: [number, number][]
+  quad_source?: "manual"
   up_vote?: number
   similarity?: number
   margin?: number
@@ -83,6 +87,15 @@ export function manualCapture(
   }
 }
 
+/** The capture with an outline the user confirmed or corrected, in frame pixels. */
+export function withCheckedOutline(capture: TrainingCapture, quad: Quad): TrainingCapture {
+  return {
+    ...capture,
+    quad: quad.map(([x, y]) => [round(x), round(y)] as [number, number]),
+    quadSource: "manual",
+  }
+}
+
 /**
  * The capture labelled as `scryfallId` (a printing of the card in view, keeping the scanned
  * face) with `finish`; a `null` ID marks it skipped.
@@ -100,6 +113,7 @@ export function trainingSample(
     top1: capture.top1,
     click: capture.click,
     quad: capture.quad,
+    quad_source: capture.quadSource,
     up_vote: capture.upVote,
     similarity: capture.similarity,
     margin: capture.margin,

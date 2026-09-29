@@ -10,6 +10,7 @@ import {
 } from "../../components/ui/dialog"
 import { Input } from "../../components/ui/input"
 import { Switch } from "../../components/ui/switch"
+import { cn } from "../../lib/utils"
 import { SetCombobox } from "../collection/set-combobox"
 import type { RecognizerState } from "./recognition/use-recognizer"
 import {
@@ -161,6 +162,13 @@ export function ScanSettingsSheet({
               checked={settings.collectTraining}
               onChange={(collectTraining) => update({ collectTraining })}
             />
+            <ToggleRow
+              label="Check outlines"
+              description="After each scan, pause to confirm the card's outline or drag its corners onto the card. Checked outlines teach the scanner to find cards."
+              checked={settings.collectTraining && settings.checkOutlines}
+              disabled={!settings.collectTraining}
+              onChange={(checkOutlines) => update({ checkOutlines })}
+            />
           </section>
 
           <section className="px-5 py-4 text-sm text-base-content/70">
@@ -228,21 +236,26 @@ function ToggleRow({
   label,
   description,
   checked,
+  disabled = false,
   onChange,
 }: {
   label: string
   description: string
   checked: boolean
+  disabled?: boolean
   onChange: (checked: boolean) => void
 }) {
   const id = useId()
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5">
-      <label htmlFor={id} className="min-w-0 cursor-pointer">
+    <div className={cn("flex items-center justify-between gap-4 py-2.5", disabled && "opacity-60")}>
+      <label
+        htmlFor={id}
+        className={cn("min-w-0", disabled ? "cursor-not-allowed" : "cursor-pointer")}
+      >
         <span className="block text-sm font-bold">{label}</span>
         <span className="block text-sm text-base-content/70">{description}</span>
       </label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </div>
   )
 }

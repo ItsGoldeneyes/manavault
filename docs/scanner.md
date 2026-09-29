@@ -103,6 +103,15 @@ label plus the detected quad and the recognizer's guess when there were any. Wit
 capture stays pending in Oracle until its geometry is fixed. The last label per capture wins.
 Oracle trains each app's model on its own captures with `CARDID_SOURCES=manavault-scanner`.
 
+**Check outlines** (below it, only with collection on) makes those outlines detector training
+data. The detector's own outline cannot teach the detector, so each logged or identified scan
+pauses on its frozen frame (`outline-editor.tsx`): the user confirms the outline (**Looks
+right**) or drags its corners onto the card, with a loupe for precision and arrow keys on a
+focused corner, and the capture is resent with the new `quad` and `quad_source: "manual"`.
+**Skip** leaves it as the detector's. An **Identify** frame without a detected card starts from
+a card-shaped outline in the middle of the frame. Oracle trains and scores the detector only on
+these manual outlines (see Oracle's README, "Trusted outlines for the detector").
+
 The server stores them in `DATA_DIR/scanner/corrections/` (`labels.jsonl` plus
 `<capture_id>/crop.jpg`, the same layout as The Gathering's table corrections) and exports them at
 `GET /api/scanner/corrections?cursor=N` and `GET /api/scanner/corrections/:id/crop` for the
