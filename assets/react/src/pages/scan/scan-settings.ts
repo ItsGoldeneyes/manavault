@@ -12,7 +12,15 @@ export interface ScanSettings {
   showTotal: boolean
   /** Upload each logged scan's camera frame to this server for training recognition. */
   collectTraining: boolean
+  /** Camera preview zoom beyond filling the screen, for phones on a scanning stand. */
+  previewZoom: number
+  /** The point of the camera image (0–1) shown at the middle of the preview. */
+  previewPanX: number
+  previewPanY: number
 }
+
+export const PREVIEW_ZOOM_MIN = 1
+export const PREVIEW_ZOOM_MAX = 2.5
 
 export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   lockedSets: [],
@@ -23,6 +31,9 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   bigDingThresholdCents: 1000,
   showTotal: true,
   collectTraining: false,
+  previewZoom: 1,
+  previewPanX: 0.5,
+  previewPanY: 0.5,
 }
 
 /** Stored settings from an older version or a hand-edited value fall back field by field. */
@@ -36,6 +47,12 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     const number = stored[key]
     return typeof number === "number" && Number.isFinite(number) && number >= 0
       ? Math.round(number)
+      : DEFAULT_SCAN_SETTINGS[key]
+  }
+  const within = (key: "previewZoom" | "previewPanX" | "previewPanY", min: number, max: number) => {
+    const number = stored[key]
+    return typeof number === "number" && Number.isFinite(number)
+      ? Math.min(Math.max(number, min), max)
       : DEFAULT_SCAN_SETTINGS[key]
   }
   return {
@@ -55,6 +72,9 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     bigDingThresholdCents: cents("bigDingThresholdCents"),
     showTotal: bool("showTotal"),
     collectTraining: bool("collectTraining"),
+    previewZoom: within("previewZoom", PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX),
+    previewPanX: within("previewPanX", 0, 1),
+    previewPanY: within("previewPanY", 0, 1),
   }
 }
 

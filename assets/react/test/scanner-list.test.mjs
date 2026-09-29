@@ -128,6 +128,10 @@ test("stored lists and settings are sanitised", () => {
   assert.deepEqual(settings.lockedSets, ["leb"])
   assert.equal(settings.dingThresholdCents, 100)
   assert.equal(settings.preferFoil, true)
+  const preview = normalizeScanSettings({ previewZoom: 9, previewPanX: -1, previewPanY: "top" })
+  assert.equal(preview.previewZoom, 2.5)
+  assert.equal(preview.previewPanX, 0)
+  assert.equal(preview.previewPanY, 0.5)
 })
 
 test("sounds: click, ding at $1, big ding at $10 by default", () => {

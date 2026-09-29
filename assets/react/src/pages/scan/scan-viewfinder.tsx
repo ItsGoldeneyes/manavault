@@ -1,13 +1,16 @@
-import { useEffect, useState, type PointerEvent, type RefObject } from "react"
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from "react"
 import { cn } from "../../lib/utils"
+import { inImage, previewRect, type PreviewFraming, type Rect, type Size } from "./preview-framing"
 import type { Quad } from "./recognition/pipeline"
 import { frameGeometry } from "./use-camera"
 import type { ScanView } from "./scan-view"
 
 /**
- * Camera preview, uncropped (`object-fit: contain`): the whole camera image is what gets
- * scanned, so the brackets frame the full picture. The SVG uses the video's pixel space with
- * `meet`, which letterboxes exactly like `contain`, so detected quads line up with the card.
+ * Camera preview filling the whole screen, with the controls floating over it. The video and
+ * the SVG overlay share one box sized to the whole camera image, positioned so the `framing`
+ * crop lands on screen; the recognizer still scans the parts off screen. The SVG uses the
+ * video's pixel space, so detected quads line up with the card; the brackets frame the part
+ * that is on screen.
  */
 /** Transparent poster: without one, Android WebView shows a large play icon before playback. */
 const BLANK_POSTER =
@@ -16,14 +19,24 @@ const BLANK_POSTER =
 export function ScanViewfinder({
   videoRef,
   view,
+  framing,
   onFocusAt,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>
   view: ScanView
+  framing: PreviewFraming
   /** Tap to focus: the tapped point of the camera image, 0–1 from the top left. */
   onFocusAt?: (x: number, y: number) => void
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const safeAreaRef = useRef<HTMLDivElement | null>(null)
   const size = useVideoSize(videoRef)
+  const container = useElementBox(containerRef)
+  const safeArea = useElementBox(safeAreaRef)
+  const visible = size && container ? previewRect(size, container, framing) : null
+  const scale = visible && container ? container.width / visible.width : 1
+  // The brackets frame what is on screen, clear of the status and gesture bars.
+  const framed = visible && container && safeArea ? inImage(safeArea, visible, container) : visible
   const [focus, setFocus] = useState<{ x: number; y: number; key: number } | null>(null)
 
   function handlePointerDown(event: PointerEvent<HTMLVideoElement>) {
@@ -40,24 +53,39 @@ export function ScanViewfinder({
   }, [focus])
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black">
-      {/* Sized to the camera image itself (no letterbox area): Android WebView paints a video's
-          letterbox bars above overlapping page content, which hid the chip row. */}
-      <video
-        ref={videoRef}
-        className={cn(
-          "absolute inset-0 m-auto h-auto max-h-full w-auto max-w-full",
-          !size && "invisible",
-        )}
-        style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined}
-        poster={BLANK_POSTER}
-        onPointerDown={handlePointerDown}
-        autoPlay
-        muted
-        playsInline
-        aria-label="Camera preview"
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-base-100">
+      {/* Sized to the camera image's own aspect ratio, so there is no letterbox area: Android
+          WebView paints a video's letterbox bars above overlapping page content. */}
+      <div
+        className={cn("absolute", !visible && "invisible inset-0")}
+        style={
+          size && visible
+            ? {
+                left: -visible.x * scale,
+                top: -visible.y * scale,
+                width: size.width * scale,
+                height: size.height * scale,
+              }
+            : undefined
+        }
+      >
+        <video
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full"
+          poster={BLANK_POSTER}
+          onPointerDown={handlePointerDown}
+          autoPlay
+          muted
+          playsInline
+          aria-label="Camera preview"
+        />
+        {size && framed ? <Overlay {...size} framed={framed} view={view} /> : null}
+      </div>
+      <div
+        ref={safeAreaRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-[var(--safe-bottom)] left-[var(--safe-left)] right-[var(--safe-right)] top-[var(--safe-top)]"
       />
-      {size ? <Overlay {...size} view={view} /> : null}
       {focus ? (
         <span
           key={focus.key}
@@ -70,9 +98,19 @@ export function ScanViewfinder({
   )
 }
 
-function Overlay({ width, height, view }: { width: number; height: number; view: ScanView }) {
+function Overlay({
+  width,
+  height,
+  framed,
+  view,
+}: {
+  width: number
+  height: number
+  framed: Rect
+  view: ScanView
+}) {
   const { scale, offsetX, offsetY } = frameGeometry(width, height)
-  const short = Math.min(width, height)
+  const short = Math.min(framed.width, framed.height)
   const inset = short * 0.03
   const corner = short * 0.12
   const stroke = Math.max(3, short * 0.006)
@@ -86,13 +124,18 @@ function Overlay({ width, height, view }: { width: number; height: number; view:
         : view.outcome === "outside-lock"
           ? "text-error"
           : "text-warning"
-  const [l, t, r, b] = [inset, inset, width - inset, height - inset]
+  const [l, t, r, b] = [
+    framed.x + inset,
+    framed.y + inset,
+    framed.x + framed.width - inset,
+    framed.y + framed.height - inset,
+  ]
 
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full"
       viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="none"
       aria-hidden="true"
     >
       <path
@@ -124,8 +167,24 @@ function Overlay({ width, height, view }: { width: number; height: number; view:
   )
 }
 
+/** An element's box relative to its offset parent, kept current as it resizes. */
+function useElementBox(ref: RefObject<HTMLElement | null>) {
+  const [box, setBox] = useState<Rect | null>(null)
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const observer = new ResizeObserver(() => {
+      const { offsetLeft: x, offsetTop: y, offsetWidth: width, offsetHeight: height } = element
+      setBox(width && height ? { x, y, width, height } : null)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+  return box
+}
+
 function useVideoSize(videoRef: RefObject<HTMLVideoElement | null>) {
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [size, setSize] = useState<Size | null>(null)
   useEffect(() => {
     const video = videoRef.current
     if (!video) return

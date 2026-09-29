@@ -12,7 +12,13 @@ import { Input } from "../../components/ui/input"
 import { Switch } from "../../components/ui/switch"
 import { SetCombobox } from "../collection/set-combobox"
 import type { RecognizerState } from "./recognition/use-recognizer"
-import { normalizeScanSettings, type ScanSettings } from "./scan-settings"
+import {
+  DEFAULT_SCAN_SETTINGS,
+  normalizeScanSettings,
+  PREVIEW_ZOOM_MAX,
+  PREVIEW_ZOOM_MIN,
+  type ScanSettings,
+} from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
 
 export function ScanSettingsSheet({
@@ -75,6 +81,57 @@ export function ScanSettingsSheet({
           </section>
 
           <section className="space-y-3 px-5 py-4">
+            <div>
+              <h3 className="text-sm font-bold">Camera preview</h3>
+              <p className="text-sm text-base-content/70">
+                Zoom and pan the preview to where cards sit, for example with the phone on a
+                scanning stand. Scanning still uses the whole camera image.
+              </p>
+            </div>
+            <RangeField
+              label="Zoom"
+              value={settings.previewZoom}
+              min={PREVIEW_ZOOM_MIN}
+              max={PREVIEW_ZOOM_MAX}
+              step={0.05}
+              format={(zoom) => `${zoom.toFixed(2)}×`}
+              onChange={(previewZoom) => update({ previewZoom })}
+            />
+            <RangeField
+              label="Pan across"
+              value={settings.previewPanX}
+              min={0}
+              max={1}
+              step={0.01}
+              format={formatPan}
+              onChange={(previewPanX) => update({ previewPanX })}
+            />
+            <RangeField
+              label="Pan down"
+              value={settings.previewPanY}
+              min={0}
+              max={1}
+              step={0.01}
+              format={formatPan}
+              onChange={(previewPanY) => update({ previewPanY })}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                update({
+                  previewZoom: DEFAULT_SCAN_SETTINGS.previewZoom,
+                  previewPanX: DEFAULT_SCAN_SETTINGS.previewPanX,
+                  previewPanY: DEFAULT_SCAN_SETTINGS.previewPanY,
+                })
+              }
+            >
+              Reset preview
+            </Button>
+          </section>
+
+          <section className="space-y-3 px-5 py-4">
             <ToggleRow
               label="Sounds"
               description="A click for every scan, a ding for valuable cards."
@@ -113,6 +170,52 @@ export function ScanSettingsSheet({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Pan as an offset from the middle of the camera image: -50% to +50%. */
+function formatPan(pan: number) {
+  const offset = Math.round((pan - 0.5) * 100)
+  return offset > 0 ? `+${offset}%` : `${offset}%`
+}
+
+function RangeField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (value: number) => string
+  onChange: (value: number) => void
+}) {
+  const id = useId()
+  return (
+    <div className="flex items-center gap-3">
+      <label htmlFor={id} className="w-24 shrink-0 text-sm font-bold">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number.parseFloat(event.target.value))}
+        className="range range-primary range-sm flex-1"
+      />
+      <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-base-content/70">
+        {format(value)}
+      </span>
+    </div>
   )
 }
 

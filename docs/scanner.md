@@ -68,9 +68,11 @@ Code lives in `assets/react/src/pages/scan/`.
   `manavault-pwa-*` caches.
 - Inference is onnxruntime-web 1.30 on single-threaded WASM, which needs no cross-origin isolation
   and so works in the website, PWA and Capacitor WebViews. The CSP allows `'wasm-unsafe-eval'`.
-- Each frame is the whole camera image fitted into a 640 px square (the preview is uncropped,
-  `object-fit: contain`), so a card anywhere in view is found, including off-centre under a
-  scanner stand's lens. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
+- Each frame is the whole camera image fitted into a 640 px square, so a card anywhere in view is
+  found, including off-centre under a scanner stand's lens. The preview fills the screen behind
+  the floating controls and may crop the image: **Camera preview** zoom and pan (scanner
+  settings, `preview-framing.ts`) move only the preview, for example to centre the card on a
+  stand, never what is scanned. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
   card), embeds the card's art-frame crops and searches the gallery (top 5).
 - `scan-decision.ts` decides when to log. A card is in view when the detector's upright vote is at
   least 0.5 and its short side at least 60 px. A match is logged on one frame at a score of 0.75

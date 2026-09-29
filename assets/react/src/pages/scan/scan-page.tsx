@@ -58,7 +58,7 @@ export function ScanPage() {
 
   return (
     <div
-      className="scan-page fixed inset-0 z-40 overflow-hidden bg-black text-base-content"
+      className="scan-page fixed inset-0 z-40 overflow-hidden bg-base-100 text-base-content"
       data-theme="dark"
       data-palette={
         typeof document === "undefined"
@@ -69,10 +69,15 @@ export function ScanPage() {
       <ScanViewfinder
         videoRef={camera.videoRef}
         view={view}
+        framing={{
+          zoom: settings.previewZoom,
+          panX: settings.previewPanX,
+          panY: settings.previewPanY,
+        }}
         onFocusAt={(x, y) => void camera.focusAt(x, y)}
       />
 
-      <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-[calc(var(--safe-top)_+_0.75rem)]">
+      <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-base-100/80 to-transparent px-3 pb-8 pt-[calc(var(--safe-top)_+_0.75rem)]">
         <Link
           to="/collection"
           search={{ importFile: false }}
@@ -116,7 +121,7 @@ export function ScanPage() {
       {camera.state.status === "error" ? (
         <CameraErrorPanel message={camera.state.message} onRetry={start} />
       ) : (
-        <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-[calc(var(--safe-bottom)_+_0.75rem)] pt-10">
+        <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-base-100/80 to-transparent px-3 pb-[calc(var(--safe-bottom)_+_0.75rem)] pt-10">
           <div className="flex items-center justify-center gap-2">
             <StatusPill camera={camera.state} recognizer={recognizer.state} view={view} />
             {recognizer.state.status === "ready" && camera.state.status === "live" ? (
