@@ -13,28 +13,41 @@ defmodule ManavaultWeb.Plugs.ScannerExportAuth do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    if authorized?(conn) do
-      put_resp_header(conn, "cache-control", "private, no-store")
-    else
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{errors: [%{message: "Authentication required"}]})
-      |> halt()
+    case authorize(conn) do
+      :ok ->
+        put_resp_header(conn, "cache-control", "private, no-store")
+
+      {:error, message} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{errors: [%{message: message}]})
+        |> halt()
     end
   end
 
-  defp authorized?(conn) do
+  # The messages name the cause (token export disabled vs a wrong token) so a failing Oracle
+  # pull is fixable; neither reveals the token.
+  defp authorize(conn) do
     case get_req_header(conn, "authorization") do
-      [] -> Authentication.authenticated?(conn)
-      ["Bearer " <> token] -> valid_token?(token)
-      _other -> false
+      [] ->
+        if Authentication.authenticated?(conn), do: :ok, else: {:error, "Authentication required"}
+
+      ["Bearer " <> token] ->
+        check_token(token, Application.get_env(:manavault, :scanner_corrections_token))
+
+      _other ->
+        {:error, "Expected an Authorization: Bearer token"}
     end
   end
 
-  defp valid_token?(token) do
-    expected = Application.get_env(:manavault, :scanner_corrections_token)
-
-    is_binary(expected) and byte_size(expected) >= 32 and
-      Plug.Crypto.secure_compare(token, expected)
+  defp check_token(token, expected) when is_binary(expected) and byte_size(expected) >= 32 do
+    if Plug.Crypto.secure_compare(String.trim(token), expected),
+      do: :ok,
+      else: {:error, "Invalid scanner corrections token"}
   end
+
+  defp check_token(_token, _expected),
+    do:
+      {:error,
+       "Token export is disabled: set SCANNER_CORRECTIONS_TOKEN (32+ characters) on the server and restart it"}
 end

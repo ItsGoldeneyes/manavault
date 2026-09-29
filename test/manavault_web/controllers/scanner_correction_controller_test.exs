@@ -114,10 +114,21 @@ defmodule ManavaultWeb.ScannerCorrectionControllerTest do
 
     assert build_conn() |> get("/api/scanner/corrections") |> json_response(401)
 
-    assert build_conn()
-           |> put_req_header("authorization", "Bearer wrong")
-           |> get("/api/scanner/corrections")
-           |> json_response(401)
+    assert %{"errors" => [%{"message" => "Invalid scanner corrections token"}]} =
+             build_conn()
+             |> put_req_header("authorization", "Bearer wrong")
+             |> get("/api/scanner/corrections")
+             |> json_response(401)
+
+    Application.put_env(:manavault, :scanner_corrections_token, nil)
+
+    assert %{"errors" => [%{"message" => "Token export is disabled" <> _rest}]} =
+             build_conn()
+             |> put_req_header("authorization", "Bearer " <> @token)
+             |> get("/api/scanner/corrections")
+             |> json_response(401)
+
+    Application.put_env(:manavault, :scanner_corrections_token, @token)
 
     authed = fn -> put_req_header(build_conn(), "authorization", "Bearer " <> @token) end
 
