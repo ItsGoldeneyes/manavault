@@ -10,6 +10,8 @@ export interface ScanSettings {
   dingThresholdCents: number
   bigDingThresholdCents: number
   showTotal: boolean
+  /** Cards priced below this are left out of the total value; 0 counts every card. */
+  totalMinCents: number
   /** Upload each logged scan's camera frame to this server for training recognition. */
   collectTraining: boolean
   /** With training collection on: pause on each logged scan to confirm or fix its outline. */
@@ -32,6 +34,7 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   dingThresholdCents: 100,
   bigDingThresholdCents: 1000,
   showTotal: true,
+  totalMinCents: 0,
   collectTraining: false,
   checkOutlines: false,
   previewZoom: 1,
@@ -46,7 +49,7 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     typeof stored[key] === "boolean"
       ? (stored[key] as boolean)
       : (DEFAULT_SCAN_SETTINGS[key] as boolean)
-  const cents = (key: "dingThresholdCents" | "bigDingThresholdCents") => {
+  const cents = (key: "dingThresholdCents" | "bigDingThresholdCents" | "totalMinCents") => {
     const number = stored[key]
     return typeof number === "number" && Number.isFinite(number) && number >= 0
       ? Math.round(number)
@@ -74,6 +77,7 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     dingThresholdCents: cents("dingThresholdCents"),
     bigDingThresholdCents: cents("bigDingThresholdCents"),
     showTotal: bool("showTotal"),
+    totalMinCents: cents("totalMinCents"),
     collectTraining: bool("collectTraining"),
     checkOutlines: bool("checkOutlines"),
     previewZoom: within("previewZoom", PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX),

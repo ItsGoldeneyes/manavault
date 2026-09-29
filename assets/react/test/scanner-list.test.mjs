@@ -53,6 +53,20 @@ test("totals use each entry's finish price and quantity", () => {
   assert.equal(totalQuantity(entries), 4)
 })
 
+test("a minimum price leaves cheap cards out of the total, per copy not per stack", () => {
+  const entries = [
+    // 3 × $0.40 = $1.20 as a stack, but each copy is under the minimum.
+    entry("bulk", { quantity: 3, prices: { nonfoil: 40, foil: 500, etched: null } }),
+    entry("exactly", { prices: { nonfoil: 100, foil: null, etched: null } }),
+    entry("foil", { finish: "foil", prices: { nonfoil: 40, foil: 900, etched: null } }),
+    entry("unpriced", { prices: { nonfoil: null, foil: null, etched: null } }),
+  ]
+  assert.equal(totalValueCents(entries, 100), 100 + 900)
+  assert.equal(totalValueCents(entries, 101), 900)
+  assert.equal(totalValueCents(entries, 0), 120 + 100 + 900)
+  assert.equal(totalValueCents(entries), totalValueCents(entries, 0))
+})
+
 test("CSV uses the collection import columns, oldest scan first, with quoting", () => {
   const csv = scanListCsv([
     entry("new", { name: "Borrowing 100,000 Arrows", finish: "foil", quantity: 3, language: "ja" }),
@@ -128,6 +142,10 @@ test("stored lists and settings are sanitised", () => {
   assert.deepEqual(settings.lockedSets, ["leb"])
   assert.equal(settings.dingThresholdCents, 100)
   assert.equal(settings.preferFoil, true)
+  // Settings stored before the total minimum existed count every card, as before.
+  assert.equal(settings.totalMinCents, 0)
+  assert.equal(normalizeScanSettings({ totalMinCents: 99.6 }).totalMinCents, 100)
+  assert.equal(normalizeScanSettings({ totalMinCents: -1 }).totalMinCents, 0)
   const preview = normalizeScanSettings({ previewZoom: 9, previewPanX: -1, previewPanY: "top" })
   assert.equal(preview.previewZoom, 2.5)
   assert.equal(preview.previewPanX, 0)

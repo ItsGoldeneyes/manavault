@@ -92,8 +92,9 @@ camera; the browser or OS asks for camera access once.
   in them are logged, and anything else shows "Not in locked sets". Chips on the result change finish (normal/foil/etched),
   printing, and language.
 - Settings: lock one or more sets, ignore promos, prefer foil, show the running
-  total value, and sounds (a click per scan, a ding at $1 and a bigger ding at
-  $10 by default; both thresholds are configurable).
+  total value (optionally counting only cards priced at or above a minimum, so
+  bulk does not add up), and sounds (a click per scan, a ding at $1 and a
+  bigger ding at $10 by default; both thresholds are configurable).
 - **Identify** next to the status adds a card the scanner does not recognize:
   it freezes the camera view and searches the card by name.
 - **Wrong card?** in the printing picker searches the catalog by name and swaps

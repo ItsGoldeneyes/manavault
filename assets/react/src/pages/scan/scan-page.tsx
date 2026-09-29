@@ -37,6 +37,7 @@ export function ScanPage() {
     sheet.type === "printing" ? (entries.find((entry) => entry.id === sheet.id) ?? null) : null
   const close = () => setSheet({ type: "none" })
   const count = totalQuantity(entries)
+  const total = formatCents(totalValueCents(entries, settings.totalMinCents))
   const { start, stop } = session
 
   // Scanning starts as soon as the page opens; the browser asks for camera access once.
@@ -92,11 +93,9 @@ export function ScanPage() {
           {settings.showTotal ? (
             <div
               className="flex h-11 items-center gap-2 rounded-full bg-base-100/85 px-4 shadow"
-              aria-label={`${count} scanned, total ${formatCents(totalValueCents(entries))}`}
+              aria-label={`${count} scanned, total ${total}`}
             >
-              <span className="font-mono text-lg font-black text-warning">
-                {formatCents(totalValueCents(entries))}
-              </span>
+              <span className="font-mono text-lg font-black text-warning">{total}</span>
             </div>
           ) : null}
         </div>
@@ -149,6 +148,7 @@ export function ScanPage() {
       <ScanListSheet
         open={sheet.type === "list"}
         entries={entries}
+        totalMinCents={settings.totalMinCents}
         onClose={close}
         onQuantity={session.setQuantity}
         onFinish={session.setFinish}

@@ -73,11 +73,26 @@ export function ScanSettingsSheet({
               checked={settings.preferFoil}
               onChange={(preferFoil) => update({ preferFoil })}
             />
+          </section>
+
+          <section className="space-y-3 px-5 py-4">
+            <div>
+              <h3 className="text-sm font-bold">Total value</h3>
+              <p className="text-sm text-base-content/70">
+                Cards priced below the minimum are left out of the total, so bulk does not add up.
+                $0.00 counts every card.
+              </p>
+            </div>
             <ToggleRow
               label="Show total value"
               description="Keep the running value of the scanned list on screen."
               checked={settings.showTotal}
               onChange={(showTotal) => update({ showTotal })}
+            />
+            <ThresholdField
+              label="Count from"
+              cents={settings.totalMinCents}
+              onChange={(totalMinCents) => update({ totalMinCents })}
             />
           </section>
 
@@ -260,18 +275,19 @@ function ToggleRow({
   )
 }
 
+/** A dollar amount stored in cents; `onTest` adds a button that plays the matching sound. */
 function ThresholdField({
   label,
   cents,
-  disabled,
+  disabled = false,
   onChange,
   onTest,
 }: {
   label: string
   cents: number
-  disabled: boolean
+  disabled?: boolean
   onChange: (cents: number) => void
-  onTest: () => void
+  onTest?: () => void
 }) {
   const id = useId()
   return (
@@ -300,16 +316,18 @@ function ThresholdField({
           className="pl-7 font-mono"
         />
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        disabled={disabled}
-        onClick={onTest}
-        aria-label={`Play ${label.toLowerCase()} sound`}
-      >
-        <Volume2 className="h-4 w-4" aria-hidden="true" />
-      </Button>
+      {onTest ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={disabled}
+          onClick={onTest}
+          aria-label={`Play ${label.toLowerCase()} sound`}
+        >
+          <Volume2 className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      ) : null}
     </div>
   )
 }

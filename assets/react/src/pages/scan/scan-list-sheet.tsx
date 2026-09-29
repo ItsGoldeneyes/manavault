@@ -26,6 +26,7 @@ import {
 export function ScanListSheet({
   open,
   entries,
+  totalMinCents,
   onClose,
   onQuantity,
   onFinish,
@@ -37,6 +38,8 @@ export function ScanListSheet({
 }: {
   open: boolean
   entries: ScanEntry[]
+  /** Cards priced below this are left out of the total (see `ScanSettings.totalMinCents`). */
+  totalMinCents: number
   onClose: () => void
   onQuantity: (id: string, quantity: number) => void
   onFinish: (id: string, finish: Finish) => void
@@ -63,7 +66,7 @@ export function ScanListSheet({
                 <span className="font-mono font-bold">{count}</span>{" "}
                 {count === 1 ? "card" : "cards"} ·{" "}
                 <span className="font-mono font-bold text-warning">
-                  {formatCents(totalValueCents(entries))}
+                  {formatCents(totalValueCents(entries, totalMinCents))}
                 </span>
               </p>
             </div>

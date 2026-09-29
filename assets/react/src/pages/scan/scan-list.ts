@@ -44,8 +44,12 @@ export function entryPriceCents(entry: Pick<ScanEntry, "finish" | "prices">): nu
   return entry.prices[entry.finish]
 }
 
-export function totalValueCents(entries: ScanEntry[]) {
-  return entries.reduce((sum, entry) => sum + (entryPriceCents(entry) ?? 0) * entry.quantity, 0)
+/** Sum of the list's prices; a card priced below `minCents` (per copy) is left out. */
+export function totalValueCents(entries: ScanEntry[], minCents = 0) {
+  return entries.reduce((sum, entry) => {
+    const price = entryPriceCents(entry) ?? 0
+    return price < minCents ? sum : sum + price * entry.quantity
+  }, 0)
 }
 
 export function totalQuantity(entries: ScanEntry[]) {
