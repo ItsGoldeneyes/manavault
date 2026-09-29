@@ -145,3 +145,60 @@ export function quadShort(quad: Quad): number {
     side(quad[3], quad[0]),
   )
 }
+
+/**
+ * When the refined detector pass means a card is in view. Calibrated on synthetic phone
+ * frames with bundle retrain-20260925T043526910942Z: cards had upright votes ≈ 1, empty tables
+ * and blank paper ≤ 0.17. Frames are 640 px squares, so 60 px is the smallest plausible card.
+ */
+export const CARD_IN_VIEW = { minUpVote: 0.5, minShortSide: 60 } as const
+
+export function cardInView(upVote: number, quad: Quad): boolean {
+  return upVote >= CARD_IN_VIEW.minUpVote && quadShort(quad) >= CARD_IN_VIEW.minShortSide
+}
+
+/**
+ * Below this upright vote a detector pass saw nothing card-like, so the rest of the frame's
+ * pipeline is skipped. Half of `CARD_IN_VIEW.minUpVote`, so borderline frames still get the
+ * refined pass that decides; measured empty and noise frames vote 0.00–0.17 on the coarse pass
+ * while cards down to 77 px vote ≥ 0.93.
+ */
+export const EMPTY_UP_VOTE = 0.25
+
+/** The `side` px square around (cx, cy) a detector pass looks at. */
+export interface DetectorWindow {
+  cx: number
+  cy: number
+  side: number
+}
+
+/** The first detector pass: the `scene` px square in the middle of the frame. */
+export function sceneWindow(
+  image: Pick<RgbaImage, "width" | "height">,
+  constants: BundleConstants,
+) {
+  return { cx: image.width / 2, cy: image.height / 2, side: constants.scene }
+}
+
+/** The refined detector pass around a detection: the card's long side at `refine_fill`. */
+export function refineWindow(
+  detection: { centre: Point; short: number },
+  constants: BundleConstants,
+): DetectorWindow {
+  return {
+    cx: detection.centre[0],
+    cy: detection.centre[1],
+    side: refineSide(detection.short, constants),
+  }
+}
+
+/**
+ * Whether a pass on `seed` (the previous frame's refined window) framed the card well enough
+ * to stand as this frame's refined pass: the card moved less than a tenth of the window and its
+ * size barely changed, so the card still fills roughly `refine_fill` of the window.
+ */
+export function windowsAgree(seed: DetectorWindow, next: DetectorWindow): boolean {
+  const moved = Math.hypot(next.cx - seed.cx, next.cy - seed.cy)
+  const ratio = next.side / seed.side
+  return moved <= seed.side * 0.1 && ratio >= 0.8 && ratio <= 1.25
+}

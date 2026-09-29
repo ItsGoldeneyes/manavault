@@ -73,6 +73,14 @@ Code lives in `assets/react/src/pages/scan/`.
   settings, `preview-framing.ts`) move only the preview, for example to centre the card on a
   stand, never what is scanned. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
   card), embeds the card's art-frame crops and searches the gallery (top 5).
+- Two shortcuts keep the live loop fast. A detector pass whose upright vote is below 0.25 ends
+  the frame (no refined pass, embedding or search), which makes empty frames about three times
+  cheaper than card frames. While a card is in view, the next frame's first pass looks at the
+  previous frame's refined window instead of the whole scene; if the card barely moved (under a
+  tenth of the window, size within 0.8–1.25×) that pass is the refined one and the whole-scene
+  pass is skipped. Otherwise, and on every eighth tracked frame, the whole-scene pass runs so
+  tracking never sticks to a wrong window. Measured on the 2026-09-29 bundle in single-threaded
+  WASM: card frames 264 → 190 ms, empty frames 264 → 87 ms, with identical matches.
 - `scan-decision.ts` decides when to log. A card is in view when the detector's upright vote is at
   least 0.5 and its short side at least 60 px. A match is logged on one frame at a score of 0.75
   or more with a 0.08 lead over the runner-up, otherwise after two agreeing frames scoring at least

@@ -3,18 +3,33 @@
  * `recognizer.worker.ts`: the frame centre replaces the click, so the first detector window is
  * the `scene` px square in the middle of the camera frame.
  *
+ * Two shortcuts for a live camera feed, which the-gathering's click-to-identify did not need:
+ *
+ * - A detector pass that sees nothing card-like ends the frame; the refined pass, embedding and
+ *   search are skipped. Most frames of a scanning session are empty (between cards), and this
+ *   makes them about three times cheaper, so a card placed in view is noticed sooner.
+ * - While a card is in view, the next frame's first pass looks at the previous frame's refined
+ *   window instead of the whole scene. When the card has not moved much that pass already is
+ *   the refined one, saving a detector run per frame. Otherwise (card moved or gone) the usual
+ *   whole-scene pass and refined pass follow.
+ *
  * The ORT namespace is a parameter so the worker (`onnxruntime-web/wasm`) and a Node
  * calibration script (`onnxruntime-web`) share this code.
  */
 import type * as Ort from "onnxruntime-web"
 import type { Identification } from "./messages"
 import {
+  cardInView,
+  EMPTY_UP_VOTE,
   fromWindow,
-  refineSide,
+  refineWindow,
   resampleWindow,
+  sceneWindow,
   upVote,
+  windowsAgree,
   type BundleConstants,
   type Candidate,
+  type DetectorWindow,
   type GalleryArt,
   type Point,
   type Quad,
@@ -26,6 +41,18 @@ type OrtModule = Pick<typeof Ort, "InferenceSession" | "Tensor">
 export interface Recognizer {
   identify: (image: RgbaImage) => Promise<Identification>
 }
+
+interface Detection {
+  quad: Quad
+  up: [number, number]
+  upVote: number
+  centre: Point
+  short: number
+}
+
+/** After this many frames identified from the tracked window alone, look at the whole scene
+ * again (about every two seconds at phone frame rates). */
+const REANCHOR_FRAMES = 8
 
 export async function createRecognizer(
   ort: OrtModule,
@@ -42,7 +69,12 @@ export async function createRecognizer(
   const embed = await ort.InferenceSession.create(graphs.embed, options)
   const search = await ort.InferenceSession.create(graphs.search, options)
 
-  async function detect(image: RgbaImage, cx: number, cy: number, side: number) {
+  /** The refined window of the last frame that had a card in view, and how many frames in a
+   * row were identified from it alone. */
+  let tracked: DetectorWindow | null = null
+  let trackedFrames = 0
+
+  async function detect(image: RgbaImage, { cx, cy, side }: DetectorWindow): Promise<Detection> {
     const size = constants.det_input
     const { window, scale } = resampleWindow(image, cx, cy, side, size)
     const out = await detector.run({
@@ -55,32 +87,25 @@ export async function createRecognizer(
     const corners = [0, 1, 2, 3].map((k) =>
       fromWindow([quad[k * 2] ?? 0, quad[k * 2 + 1] ?? 0], cx, cy, scale, size),
     ) as Quad
+    const upVector: [number, number] = [up[0] ?? 0, up[1] ?? 0]
     return {
       quad: corners,
-      up: [up[0] ?? 0, up[1] ?? 0] as [number, number],
+      up: upVector,
+      upVote: upVote(upVector, constants),
       centre: fromWindow([centre[0] ?? 0, centre[1] ?? 0], cx, cy, scale, size) as Point,
       short: (short[0] ?? 0) / scale,
     }
   }
 
-  async function identify(image: RgbaImage): Promise<Identification> {
+  async function embedAndSearch(image: RgbaImage, quad: Quad) {
     const started = performance.now()
-    const coarse = await detect(image, image.width / 2, image.height / 2, constants.scene)
-    const fine = await detect(
-      image,
-      coarse.centre[0],
-      coarse.centre[1],
-      refineSide(coarse.short, constants),
-    )
-    const detected = performance.now()
-
     const embeddings = await embed.run({
       scene: new ort.Tensor("uint8", new Uint8Array(image.data.buffer), [
         image.height,
         image.width,
         4,
       ]),
-      quad: new ort.Tensor("float32", Float32Array.from(fine.quad.flat()), [4, 2]),
+      quad: new ort.Tensor("float32", Float32Array.from(quad.flat()), [4, 2]),
     })
     const embedded = performance.now()
     const vectors = Object.values(embeddings)[0]
@@ -96,26 +121,71 @@ export async function createRecognizer(
       const art = arts[index]
       if (art) candidates.push({ ...art, index, score: scores[k] ?? 0 })
     }
+    return { candidates, embed: embedded - started, search: finished - embedded }
+  }
+
+  async function identify(image: RgbaImage): Promise<Identification> {
+    const started = performance.now()
+
+    // While a card sits still, one pass on the previous frame's refined window is this frame's
+    // refined pass. Anything else (card moved, gone, or the periodic re-anchor) takes the
+    // whole-scene path, so tracking can neither drift nor get stuck on a wrong window.
+    const seed = tracked && trackedFrames < REANCHOR_FRAMES ? tracked : null
+    let fine: Detection | null = null
+    if (seed) {
+      const pass = await detect(image, seed)
+      if (pass.upVote >= EMPTY_UP_VOTE && windowsAgree(seed, refineWindow(pass, constants))) {
+        fine = pass
+      }
+    }
+    if (!fine) {
+      const coarse = await detect(image, sceneWindow(image, constants))
+      // Nothing card-like anywhere: the refined pass would not change that.
+      fine =
+        coarse.upVote >= EMPTY_UP_VOTE
+          ? await detect(image, refineWindow(coarse, constants))
+          : coarse
+    }
+    const detected = performance.now()
+
+    const inView = cardInView(fine.upVote, fine.quad)
+    tracked = inView ? refineWindow(fine, constants) : null
+    trackedFrames = inView && seed ? trackedFrames + 1 : 0
+    const result = inView
+      ? await embedAndSearch(image, fine.quad)
+      : { candidates: [], embed: 0, search: 0 }
+
     return {
       quad: fine.quad,
-      upVote: upVote(fine.up, constants),
-      candidates,
+      upVote: fine.upVote,
+      candidates: result.candidates,
       timings: {
         detector: detected - started,
-        embed: embedded - detected,
-        search: finished - embedded,
-        total: finished - started,
+        embed: result.embed,
+        search: result.search,
+        total: performance.now() - started,
       },
     }
   }
 
-  // The first run of each graph pays for kernel setup; do it before the first real frame.
+  // The first run of each graph pays for kernel setup; do it before the first real frame. A
+  // blank frame has no card, so the embedding and search graphs are warmed explicitly.
   const size = constants.scene
-  await identify({
+  const blank: RgbaImage = {
     data: new Uint8ClampedArray(size * size * 4).fill(255),
     width: size,
     height: size,
-  })
+  }
+  await identify(blank)
+  const half = size / 2
+  await embedAndSearch(blank, [
+    [half - 125, half - 175],
+    [half + 125, half - 175],
+    [half + 125, half + 175],
+    [half - 125, half + 175],
+  ])
+  tracked = null
+  trackedFrames = 0
 
   return { identify }
 }

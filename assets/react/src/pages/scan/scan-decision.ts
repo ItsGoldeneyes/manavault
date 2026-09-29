@@ -8,13 +8,17 @@
  * "Whiteout", so the upright vote is what rejects it).
  */
 import type { Identification } from "./recognition/messages"
-import type { Candidate } from "./recognition/pipeline"
+import {
+  CARD_IN_VIEW,
+  cardInView as detectorSawCard,
+  type Candidate,
+} from "./recognition/pipeline.ts"
 
 export const SCAN_THRESHOLDS = {
   /** A card is in view when this share of detector rotations agree on "up". */
-  minUpVote: 0.5,
+  minUpVote: CARD_IN_VIEW.minUpVote,
   /** Smallest plausible card short side, in frame pixels (frames are 640 px squares). */
-  minShortSide: 60,
+  minShortSide: CARD_IN_VIEW.minShortSide,
   /** Below this, a candidate is never logged. */
   minScore: 0.6,
   /** One frame is enough when top-1 is this similar and leads the runner-up by `clearMargin`. */
@@ -55,10 +59,7 @@ export function cardKey(galleryId: string) {
 }
 
 export function cardInView(result: Identification) {
-  return (
-    result.upVote >= SCAN_THRESHOLDS.minUpVote &&
-    quadShortSide(result) >= SCAN_THRESHOLDS.minShortSide
-  )
+  return detectorSawCard(result.upVote, result.quad)
 }
 
 /**
@@ -116,16 +117,6 @@ export function evaluateFrame(
 /** After the last logged scan is deleted, the same card may be scanned again. */
 export function forgetLastLogged(tracker: ScanTracker): ScanTracker {
   return { ...tracker, lastLoggedKey: null }
-}
-
-function quadShortSide({ quad }: Identification) {
-  let short = Infinity
-  for (let k = 0; k < 4; k += 1) {
-    const a = quad[k]!
-    const b = quad[(k + 1) % 4]!
-    short = Math.min(short, Math.hypot(b[0] - a[0], b[1] - a[1]))
-  }
-  return short
 }
 
 /** After a card is logged by hand, treat what the scanner sees as already logged. */
