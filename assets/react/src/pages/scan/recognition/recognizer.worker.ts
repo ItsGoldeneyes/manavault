@@ -2,19 +2,22 @@
 /**
  * Loads the scanner bundle and identifies camera frames off the main thread.
  *
- * Single-threaded WASM, as in the-gathering: it needs no cross-origin isolation, so it runs in
- * the website, the installed PWA and the Capacitor WebView alike. WebGPU was measured upstream
- * and was slower and missing operators.
+ * Inference runs on WASM threads when the `/scan` document is cross-origin isolated (see
+ * `lib/cross-origin-isolation.ts`); without isolation there is no SharedArrayBuffer and the
+ * runtime falls back to one thread, which still runs in the website, the installed PWA and the
+ * Capacitor WebView alike. WebGPU was measured upstream and was slower and missing operators.
  */
 import * as ort from "onnxruntime-web/wasm"
+// The standalone runtime module rather than the factory embedded in the `onnxruntime-web/wasm`
+// bundle: the pthread workers are spawned from this module's own URL, so it has to be a file.
+import runtimeModuleUrl from "onnxruntime-web/ort-wasm-simd-threaded.mjs?url"
 import wasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.wasm?url"
 import { fetchBundleFile, pruneBundleCaches } from "./bundle-cache"
 import type { BundleFile, BundleInfo, WorkerRequest, WorkerResponse } from "./messages"
 import type { GalleryArt, RgbaImage } from "./pipeline"
 import { createRecognizer, type Recognizer } from "./recognizer"
 
-ort.env.wasm.numThreads = 1
-ort.env.wasm.wasmPaths = { wasm: wasmUrl }
+ort.env.wasm.wasmPaths = { wasm: wasmUrl, mjs: runtimeModuleUrl }
 ort.env.logLevel = "warning"
 
 let recognizer: Recognizer | null = null
@@ -23,8 +26,10 @@ function reply(message: WorkerResponse) {
   self.postMessage(message)
 }
 
-async function load(bundle: BundleInfo) {
+async function load(bundle: BundleInfo, threads: number) {
   const started = performance.now()
+  // `0` lets the runtime pick from the core count (it also picks 1 when not isolated).
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(0, Math.round(threads)) : 1
   void pruneBundleCaches(bundle.version)
 
   const names: BundleFile[] = ["detector.onnx", "embed.onnx", "search.onnx", "arts.json"]
@@ -74,6 +79,7 @@ async function load(bundle: BundleInfo) {
     version: bundle.version,
     arts: gallery.length,
     ms: performance.now() - started,
+    threads: ort.env.wasm.numThreads ?? 1,
   })
 }
 
@@ -81,7 +87,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data
   try {
     if (request.type === "load") {
-      await load(request.bundle)
+      await load(request.bundle, request.threads)
     } else if (request.type === "identify") {
       if (!recognizer) throw new Error("scanner bundle not loaded")
       const image: RgbaImage = {

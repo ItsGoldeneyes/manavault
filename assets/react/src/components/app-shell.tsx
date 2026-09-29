@@ -13,6 +13,7 @@ import {
   Sun,
 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
+import { isolatedDocumentNavigation } from "../lib/cross-origin-isolation"
 import { PageTitleProvider } from "../lib/page-title"
 import { useTheme } from "../lib/theme"
 import { cn } from "../lib/utils"
@@ -128,6 +129,7 @@ export function AppShell() {
                 <Link
                   key={item.to}
                   to={item.to}
+                  reloadDocument={isolatedDocumentNavigation(pathname, item.to)}
                   className={cn(
                     "rounded-full px-3.5 py-2 text-sm font-bold leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                     navItemActive(pathname, item.to)
@@ -161,6 +163,7 @@ export function AppShell() {
                       <Link
                         key={item.to}
                         to={item.to}
+                        reloadDocument={isolatedDocumentNavigation(pathname, item.to)}
                         activeOptions={{ exact: item.to === "/" }}
                         activeProps={{ className: "bg-base-200 text-primary" }}
                         className="btn btn-ghost justify-start"

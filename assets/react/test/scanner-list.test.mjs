@@ -146,6 +146,11 @@ test("stored lists and settings are sanitised", () => {
   assert.equal(settings.totalMinCents, 0)
   assert.equal(normalizeScanSettings({ totalMinCents: 99.6 }).totalMinCents, 100)
   assert.equal(normalizeScanSettings({ totalMinCents: -1 }).totalMinCents, 0)
+  // Threads: only the offered counts; anything else means "let the runtime pick".
+  assert.equal(settings.threads, 0)
+  assert.equal(normalizeScanSettings({ threads: 2 }).threads, 2)
+  assert.equal(normalizeScanSettings({ threads: 3 }).threads, 0)
+  assert.equal(normalizeScanSettings({ threads: "4" }).threads, 0)
   const preview = normalizeScanSettings({ previewZoom: 9, previewPanX: -1, previewPanY: "top" })
   assert.equal(preview.previewZoom, 2.5)
   assert.equal(preview.previewPanX, 0)

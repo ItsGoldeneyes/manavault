@@ -1,5 +1,4 @@
 import { useApolloClient } from "@apollo/client/react"
-import { useNavigate } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { queueSharedImport } from "../../lib/native-shared-import"
 import { useLocalStorageState } from "../../lib/use-local-storage"
@@ -83,7 +82,6 @@ const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve
  */
 export function useScanSession({ paused }: { paused: boolean }) {
   const apollo = useApolloClient()
-  const navigate = useNavigate()
   const camera = useCamera()
   const recognizer = useRecognizer()
   const [settings, setSettings] = useLocalStorageState<ScanSettings>(
@@ -294,9 +292,24 @@ export function useScanSession({ paused }: { paused: boolean }) {
   /** Must run from a tap: it unlocks audio and triggers the camera permission prompt. */
   const start = useCallback(() => {
     unlockScanSounds()
-    startRecognizer()
+    startRecognizer({ threads: settingsRef.current.threads })
     void startCamera()
   }, [startCamera, startRecognizer])
+
+  // The thread count is fixed when the runtime starts, so changing it restarts the worker.
+  const recognizerRunning = recognizer.state.status !== "idle"
+  const threads = settings.threads
+  const startedThreadsRef = useRef(threads)
+  useEffect(() => {
+    if (!recognizerRunning) {
+      startedThreadsRef.current = threads
+      return
+    }
+    if (startedThreadsRef.current === threads) return
+    startedThreadsRef.current = threads
+    stopRecognizer()
+    startRecognizer({ threads })
+  }, [recognizerRunning, startRecognizer, stopRecognizer, threads])
 
   const stop = useCallback(() => {
     stopCamera()
@@ -488,8 +501,9 @@ export function useScanSession({ paused }: { paused: boolean }) {
       source: "scanner",
     })
     stop()
-    void navigate({ to: "/collection", search: { importFile: true } })
-  }, [navigate, stop])
+    // A full page load leaves the cross-origin-isolated scanner document behind.
+    window.location.assign("/collection?importFile=true")
+  }, [stop])
 
   return {
     camera,

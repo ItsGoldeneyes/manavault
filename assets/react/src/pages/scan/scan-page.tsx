@@ -83,6 +83,7 @@ export function ScanPage() {
         <Link
           to="/collection"
           search={{ importFile: false }}
+          reloadDocument
           onClick={session.stop}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-base-100/85 text-base-content shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Close scanner"

@@ -17,7 +17,15 @@ export interface BundleInfo {
 }
 
 export type WorkerRequest =
-  | { type: "load"; bundle: BundleInfo }
+  | {
+      type: "load"
+      bundle: BundleInfo
+      /**
+       * WASM threads to run inference on. `0` lets onnxruntime pick from the core count. Anything
+       * above 1 needs the page to be cross-origin isolated; otherwise the worker runs one thread.
+       */
+      threads: number
+    }
   | {
       type: "identify"
       id: number
@@ -38,7 +46,14 @@ export interface Identification {
 
 export type WorkerResponse =
   | { type: "progress"; loaded: number; total: number; cached: boolean }
-  | { type: "ready"; version: string; arts: number; ms: number }
+  | {
+      type: "ready"
+      version: string
+      arts: number
+      ms: number
+      /** Threads the runtime actually initialized with. */
+      threads: number
+    }
   | { type: "load_failed"; message: string }
   | { type: "identified"; id: number; result: Identification }
   | { type: "failed"; id: number; message: string }

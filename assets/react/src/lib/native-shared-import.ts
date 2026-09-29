@@ -82,15 +82,47 @@ export function receiveNativeOpenPayload(
   return false
 }
 
-/** Hands in-app text (for example the card scanner's CSV) to the collection import overlay. */
+const QUEUED_IMPORT_STORAGE_KEY = "manavault.shared-import.queued"
+
+/**
+ * Hands in-app text (for example the card scanner's CSV) to the collection import overlay.
+ * The queue also survives a full page load: leaving the cross-origin-isolated scanner document
+ * is one (see `lib/cross-origin-isolation.ts`).
+ */
 export function queueSharedImport(payload: SharedImportPayload) {
-  if (isSharedImportPayload(payload)) receiveSharedImport(payload)
+  if (!isSharedImportPayload(payload)) return
+  if (listeners.size === 0) {
+    try {
+      sessionStorage.setItem(QUEUED_IMPORT_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // Storage unavailable: the in-memory queue still covers same-document navigation.
+    }
+  }
+  receiveSharedImport(payload)
 }
 
 export function takeSharedImport() {
-  const payload = pendingImport
+  const payload = pendingImport ?? readQueuedImport()
   pendingImport = null
+  try {
+    sessionStorage.removeItem(QUEUED_IMPORT_STORAGE_KEY)
+  } catch {
+    // Nothing stored.
+  }
   return payload
+}
+
+function readQueuedImport(): SharedImportPayload | null {
+  try {
+    const raw = sessionStorage.getItem(QUEUED_IMPORT_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    return isSharedImportPayload(parsed as NativeOpenPayload)
+      ? (parsed as SharedImportPayload)
+      : null
+  } catch {
+    return null
+  }
 }
 
 export async function takePendingNativeSharedImport() {

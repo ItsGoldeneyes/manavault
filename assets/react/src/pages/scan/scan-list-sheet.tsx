@@ -191,6 +191,7 @@ function ScanListRow({
           {entry.imageUrl ? (
             <img
               src={entry.imageUrl}
+              crossOrigin="anonymous"
               alt=""
               loading="lazy"
               className="h-14 w-10 shrink-0 rounded-[3px] object-cover"

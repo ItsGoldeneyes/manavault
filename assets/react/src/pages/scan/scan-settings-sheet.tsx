@@ -10,6 +10,8 @@ import {
 } from "../../components/ui/dialog"
 import { Input } from "../../components/ui/input"
 import { Switch } from "../../components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group"
+import { isCrossOriginIsolated } from "../../lib/cross-origin-isolation"
 import { cn } from "../../lib/utils"
 import { SetCombobox } from "../collection/set-combobox"
 import type { RecognizerState } from "./recognition/use-recognizer"
@@ -18,6 +20,7 @@ import {
   normalizeScanSettings,
   PREVIEW_ZOOM_MAX,
   PREVIEW_ZOOM_MIN,
+  THREAD_OPTIONS,
   type ScanSettings,
 } from "./scan-settings"
 import { playScanSound, unlockScanSounds } from "./scan-sounds"
@@ -189,6 +192,13 @@ export function ScanSettingsSheet({
           <section className="px-5 py-4 text-sm text-base-content/70">
             <h3 className="mb-1 text-sm font-bold text-base-content">Recognition model</h3>
             <RecognizerSummary state={recognizer} lastMs={lastMs} />
+            {isCrossOriginIsolated() ? (
+              <ThreadsField value={settings.threads} onChange={(threads) => update({ threads })} />
+            ) : (
+              <p className="mt-2 text-xs text-base-content/60">
+                Recognition runs on one thread: this page is not cross-origin isolated.
+              </p>
+            )}
           </section>
         </div>
       </DialogContent>
@@ -332,6 +342,42 @@ function ThresholdField({
   )
 }
 
+/** WASM threads for recognition; changing it restarts the model. */
+function ThreadsField({ value, onChange }: { value: number; onChange: (threads: number) => void }) {
+  const id = useId()
+  return (
+    <div className="mt-3 flex items-center gap-3">
+      <label id={id} className="w-24 shrink-0 text-sm font-bold text-base-content">
+        Threads
+      </label>
+      <ToggleGroup
+        type="single"
+        aria-labelledby={id}
+        value={String(value)}
+        onValueChange={(option) => {
+          if (option) onChange(Number(option))
+        }}
+        className="flex flex-1 gap-1 rounded-btn border border-base-300 bg-base-100 p-1"
+      >
+        {THREAD_OPTIONS.map((option) => (
+          <ToggleGroupItem
+            key={option}
+            value={String(option)}
+            className={cn(
+              "min-h-8 flex-1 rounded-btn px-2 text-xs font-black uppercase tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              option === value
+                ? "bg-primary text-primary-content"
+                : "text-base-content/65 hover:bg-base-200 hover:text-base-content",
+            )}
+          >
+            {option === 0 ? "Auto" : option}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
 function RecognizerSummary({
   state,
   lastMs,
@@ -345,7 +391,8 @@ function RecognizerSummary({
         <p>
           <span className="font-mono">{state.version}</span> · {state.arts.toLocaleString()}{" "}
           artworks · loaded in{" "}
-          <span className="font-mono">{(state.loadMs / 1000).toFixed(1)} s</span>
+          <span className="font-mono">{(state.loadMs / 1000).toFixed(1)} s</span> · {state.threads}{" "}
+          {state.threads === 1 ? "thread" : "threads"}
           {lastMs !== null ? (
             <>
               {" "}

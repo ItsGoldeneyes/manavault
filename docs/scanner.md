@@ -65,8 +65,24 @@ Code lives in `assets/react/src/pages/scan/`.
   `manavault-scanner-<version>`, one download per version, older versions deleted. The
   onnxruntime-web WASM binary is cached alongside. The PWA service worker only prunes its own
   `manavault-pwa-*` caches.
-- Inference is onnxruntime-web 1.30 on single-threaded WASM, which needs no cross-origin isolation
-  and so works in the website, PWA and Capacitor WebViews. The CSP allows `'wasm-unsafe-eval'`.
+- Inference is onnxruntime-web 1.30 on WASM, multi-threaded when the browser allows it. The CSP
+  allows `'wasm-unsafe-eval'`. Threads need `SharedArrayBuffer`, so `GET /scan` alone is served
+  cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin`,
+  `Cross-Origin-Embedder-Policy: require-corp`; `ManavaultWeb.Plugs.CrossOriginIsolation`).
+  Consequences, all handled in code: links into and out of `/scan` are full page loads
+  (`lib/cross-origin-isolation.ts`, `reloadDocument`), the scanner's Scryfall `<img>`s request
+  with `crossorigin` (Scryfall sends `Access-Control-Allow-Origin: *`), the shared-import
+  handoff to the collection is kept in `sessionStorage` across the reload, and every script
+  Vite or `Plug.Static` serves carries `Cross-Origin-Embedder-Policy: require-corp`, because a
+  dedicated worker only starts inside an isolated document when its own script does. The rest
+  of the app is not isolated: it embeds EDHREC and other third-party images plainly, and
+  Safari has no `credentialless` COEP. The worker uses the standalone
+  `ort-wasm-simd-threaded.mjs` (`wasmPaths.mjs`) so the pthread workers spawn from a real URL.
+  The **Threads** setting (Auto/1/2/4; Auto lets the runtime pick `min(4, ceil(cores / 2))`)
+  is shown only on an isolated page; changing it restarts the worker, and if a threaded start
+  fails the worker is restarted on one thread. Without isolation (for example an old
+  Capacitor WebView) recognition runs on one thread as before. Measured in headless Chrome on
+  the 2026-09-29 bundle, card frames: 1 thread 182 ms, 2 threads 108 ms, 4 threads 64 ms.
 - Each frame is the whole camera image fitted into a 640 px square, so a card anywhere in view is
   found, including off-centre under a scanner stand's lens. The preview fills the screen behind
   the floating controls and may crop the image: **Camera preview** zoom and pan (scanner

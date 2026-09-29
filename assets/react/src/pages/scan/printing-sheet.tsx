@@ -129,6 +129,7 @@ function PrintingList({
               {option.imageUrl ? (
                 <img
                   src={option.imageUrl}
+                  crossOrigin="anonymous"
                   alt=""
                   loading="lazy"
                   className="h-14 w-10 shrink-0 rounded-[3px] object-cover"
@@ -244,6 +245,7 @@ export function CardNameSearch({
                 {printing.imageUrl ? (
                   <img
                     src={printing.imageUrl}
+                    crossOrigin="anonymous"
                     alt=""
                     loading="lazy"
                     className="h-14 w-10 shrink-0 rounded-[3px] object-cover"

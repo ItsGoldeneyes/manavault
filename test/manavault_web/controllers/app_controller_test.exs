@@ -27,6 +27,20 @@ defmodule ManavaultWeb.AppControllerTest do
     refute content_security_policy =~ "'unsafe-eval'"
     refute content_security_policy =~ "5173"
     refute content_security_policy =~ "ws://"
+
+    assert get_resp_header(conn, "cross-origin-embedder-policy") == []
+    assert get_resp_header(conn, "cross-origin-opener-policy") == []
+  end
+
+  test "GET /scan is the cross-origin isolated page for multi-threaded WebAssembly", %{
+    conn: conn
+  } do
+    conn = get(conn, ~p"/scan")
+
+    assert html_response(conn, 200) =~ ~s(id="manavault-root")
+    assert get_resp_header(conn, "cross-origin-opener-policy") == ["same-origin"]
+    assert get_resp_header(conn, "cross-origin-embedder-policy") == ["require-corp"]
+    assert [_policy] = get_resp_header(conn, "content-security-policy")
   end
 
   describe "account appearance in the shell" do

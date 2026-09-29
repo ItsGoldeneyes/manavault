@@ -13,6 +13,10 @@ defmodule ManavaultWeb.Router do
     plug ManavaultWeb.Plugs.Authentication, :browser
   end
 
+  pipeline :cross_origin_isolated do
+    plug ManavaultWeb.Plugs.CrossOriginIsolation
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_session
@@ -76,8 +80,15 @@ defmodule ManavaultWeb.Router do
     get "/collection/locations/:id", AppController, :index
     get "/collection/:id/edit", AppController, :index
     get "/trade", AppController, :index
-    get "/scan", AppController, :index
     post "/logout", AuthController, :delete
+  end
+
+  # The scanner is the one cross-origin isolated page (multi-threaded WebAssembly); see
+  # Plugs.CrossOriginIsolation.
+  scope "/", ManavaultWeb do
+    pipe_through [:browser, :authenticated_browser, :cross_origin_isolated]
+
+    get "/scan", AppController, :index
   end
 
   scope "/" do

@@ -2,6 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  queueSharedImport,
   receiveNativeOpenPayload,
   subscribeSharedImport,
   takeSharedImport,
@@ -156,4 +157,28 @@ test("receiveNativeOpenPayload routes native links without creating a shared imp
 
   assert.deepEqual(opened, [linkPayload])
   assert.equal(takeSharedImport(), null)
+})
+
+test("queueSharedImport survives a full page load through sessionStorage", async () => {
+  const store = new Map()
+  globalThis.sessionStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  }
+  try {
+    queueSharedImport(sharedPayload)
+    assert.equal(store.size, 1, "queued import is persisted while nobody listens")
+
+    // A fresh module instance stands in for the document loaded after the navigation.
+    const reloaded = await import(`../src/lib/native-shared-import.ts?reload=${Date.now()}`)
+    assert.deepEqual(reloaded.takeSharedImport(), sharedPayload)
+    assert.equal(reloaded.takeSharedImport(), null)
+    assert.equal(store.size, 0, "taking the import clears the persisted copy")
+
+    // Drain the in-memory queue of the original module too.
+    assert.deepEqual(takeSharedImport(), sharedPayload)
+  } finally {
+    delete globalThis.sessionStorage
+  }
 })

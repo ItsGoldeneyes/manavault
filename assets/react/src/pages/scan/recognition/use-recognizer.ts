@@ -8,8 +8,13 @@ export type RecognizerState =
   /** No bundle is installed on the server yet (`/api/scanner/bundle` → 404). */
   | { status: "unavailable" }
   | { status: "loading"; version: string; loaded: number; total: number; cached: boolean }
-  | { status: "ready"; version: string; arts: number; loadMs: number }
+  | { status: "ready"; version: string; arts: number; loadMs: number; threads: number }
   | { status: "failed"; message: string }
+
+export interface RecognizerOptions {
+  /** WASM threads for inference; `0` lets the runtime choose. See `WorkerRequest`. */
+  threads: number
+}
 
 interface Pending {
   resolve: (result: Identification) => void
@@ -27,8 +32,7 @@ export function useRecognizer() {
   const pendingRef = useRef(new Map<number, Pending>())
   const nextIdRef = useRef(0)
 
-  const start = useCallback(() => {
-    if (workerRef.current) return
+  const launch = useCallback((threads: number) => {
     setState({ status: "checking" })
     let worker: Worker
     try {
@@ -39,6 +43,19 @@ export function useRecognizer() {
     }
     workerRef.current = worker
     const pending = pendingRef.current
+    // A runtime that failed to start with threads cannot be re-initialized in place; a fresh
+    // worker on one thread keeps the scanner usable.
+    const retryOnOneThread = (message: string) => {
+      if (threads === 1 || workerRef.current !== worker) return false
+      console.warn(
+        `Scanner failed to start with ${threads || "auto"} threads; retrying with 1:`,
+        message,
+      )
+      worker.terminate()
+      workerRef.current = null
+      launch(1)
+      return true
+    }
 
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const message = event.data
@@ -61,10 +78,12 @@ export function useRecognizer() {
             version: message.version,
             arts: message.arts,
             loadMs: message.ms,
+            threads: message.threads,
           })
           break
         case "load_failed":
-          setState({ status: "failed", message: message.message })
+          if (!retryOnOneThread(message.message))
+            setState({ status: "failed", message: message.message })
           break
         case "identified":
           settle(pending, message.id)?.resolve(message.result)
@@ -75,9 +94,11 @@ export function useRecognizer() {
       }
     }
     worker.onerror = (event) => {
-      const message = event.message || "The scanner worker crashed"
-      setState({ status: "failed", message })
+      const message = event.message
+        ? `${event.message} (${event.filename}:${event.lineno})`
+        : "The scanner worker crashed"
       for (const id of pending.keys()) settle(pending, id)?.reject(new Error(message))
+      if (!retryOnOneThread(message)) setState({ status: "failed", message })
     }
 
     fetch("/api/scanner/bundle", { credentials: "same-origin", cache: "no-cache" })
@@ -90,13 +111,21 @@ export function useRecognizer() {
         if (!response.ok) throw new Error(`Scanner bundle: HTTP ${response.status}`)
         const { data } = (await response.json()) as { data: BundleInfo }
         setState({ status: "loading", version: data.version, loaded: 0, total: 0, cached: false })
-        post(worker, { type: "load", bundle: data })
+        post(worker, { type: "load", bundle: data, threads })
       })
       .catch((error: unknown) => {
         if (workerRef.current !== worker) return
         setState({ status: "failed", message: errorMessage(error) })
       })
   }, [])
+
+  const start = useCallback(
+    ({ threads }: RecognizerOptions) => {
+      if (workerRef.current) return
+      launch(threads)
+    },
+    [launch],
+  )
 
   const stop = useCallback(() => {
     workerRef.current?.terminate()

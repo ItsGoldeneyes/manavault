@@ -55,6 +55,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     allowedHosts: [".onamp.dev"],
+    // Worker scripts must carry the same embedder policy as the isolated `/scan` document
+    // (ManavaultWeb.Plugs.CrossOriginIsolation). Proxied Phoenix responses are not affected.
+    headers: { "Cross-Origin-Embedder-Policy": "require-corp" },
     proxy: {
       // Proxy keys are matched against the URL including its query string.
       "^/(\\?|$)": phoenixProxy,

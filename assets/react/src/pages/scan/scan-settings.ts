@@ -16,12 +16,19 @@ export interface ScanSettings {
   collectTraining: boolean
   /** With training collection on: pause on each logged scan to confirm or fix its outline. */
   checkOutlines: boolean
+  /**
+   * WASM threads for recognition: 0 lets the runtime pick from the core count. Only applies when
+   * the scanner page is cross-origin isolated; otherwise recognition runs on one thread.
+   */
+  threads: number
   /** Camera preview zoom beyond filling the screen, for phones on a scanning stand. */
   previewZoom: number
   /** The point of the camera image (0–1) shown at the middle of the preview. */
   previewPanX: number
   previewPanY: number
 }
+
+export const THREAD_OPTIONS = [0, 1, 2, 4] as const
 
 export const PREVIEW_ZOOM_MIN = 1
 export const PREVIEW_ZOOM_MAX = 2.5
@@ -37,6 +44,7 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   totalMinCents: 0,
   collectTraining: false,
   checkOutlines: false,
+  threads: 0,
   previewZoom: 1,
   previewPanX: 0.5,
   previewPanY: 0.5,
@@ -80,6 +88,9 @@ export function normalizeScanSettings(value: unknown): ScanSettings {
     totalMinCents: cents("totalMinCents"),
     collectTraining: bool("collectTraining"),
     checkOutlines: bool("checkOutlines"),
+    threads: (THREAD_OPTIONS as readonly number[]).includes(stored.threads as number)
+      ? (stored.threads as number)
+      : DEFAULT_SCAN_SETTINGS.threads,
     previewZoom: within("previewZoom", PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX),
     previewPanX: within("previewPanX", 0, 1),
     previewPanY: within("previewPanY", 0, 1),

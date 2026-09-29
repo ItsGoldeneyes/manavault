@@ -9,7 +9,14 @@ defmodule ManavaultWeb.Endpoint do
   # see ManavaultWeb.SessionOptions.
 
   @fresh_asset_cache_control "no-cache, no-store, must-revalidate"
-  @fresh_asset_headers %{"pragma" => "no-cache", "expires" => "0"}
+  # The scanner page is cross-origin isolated (see ManavaultWeb.Plugs.CrossOriginIsolation),
+  # and a dedicated worker only starts there when its script is served with a matching
+  # embedder policy. Browsers ignore the header on ordinary scripts and assets.
+  @fresh_asset_headers %{
+    "pragma" => "no-cache",
+    "expires" => "0",
+    "cross-origin-embedder-policy" => "require-corp"
+  }
 
   socket "/socket", ManavaultWeb.UserSocket,
     websocket: [connect_info: [session: {ManavaultWeb.SessionOptions, :build, []}]],

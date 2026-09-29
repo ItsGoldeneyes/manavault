@@ -48,6 +48,7 @@ export function ScanResultBar({
             {entry.imageUrl ? (
               <img
                 src={entry.imageUrl}
+                crossOrigin="anonymous"
                 alt=""
                 className="h-16 w-[2.9rem] rounded-[3px] object-cover shadow"
               />
