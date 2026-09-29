@@ -8,6 +8,28 @@ See [docs/releasing.md](docs/releasing.md) for maintainer instructions.
 
 ---
 
+## [1.4.3] - 2026-09-29
+
+### Bug Fixes
+
+- **android:** Fall back to the status bar height for the top inset ([`03f28366`](../../commit/03f28366b1f0084b39c04484f9c3b5046061e3f3))
+- **scanner:** Say why a corrections export token was refused ([`21bf51bd`](../../commit/21bf51bd758fce90c2dd32b881d566349896c9c1))
+- **scanner:** Export skipped captures with a null label ([`cac2456c`](../../commit/cac2456c9b6511b3863fc2f00e11d926330bec91))
+- **pricing:** Prefer TCGplayer market price over listing lows ([`1af517fd`](../../commit/1af517fd2787f364314b8375fcd312eecfded5fd))
+
+### Chores
+
+- **backlog:** Record phone detector profile progress ([`8a13820b`](../../commit/8a13820be0f70e154f7cf29b2bf8553760880225))
+
+### Documentation
+
+- **scanner:** Document Identify and per-app training sources ([`6b6b1276`](../../commit/6b6b127641ea5ca0f43ac7ea11af7a133a975edf))
+
+### Features
+
+- **scanner:** Identify cards the scanner misses ([`e0883500`](../../commit/e088350097fc333114bf318a2a1bf80393882323))
+- **scanner:** Fill the screen with the camera and add preview zoom and pan ([`682ce6b0`](../../commit/682ce6b0cb8ee9bf0fad42ed0ad097a153b96459))
+
 ## [1.4.2] - 2026-09-28
 
 ### Bug Fixes
