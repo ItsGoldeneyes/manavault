@@ -231,7 +231,8 @@ defmodule ManavaultWeb.AppControllerTest do
 
     response = conn |> get("/share/decks/#{token}/preview.svg") |> response(200)
 
-    assert response =~ "Bracket 3 · Pace 2"
+    assert response =~ "Bracket 3-"
+    refute response =~ "Pace"
   end
 
   test "GET /share/decks/:token/preview.png renders a social preview PNG", %{conn: conn} do

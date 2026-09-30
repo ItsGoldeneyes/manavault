@@ -34,7 +34,26 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert {:ok, weaker_result} = DeckAnalysis.normalize_result(weaker, payload)
 
     assert DeckAnalysis.bracket_label(weaker_result.official_bracket, weaker_result.play_bracket) ==
-             "Bracket 3 (plays like Bracket 2)"
+             "Bracket 3-"
+  end
+
+  test "renders bracket suffixes while keeping the pace explanation in the body" do
+    payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 0}}
+
+    for {practical, label} <- [{2, "Bracket 3-"}, {3, "Bracket 3"}, {4, "Bracket 3+"}] do
+      response =
+        Map.merge(@result, %{
+          "official_bracket" => 3,
+          "play_bracket" => practical,
+          "bracket_rationale" => "Its engines support a turn-eight win with limited redundancy."
+        })
+
+      assert {:ok, result} = DeckAnalysis.normalize_result(response, payload)
+      assert DeckAnalysis.bracket_label(3, practical) == label
+
+      assert DeckAnalysis.render_markdown(result) =~
+               "## Bracket read\n\n**#{label}**\n\nIts engines support a turn-eight win with limited redundancy."
+    end
   end
 
   test "Commander brackets do not apply to other formats" do
@@ -99,7 +118,18 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert prompt =~ "does not, by itself, make an otherwise moderate deck Bracket 4"
     assert prompt =~ "density, redundancy, synergy, tutorability"
     assert prompt =~ "Do not recite each bracket's restrictions"
+    assert prompt =~ "explain the expected pace and any difference in bracket_rationale"
+    assert prompt =~ "practical estimates, not official sub-brackets"
     refute prompt =~ "required by the literal Commander Brackets guidelines"
+  end
+
+  test "weighs interaction tradeoffs without treating symmetrical effects as inherent weaknesses" do
+    prompt = DeckAnalysis.system_prompt() |> String.replace(~r/\s+/, " ")
+
+    assert prompt =~ "Judge interaction by its net value in a multiplayer game"
+    assert prompt =~ "Ordinary costs or symmetrical effects are not inherently anti-synergy"
+    assert prompt =~ "cite a weakness only when the list shows a meaningful structural problem"
+    refute prompt =~ "sweepers that leave its board intact"
   end
 
   test "frames the analysis around deck structure, role balance, and synergy" do

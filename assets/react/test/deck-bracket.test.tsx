@@ -3,14 +3,16 @@ import { expect, test } from "vitest"
 
 import { DeckBracketBadge } from "../src/pages/decks/deck-bracket"
 
-test("bracket label highlights a different practical play bracket", () => {
-  const deck = { commanderBracket: 3, commanderBracketEstimate: 2 }
-
-  render(<DeckBracketBadge deck={deck} />)
-  expect(screen.getByText("Bracket 3 · Pace 2")).toBeInstanceOf(HTMLElement)
-  expect(screen.getByTitle("Official Bracket 3; estimated to play like Bracket 2")).toBeInstanceOf(
-    HTMLElement,
-  )
+test.each([
+  [2, "Bracket 3-"],
+  [4, "Bracket 3+"],
+])("bracket label uses a suffix for practical bracket %i", (practical, label) => {
+  render(<DeckBracketBadge deck={{ commanderBracket: 3, commanderBracketEstimate: practical }} />)
+  expect(screen.getByText(label)).toBeInstanceOf(HTMLElement)
+  expect(
+    screen.getByTitle(`Official Bracket 3; estimated to play like Bracket ${practical}`),
+  ).toBeInstanceOf(HTMLElement)
+  expect(screen.queryByText(/Pace/)).toBeNull()
 })
 
 test("bracket label is concise when guideline and practical brackets match", () => {

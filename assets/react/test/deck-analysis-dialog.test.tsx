@@ -95,7 +95,8 @@ test("renders saved one-time analyses newest first", () => {
   expect(entries).toHaveLength(1)
   expect(entries[0]?.open).toBe(true)
   expect(entries[0]?.textContent).toContain("Weekend counters")
-  expect(entries[0]?.textContent).toContain("Bracket 3 · plays like 2")
+  expect(entries[0]?.textContent).toContain("Bracket 3-")
+  expect(entries[0]?.querySelector("summary")?.textContent).not.toContain("plays like")
   expect(screen.getByRole("heading", { name: "Overview" })).toBeInstanceOf(HTMLElement)
   expect(screen.getByRole("link", { name: "Sun Titan" }).getAttribute("href")).toBe(
     "/cards?q=Sun%20Titan",

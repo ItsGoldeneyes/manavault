@@ -29,6 +29,7 @@ import {
 import { Textarea } from "../../components/ui/textarea"
 import { cn, safeHttpUrl, titleize } from "../../lib/utils"
 import { formatDate } from "../settings/data"
+import { commanderBracketLabel } from "./deck-bracket"
 import { DeckMarkdown } from "./deck-primer"
 import { DECK_FORMATS } from "./deck-types"
 import { AnalyzeDeckListDocument, DeckAnalysisRequestsDocument } from "./deck-analysis-documents"
@@ -290,7 +291,7 @@ function AnalysisHistory({
 }
 
 function AnalysisHistoryItem({ open, request }: { open: boolean; request: AnalysisRequest }) {
-  const bracket = bracketLabel(request)
+  const bracket = commanderBracketLabel(request)
   const sourceUrl = request.sourceType === "url" ? safeHttpUrl(request.source) : null
 
   return (
@@ -332,15 +333,4 @@ function AnalysisHistoryItem({ open, request }: { open: boolean; request: Analys
       </div>
     </details>
   )
-}
-
-function bracketLabel(request: AnalysisRequest) {
-  if (!request.commanderBracket) return null
-  if (
-    request.commanderBracketEstimate &&
-    request.commanderBracketEstimate !== request.commanderBracket
-  ) {
-    return `Bracket ${request.commanderBracket} · plays like ${request.commanderBracketEstimate}`
-  }
-  return `Bracket ${request.commanderBracket}`
 }

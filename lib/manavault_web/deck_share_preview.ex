@@ -155,11 +155,9 @@ defmodule ManavaultWeb.DeckSharePreview do
   defp legality_tone("Legal"), do: :success
   defp legality_tone(_label), do: :error
 
-  defp bracket_label(official, practical)
-       when official in 1..5 and practical in 1..5 and practical != official,
-       do: "Bracket #{official} · Pace #{practical}"
+  defp bracket_label(official, practical) when official in 1..5,
+    do: Manavault.AI.DeckAnalysis.bracket_label(official, practical)
 
-  defp bracket_label(official, _practical) when official in 1..5, do: "Bracket #{official}"
   defp bracket_label(_official, _practical), do: nil
 
   defp titleize(value) when is_binary(value) do

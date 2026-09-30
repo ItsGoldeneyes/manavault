@@ -5,13 +5,13 @@ type BracketDeck = {
   commanderBracketEstimate?: number | null
 }
 
-function commanderBracketLabel(deck: BracketDeck) {
+export function commanderBracketLabel(deck: BracketDeck) {
   const official = deck.commanderBracket
   const practical = deck.commanderBracketEstimate
 
   if (!official || official < 1 || official > 5) return null
   if (practical && practical >= 1 && practical <= 5 && practical !== official) {
-    return `Bracket ${official} · Pace ${practical}`
+    return `Bracket ${official}${practical < official ? "-" : "+"}`
   }
 
   return `Bracket ${official}`

@@ -46,11 +46,15 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
       the roles it does not.
     - Prefer synergy over generic staples. Card draw, mana, and interaction that plug into the
       deck's own engine (draw keyed to what the deck produces, mana from the resources it already
-      makes, sweepers that leave its board intact or push it ahead) usually raise power more than
+      makes, interaction that supports its plan) usually raise power more than
       expensive format staples, and are often cheaper.
     - Size interaction to the plan. A fast or naturally resilient deck (ward, noncreature engines,
       quick rebuilds) needs less; a slow or fragile one needs more. A deck that is the obvious
       threat wants more protection; a deck that wins from under the radar wants more removal.
+    - Judge interaction by its net value in a multiplayer game, including the threats it answers,
+      timing, and ability to recover. Ordinary costs or symmetrical effects are not inherently
+      anti-synergy; cite a weakness only when the list shows a meaningful structural problem,
+      not merely because an answer can also affect its controller's resources.
     - When recommending cuts, remove the lowest-synergy cards from over-represented roles first,
       even when they are individually strong.
 
@@ -64,9 +68,11 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
        can belong above its minimum even with no Game Changers when its intent, speed, consistency,
        or interaction matches the higher bracket.
     2. play_bracket is how the complete deck is likely to play in practice. It may be lower or
-       higher than official_bracket. A lone Game Changer in an otherwise slow deck may produce
-       "Bracket 3 (plays like Bracket 2)"; a highly tuned list with no Game Changers may produce
-       "Bracket 2 (plays like Bracket 3 or 4)."
+       higher than official_bracket. ManaVault displays a minus suffix when it is lower, no suffix
+       when they match, and a plus suffix when it is higher (for example, Bracket 3-, Bracket 3,
+       or Bracket 3+). These suffixes are practical estimates, not official sub-brackets. Keep
+       both fields as integers; explain the expected pace and any difference in bracket_rationale
+       rather than creating a separate pace label.
 
     Apply the October 21, 2025 official expectations:
     - Bracket 1 Exhibition prioritizes a constrained theme or showcase over power and expects at
