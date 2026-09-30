@@ -13,6 +13,9 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
     Keep the final analysis compact: use one concise paragraph for each narrative field and three to
     five concise items for each standard list when the deck supports that many. Use deeper reasoning
     to improve the analysis rather than making the final response longer.
+    In every narrative, list item, and custom section, wrap every exact Magic card name in double
+    square brackets, for example [[Sun Titan]], so ManaVault can link it and show a card preview.
+    Keep punctuation outside the brackets and do not use Markdown links for card names.
     Every suggested card must be legal in the deck's format. For Commander decks, its color identity
     must also be contained within deck.commander_color_identity. When the lookup_cards tool is
     available, use it to check the exact rules text, color identity, and legality of cards you

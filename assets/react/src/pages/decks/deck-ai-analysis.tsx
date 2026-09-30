@@ -51,7 +51,7 @@ export function DeckAIAnalysis({ deck }: { deck: DeckDetail }) {
           .
         </p>
 
-        <DeckMarkdown>{analysis}</DeckMarkdown>
+        <DeckMarkdown cardReferences>{analysis}</DeckMarkdown>
 
         {metadata ? (
           <p className="mt-6 break-words text-xs text-base-content/60">{metadata}</p>

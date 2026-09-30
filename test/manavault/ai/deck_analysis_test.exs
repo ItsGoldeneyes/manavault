@@ -22,6 +22,28 @@ defmodule Manavault.AI.DeckAnalysisTest do
     "custom_sections" => []
   }
 
+  test "requests linked card references and preserves them in rendered analysis" do
+    assert DeckAnalysis.system_prompt() =~ "wrap every exact Magic card name in double"
+    assert DeckAnalysis.system_prompt() =~ "square brackets, for example [[Sun Titan]]"
+
+    payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 0}}
+
+    response =
+      Map.merge(@result, %{
+        "summary" => "Recur [[Sun Titan]].",
+        "power_up" => ["Add [[Emeria, the Sky Ruin]]."],
+        "custom_sections" => [
+          %{"title" => "Budget", "content" => "Try [[Sevinne's Reclamation]]."}
+        ]
+      })
+
+    assert {:ok, result} = DeckAnalysis.normalize_result(response, payload, "Include Budget")
+    markdown = DeckAnalysis.render_markdown(result)
+    assert markdown =~ "## Overview\n\nRecur [[Sun Titan]]."
+    assert markdown =~ "- Add [[Emeria, the Sky Ruin]]."
+    assert markdown =~ "## Budget\n\nTry [[Sevinne's Reclamation]]."
+  end
+
   test "preserves practical bracket differences while enforcing Game Changer minimums" do
     payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 1}}
 

@@ -36,6 +36,34 @@ test("saved AI analysis is collapsed by default", () => {
   expect(screen.queryByRole("button", { name: /ask ai about this deck/i })).toBeNull()
 })
 
+test("saved AI analysis links card references and shows previews on hover and focus", async () => {
+  const user = userEvent.setup()
+  const { container } = render(
+    <DeckAIAnalysis
+      deck={deck({
+        aiAnalysis: "## Overview\n\nRecur [[Sun Titan]] with [[Emeria, the Sky Ruin]].",
+      })}
+    />,
+  )
+
+  await user.click(container.querySelector("summary") as HTMLElement)
+  const titan = screen.getByRole("link", { name: "Sun Titan" })
+  const emeria = screen.getByRole("link", { name: "Emeria, the Sky Ruin" })
+  expect(titan.getAttribute("href")).toBe("/cards?q=Sun%20Titan")
+  expect(emeria.getAttribute("href")).toBe("/cards?q=Emeria%2C%20the%20Sky%20Ruin")
+
+  await user.hover(titan)
+  const preview = await screen.findByRole("img", { name: "Sun Titan card preview" })
+  expect(preview.getAttribute("src")).toContain("exact=Sun%20Titan")
+  await user.unhover(titan)
+
+  fireEvent.focus(emeria)
+  const focusedPreview = await screen.findByRole("img", {
+    name: "Emeria, the Sky Ruin card preview",
+  })
+  expect(focusedPreview.getAttribute("src")).toContain("exact=Emeria%2C%20the%20Sky%20Ruin")
+})
+
 test("AI analysis panel stays hidden until an analysis exists", () => {
   const { container } = render(<DeckAIAnalysis deck={deck({ aiAnalysis: null })} />)
   expect(container.innerHTML).toBe("")
