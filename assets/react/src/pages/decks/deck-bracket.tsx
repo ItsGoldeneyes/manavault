@@ -11,7 +11,7 @@ export function commanderBracketLabel(deck: BracketDeck) {
 
   if (!official || official < 1 || official > 5) return null
   if (practical && practical >= 1 && practical <= 5 && practical !== official) {
-    return `Bracket ${official}${practical < official ? "-" : "+"}`
+    return `Bracket ${practical}${official < practical ? "-" : "+"}`
   }
 
   return `Bracket ${official}`

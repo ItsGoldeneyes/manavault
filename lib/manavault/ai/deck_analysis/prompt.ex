@@ -68,11 +68,12 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
        can belong above its minimum even with no Game Changers when its intent, speed, consistency,
        or interaction matches the higher bracket.
     2. play_bracket is how the complete deck is likely to play in practice. It may be lower or
-       higher than official_bracket. ManaVault displays a minus suffix when it is lower, no suffix
-       when they match, and a plus suffix when it is higher (for example, Bracket 3-, Bracket 3,
-       or Bracket 3+). These suffixes are practical estimates, not official sub-brackets. Keep
-       both fields as integers; explain the expected pace and any difference in bracket_rationale
-       rather than creating a separate pace label.
+       higher than official_bracket. ManaVault displays play_bracket as the number, with a minus
+       suffix when official_bracket is lower, no suffix when they match, and a plus suffix when
+       official_bracket is higher. For example, official 2 and play 3 displays Bracket 3-;
+       official 4 and play 3 displays Bracket 3+. These suffixes are practical estimates, not
+       official sub-brackets. Keep both fields as integers; explain the expected pace and any
+       difference in bracket_rationale rather than creating a separate pace label.
 
     Apply the October 21, 2025 official expectations:
     - Bracket 1 Exhibition prioritizes a constrained theme or showcase over power and expects at

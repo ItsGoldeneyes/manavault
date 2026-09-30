@@ -100,7 +100,7 @@ defmodule ManavaultWeb.Schema.AITest do
              }
            } = json_response(analyze_conn, 200)
 
-    assert analysis =~ "**Bracket 3-**"
+    assert analysis =~ "**Bracket 2+**"
     assert {:ok, _datetime, 0} = DateTime.from_iso8601(analyzed_at)
 
     decklist = "Commander\n1 Test Commander\n\nMainboard\n2 Plains"

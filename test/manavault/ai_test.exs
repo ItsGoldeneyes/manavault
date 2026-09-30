@@ -160,7 +160,7 @@ defmodule Manavault.AITest do
     assert {:ok, analyzed} = AI.analyze_deck(deck)
     assert analyzed.commander_bracket == 3
     assert analyzed.commander_bracket_estimate == 2
-    assert analyzed.ai_analysis =~ "**Bracket 3 (plays like Bracket 2)**"
+    assert analyzed.ai_analysis =~ "**Bracket 2+**"
     assert analyzed.ai_analysis =~ "## Ways to power it up"
     assert analyzed.ai_analysis =~ "## What it's like to play against it"
     assert analyzed.ai_analysis =~ "## Mulligan guide"

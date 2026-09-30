@@ -38,7 +38,7 @@ defmodule Manavault.AI.DeckAnalysis.Result do
   end
 
   def bracket_label(official, practical) when practical in 1..5 and practical != official,
-    do: "Bracket #{official}#{if practical < official, do: "-", else: "+"}"
+    do: "Bracket #{practical}#{if official < practical, do: "-", else: "+"}"
 
   def bracket_label(official, _practical), do: "Bracket #{official}"
 

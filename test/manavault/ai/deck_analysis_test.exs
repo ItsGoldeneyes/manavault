@@ -34,22 +34,28 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert {:ok, weaker_result} = DeckAnalysis.normalize_result(weaker, payload)
 
     assert DeckAnalysis.bracket_label(weaker_result.official_bracket, weaker_result.play_bracket) ==
-             "Bracket 3-"
+             "Bracket 2+"
   end
 
   test "renders bracket suffixes while keeping the pace explanation in the body" do
     payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 0}}
 
-    for {practical, label} <- [{2, "Bracket 3-"}, {3, "Bracket 3"}, {4, "Bracket 3+"}] do
+    for {official, practical, label} <- [
+          {2, 3, "Bracket 3-"},
+          {3, 3, "Bracket 3"},
+          {4, 3, "Bracket 3+"},
+          {3, 2, "Bracket 2+"},
+          {3, 4, "Bracket 4-"}
+        ] do
       response =
         Map.merge(@result, %{
-          "official_bracket" => 3,
+          "official_bracket" => official,
           "play_bracket" => practical,
           "bracket_rationale" => "Its engines support a turn-eight win with limited redundancy."
         })
 
       assert {:ok, result} = DeckAnalysis.normalize_result(response, payload)
-      assert DeckAnalysis.bracket_label(3, practical) == label
+      assert DeckAnalysis.bracket_label(official, practical) == label
 
       assert DeckAnalysis.render_markdown(result) =~
                "## Bracket read\n\n**#{label}**\n\nIts engines support a turn-eight win with limited redundancy."
