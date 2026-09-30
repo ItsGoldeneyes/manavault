@@ -3,19 +3,27 @@ import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { afterEach, expect, test, vi } from "vitest"
 
+import { DeckAnalysisJobDocument } from "../src/pages/decks/deck-analysis-documents"
+
 const mocks = vi.hoisted(() => ({
   analyzeDeck: vi.fn(),
   showToast: vi.fn(),
+  job: null as { id: string; status: string; deck: { id: string } } | null,
+  statusError: undefined as Error | undefined,
+  refetch: vi.fn(() => Promise.resolve()),
+  startPolling: vi.fn(),
+  stopPolling: vi.fn(),
 }))
 
 vi.mock("@apollo/client/react", () => ({
   useMutation: () => [mocks.analyzeDeck, { loading: false }],
-  useQuery: () => ({
-    data: undefined,
+  useQuery: (document: unknown) => ({
+    data: document === DeckAnalysisJobDocument ? { deckAnalysisJob: mocks.job } : undefined,
+    error: mocks.statusError,
     loading: false,
-    refetch: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
+    refetch: mocks.refetch,
+    startPolling: mocks.startPolling,
+    stopPolling: mocks.stopPolling,
   }),
 }))
 
@@ -33,6 +41,11 @@ afterEach(() => {
   cleanup()
   mocks.analyzeDeck.mockReset()
   mocks.showToast.mockReset()
+  mocks.job = null
+  mocks.statusError = undefined
+  mocks.refetch.mockClear()
+  mocks.startPolling.mockClear()
+  mocks.stopPolling.mockClear()
 })
 
 function renderHeader(shareMode: boolean, onCombos = () => undefined) {
@@ -119,7 +132,7 @@ test("shared deck actions do not expose the AI question tool", () => {
   expect(screen.queryByRole("dialog", { name: "Ask about this deck" })).toBeNull()
 })
 
-test("AI deck analysis shows progress until the request completes", async () => {
+test("AI deck analysis acknowledges queueing without claiming generation is complete", async () => {
   const user = userEvent.setup()
   mocks.analyzeDeck.mockImplementation(({ onCompleted }: { onCompleted?: () => void }) => {
     onCompleted?.()
@@ -130,14 +143,46 @@ test("AI deck analysis shows progress until the request completes", async () => 
   await user.click(screen.getByRole("button", { name: "Counter Deck actions" }))
   await user.click(screen.getByRole("menuitem", { name: "Analyze deck with AI" }))
 
-  expect(mocks.showToast).toHaveBeenNthCalledWith(1, "Analyzing Counter Deck with AI…", {
-    id: "deck-analysis-deck-1",
-    loading: true,
-    tone: "info",
-  })
-  expect(mocks.showToast).toHaveBeenNthCalledWith(2, "Deck analysis complete.", {
-    id: "deck-analysis-deck-1",
-  })
+  expect(mocks.showToast).toHaveBeenCalledExactlyOnceWith(
+    "Analysis queued for Counter Deck. You can leave this page.",
+    { id: "deck-analysis-deck-1", tone: "info" },
+  )
+})
+
+test("reopening a pending deck shows progress and disables duplicate analysis", async () => {
+  mocks.job = { id: "job-1", status: "pending", deck: { id: "deck-1" } }
+  const user = userEvent.setup()
+  renderHeader(false)
+
+  expect(screen.getByRole("status").textContent).toContain("Analyzing in the background")
+  expect(mocks.startPolling).toHaveBeenCalledWith(2_000)
+  await user.click(screen.getByRole("button", { name: "Counter Deck actions" }))
+  const action = screen.getByRole("menuitem", { name: "Analyzing..." })
+  expect(action.getAttribute("aria-disabled")).toBe("true")
+  expect(mocks.analyzeDeck).not.toHaveBeenCalled()
+})
+
+test("a status connection failure offers a status check, not another paid analysis", async () => {
+  mocks.job = { id: "job-1", status: "pending", deck: { id: "deck-1" } }
+  mocks.statusError = new Error("Network unavailable")
+  const user = userEvent.setup()
+  renderHeader(false)
+
+  expect(screen.getByRole("status").textContent).toContain("It may still be running")
+  await user.click(screen.getByRole("button", { name: "Check status" }))
+  expect(mocks.refetch).toHaveBeenCalledOnce()
+  expect(mocks.analyzeDeck).not.toHaveBeenCalled()
+  expect(mocks.showToast).not.toHaveBeenCalled()
+})
+
+test("a terminal job failure remains visible after reopening the deck", () => {
+  mocks.job = { id: "job-1", status: "failed", deck: { id: "deck-1" } }
+  renderHeader(false)
+
+  expect(screen.getByRole("status").textContent).toContain("AI analysis could not be completed")
+  expect(screen.getByRole("button", { name: "Retry analysis" })).toBeInstanceOf(HTMLElement)
+  expect(mocks.startPolling).not.toHaveBeenCalled()
+  expect(mocks.showToast).not.toHaveBeenCalled()
 })
 
 test("private deck menu opens the infinite combo lookup", async () => {

@@ -79,6 +79,11 @@ WotC classification and expected pace stay in the analysis body. Older analyses
 use the higher of their saved official and practical brackets, with a minus when
 those values differ. Refresh an analysis to get a directly assessed rating.
 
+Saved-deck analysis runs in the background, including individual refreshes. You can
+leave the page and return while it runs; the deck page checks progress and displays
+the result when ready. Refreshing keeps the previous analysis visible, and repeat
+requests reuse an active job. Failed jobs can be retried from the deck page.
+
 ### Use it on mobile
 
 The responsive web app can be installed as a PWA. Optional Capacitor Android and

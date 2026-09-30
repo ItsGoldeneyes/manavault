@@ -15,6 +15,15 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     value(:skipped)
   end
 
+  object :deck_analysis_job do
+    field :id, non_null(:id)
+    field :status, non_null(:string)
+
+    field :deck, non_null(:deck) do
+      resolve(&DeckFields.deck_analysis_job_deck/3)
+    end
+  end
+
   object :deck_legality do
     field :status, non_null(:string) do
       resolve(&ValueResolvers.map_value/3)

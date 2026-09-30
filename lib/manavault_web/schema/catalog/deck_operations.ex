@@ -37,6 +37,11 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
       resolve(&QueryResolvers.deck_analysis_requests/3)
     end
 
+    field :deck_analysis_job, :deck_analysis_job do
+      arg(:deck_id, non_null(:id))
+      resolve(&QueryResolvers.deck_analysis_job/3)
+    end
+
     field :deck_question_answers, non_null(list_of(non_null(:deck_question_answer))) do
       arg(:deck_id, non_null(:id))
       @desc "Return the turns of one Swap cards chat thread instead of Ask AI history."
@@ -143,6 +148,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
 
       output do
         field :deck, :deck
+        field :job, :deck_analysis_job
       end
 
       resolve(fn parent, args, resolution ->

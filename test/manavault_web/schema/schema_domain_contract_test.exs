@@ -34,6 +34,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
                "collectionValueDashboard",
                "collectionValueSummary",
                "deck",
+               "deckAnalysisJob",
                "deckAnalysisRequests",
                "deckBuylist",
                "deckBuylistExport",
@@ -172,6 +173,9 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
 
     assert type_signature(query_fields["deckAnalysisRequests"]["type"]) ==
              "[DeckAnalysisRequest!]!"
+
+    assert type_signature(query_fields["deckAnalysisJob"]["type"]) == "DeckAnalysisJob"
+    assert argument(query_fields["deckAnalysisJob"], "deckId") == {"ID!", nil}
 
     assert type_signature(query_fields["deckQuestionAnswers"]["type"]) ==
              "[DeckQuestionAnswer!]!"

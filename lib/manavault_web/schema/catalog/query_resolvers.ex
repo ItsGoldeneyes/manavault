@@ -197,6 +197,12 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
     {:ok, AI.list_deck_analysis_requests(limit: limit)}
   end
 
+  def deck_analysis_job(_parent, %{deck_id: deck_id}, resolution) do
+    with {:ok, deck_id} <- RelayHelpers.node_id(deck_id, :deck, resolution) do
+      {:ok, AI.latest_deck_analysis_job(deck_id)}
+    end
+  end
+
   def deck_question_answers(_parent, %{deck_id: deck_id} = args, resolution) do
     with {:ok, deck_id} <- RelayHelpers.node_id(deck_id, :deck, resolution) do
       deck = Catalog.get_deck!(deck_id, preload?: false)

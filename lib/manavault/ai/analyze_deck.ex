@@ -1,9 +1,32 @@
 defmodule Manavault.AI.AnalyzeDeck do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Manavault.AI.{DeckAnalysis, DeckAnalysisWorker, Provider, UpdateSettings}
   alias Manavault.Catalog
   alias Manavault.Catalog.Deck
+  alias Manavault.Repo
+
+  def enqueue(%Deck{} = deck) do
+    with :ok <- UpdateSettings.settings() |> UpdateSettings.configured(),
+         {:ok, job} <- deck.id |> job_changeset() |> Oban.insert() do
+      {:ok, progress(job)}
+    end
+  end
+
+  def latest_job(deck_id) do
+    Oban.Job
+    |> where([job], job.worker == "Manavault.AI.DeckAnalysisWorker")
+    |> where([job], job.args["deck_id"] == ^deck_id)
+    |> order_by(desc: :id)
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      job -> progress(job)
+    end
+  end
 
   def run(%Deck{} = deck) do
     settings = UpdateSettings.settings()
@@ -17,12 +40,13 @@ defmodule Manavault.AI.AnalyzeDeck do
 
   def refresh_all do
     with :ok <- UpdateSettings.settings() |> UpdateSettings.configured() do
-      jobs =
-        Catalog.list_decks()
-        |> Enum.map(&DeckAnalysisWorker.new(%{deck_id: &1.id}))
-        |> Oban.insert_all()
-
-      {:ok, length(jobs)}
+      # insert_all bypasses job uniqueness; use the same per-deck deduplication
+      # as the Analyze action so bulk and individual refreshes can overlap safely.
+      Repo.transaction(fn ->
+        decks = Catalog.list_decks()
+        Enum.each(decks, &(&1.id |> job_changeset() |> Oban.insert!()))
+        length(decks)
+      end)
     end
   end
 
@@ -35,6 +59,19 @@ defmodule Manavault.AI.AnalyzeDeck do
         settings.deck_analysis_instructions
       )
     end
+  end
+
+  defp job_changeset(deck_id), do: DeckAnalysisWorker.new(%{"deck_id" => deck_id})
+
+  defp progress(job) do
+    status =
+      case job.state do
+        "completed" -> "completed"
+        state when state in ["discarded", "cancelled"] -> "failed"
+        _active -> "pending"
+      end
+
+    %{id: job.id, deck_id: job.args["deck_id"], status: status}
   end
 
   defp analysis_attrs(result, settings) do

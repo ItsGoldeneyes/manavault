@@ -14,6 +14,8 @@ defmodule Manavault.AI do
   defdelegate update_settings(attrs), to: UpdateSettings, as: :run
 
   defdelegate analyze_deck(deck), to: AnalyzeDeck, as: :run
+  defdelegate enqueue_deck_analysis(deck), to: AnalyzeDeck, as: :enqueue
+  defdelegate latest_deck_analysis_job(deck_id), to: AnalyzeDeck, as: :latest_job
   defdelegate refresh_all_deck_analyses(), to: AnalyzeDeck, as: :refresh_all
 
   defdelegate analyze_deck_list(args), to: AnalyzeDeckList, as: :run

@@ -1,4 +1,3 @@
-import { useMutation } from "@apollo/client/react"
 import { Link } from "@tanstack/react-router"
 import {
   Archive,
@@ -19,7 +18,6 @@ import { useState, type ReactNode } from "react"
 import { ImageSummaryCard } from "../../components/image-summary-card"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
-import { useToast } from "../../components/ui/toast"
 import type { DeckGroupBy } from "../../lib/deck-grouping"
 import { compactNumber, cn, titleize } from "../../lib/utils"
 import { ShareModeHidden, SummaryActionMenu } from "./deck-actions"
@@ -31,9 +29,9 @@ import { deckLegalityIssueCountLabel, deckLegalityLabel, deckLegalityTone } from
 import { DeckNameWithCommanderIdentity } from "./deck-list-model"
 import { DeckPrimer } from "./deck-primer"
 import { DeckQuestionDialog } from "./deck-question-dialog"
-import { AnalyzeDeckDocument } from "./deck-analysis-documents"
 import { DeckTagsSidebar } from "./deck-tags-sidebar"
 import type { DeckCardEntry, DeckCustomTag, DeckDetail } from "./deck-types"
+import { useDeckAnalysis } from "./use-deck-analysis"
 
 type DeckTagActions = {
   activeTagId: string | null
@@ -224,29 +222,9 @@ export function DeckDetailHeader({
   tagActions,
   zoneCounts,
 }: DeckDetailHeaderProps) {
-  const { showToast } = useToast()
   const [questionOpen, setQuestionOpen] = useState(false)
-  const [analyzeDeck, analysisMutation] = useMutation(AnalyzeDeckDocument)
+  const analysis = useDeckAnalysis(deck, !shareMode)
   const hasAnalysis = Boolean(deck.aiAnalysis?.trim())
-
-  function analyze() {
-    const toastId = `deck-analysis-${deck.id}`
-
-    showToast(`${hasAnalysis ? "Refreshing" : "Analyzing"} ${deck.name} with AI…`, {
-      id: toastId,
-      loading: true,
-      tone: "info",
-    })
-
-    void analyzeDeck({
-      variables: { id: deck.id },
-      onCompleted: () =>
-        showToast(hasAnalysis ? "Deck analysis refreshed." : "Deck analysis complete.", {
-          id: toastId,
-        }),
-      onError: (error) => showToast(error.message, { id: toastId, tone: "error" }),
-    })
-  }
 
   return (
     <>
@@ -293,15 +271,15 @@ export function DeckDetailHeader({
             <ShareModeHidden shareMode={shareMode}>
               <SummaryActionMenu
                 analyzeLabel={
-                  analysisMutation.loading
+                  analysis.pending
                     ? "Analyzing..."
                     : hasAnalysis
                       ? "Refresh AI analysis"
                       : "Analyze deck with AI"
                 }
-                analyzePending={analysisMutation.loading}
+                analyzePending={analysis.pending || analysis.checking}
                 label={`${deck.name} actions`}
-                onAnalyze={analyze}
+                onAnalyze={analysis.analyze}
                 onCombos={onCombos}
                 onCompare={onCompareDeck}
                 onDisassemble={canEdit ? onDisassemble : undefined}
@@ -320,6 +298,37 @@ export function DeckDetailHeader({
         />
 
         <DeckPrimer primer={deck.primer} />
+
+        {analysis.connectionError ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 text-sm text-base-content/75"
+          >
+            <span>Unable to check AI analysis progress. It may still be running.</span>
+            <Button variant="outline" size="sm" onClick={analysis.checkStatus}>
+              Check status
+            </Button>
+          </div>
+        ) : analysis.pending ? (
+          <p role="status" className="text-sm text-base-content/75">
+            Analyzing in the background. You can leave this page.
+            {hasAnalysis
+              ? " Your previous analysis is shown below until the new one is ready."
+              : ""}
+          </p>
+        ) : analysis.failed ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 text-sm text-base-content/75"
+          >
+            <span>
+              AI analysis could not be completed. Your saved analysis has not been changed.
+            </span>
+            <Button variant="outline" size="sm" onClick={analysis.analyze}>
+              Retry analysis
+            </Button>
+          </div>
+        ) : null}
 
         <DeckAIAnalysis deck={deck} />
 

@@ -67,11 +67,47 @@ defmodule ManavaultWeb.Schema.AITest do
     assert {:ok, deck} = Catalog.create_deck(%{"name" => "GraphQL Analysis"})
     assert {:ok, _deck_card} = Catalog.add_card_to_deck(deck, %{"name" => "Test Commander"})
 
+    test_pid = self()
+
+    Req.Test.stub(@stub, fn request ->
+      send(test_pid, :analysis_provider_called)
+      openrouter_response(request)
+    end)
+
     analyze_conn =
       post(recycle(conn), "/api/graphql", %{
         "query" => """
         mutation AnalyzeDeck($id: ID!) {
           analyzeDeck(id: $id) {
+            job { id status }
+            deck { id aiAnalysis }
+          }
+        }
+        """,
+        "variables" => %{"id" => global_deck_id(deck)}
+      })
+
+    assert %{
+             "data" => %{
+               "analyzeDeck" => %{
+                 "job" => %{"id" => job_id, "status" => "pending"},
+                 "deck" => %{"aiAnalysis" => nil}
+               }
+             }
+           } = json_response(analyze_conn, 200)
+
+    refute_received :analysis_provider_called
+    assert_enqueued(worker: DeckAnalysisWorker, args: %{deck_id: deck.id})
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :ai)
+    assert_received :analysis_provider_called
+
+    progress_conn =
+      post(recycle(conn), "/api/graphql", %{
+        "query" => """
+        query DeckAnalysisJob($id: ID!) {
+          deckAnalysisJob(deckId: $id) {
+            id
+            status
             deck {
               id
               aiAnalysis
@@ -89,7 +125,9 @@ defmodule ManavaultWeb.Schema.AITest do
 
     assert %{
              "data" => %{
-               "analyzeDeck" => %{
+               "deckAnalysisJob" => %{
+                 "id" => ^job_id,
+                 "status" => "completed",
                  "deck" => %{
                    "aiAnalysis" => analysis,
                    "aiAnalysisModel" => "anthropic/claude-sonnet-4",
@@ -100,7 +138,7 @@ defmodule ManavaultWeb.Schema.AITest do
                  }
                }
              }
-           } = json_response(analyze_conn, 200)
+           } = json_response(progress_conn, 200)
 
     assert analysis =~ "**Bracket 3-**"
     assert {:ok, _datetime, 0} = DateTime.from_iso8601(analyzed_at)

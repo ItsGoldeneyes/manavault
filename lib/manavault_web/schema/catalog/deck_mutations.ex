@@ -43,12 +43,11 @@ defmodule ManavaultWeb.Schema.Catalog.DeckMutations do
 
   def analyze_deck(_parent, %{id: id}, resolution) do
     with {:ok, id} <- RelayHelpers.node_id(id, :deck, resolution) do
-      id
-      |> Catalog.get_deck!()
-      |> AI.analyze_deck()
-      |> case do
-        {:ok, deck} ->
-          {:ok, deck}
+      deck = Catalog.get_deck!(id, preload?: false)
+
+      case AI.enqueue_deck_analysis(deck) do
+        {:ok, job} ->
+          {:ok, %{deck: deck, job: job}}
 
         {:error, changeset} when is_struct(changeset, Ecto.Changeset) ->
           {:error, Errors.changeset_error_message(changeset)}

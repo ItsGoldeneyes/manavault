@@ -116,6 +116,11 @@ defmodule ManavaultWeb.Schema.Catalog.DeckFields do
     {:ok, Catalog.deck_commander_color_identity(deck)}
   end
 
+  def deck_analysis_job_deck(%{deck_id: id}, _args, _resolution) do
+    # Read after the job status so a completed job always includes its saved result.
+    {:ok, Catalog.get_deck!(id, preload?: false)}
+  end
+
   def deck_ai_analyzed_at(%Deck{ai_analyzed_at: nil}, _args, _resolution), do: {:ok, nil}
 
   def deck_ai_analyzed_at(%Deck{ai_analyzed_at: analyzed_at}, _args, _resolution) do

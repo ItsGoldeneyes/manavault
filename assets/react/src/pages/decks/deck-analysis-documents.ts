@@ -3,6 +3,28 @@ import { graphql } from "../../gql"
 export const AnalyzeDeckDocument = graphql(`
   mutation AnalyzeDeck($id: ID!) {
     analyzeDeck(id: $id) {
+      job {
+        id
+        status
+        deck {
+          id
+          aiAnalysis
+          aiAnalysisModel
+          aiAnalyzedAt
+          commanderBracket
+          commanderBracketEstimate
+          commanderBracketRating
+        }
+      }
+    }
+  }
+`)
+
+export const DeckAnalysisJobDocument = graphql(`
+  query DeckAnalysisJob($deckId: ID!) {
+    deckAnalysisJob(deckId: $deckId) {
+      id
+      status
       deck {
         id
         aiAnalysis
