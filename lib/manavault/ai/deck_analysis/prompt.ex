@@ -201,8 +201,13 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
         official_bracket: nullable_bracket,
         play_bracket: nullable_bracket,
         bracket_rating: %{
-          type: ["string", "null"],
-          enum: [nil | for(bracket <- 1..5, suffix <- ["-", "", "+"], do: "#{bracket}#{suffix}")]
+          anyOf: [
+            %{
+              type: "string",
+              enum: for(bracket <- 1..5, suffix <- ["-", "", "+"], do: "#{bracket}#{suffix}")
+            },
+            %{type: "null"}
+          ]
         },
         bracket_rationale: string,
         power_up: strings,

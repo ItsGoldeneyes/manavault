@@ -78,25 +78,32 @@ defmodule Manavault.AI.DeckAnalysisTest do
     schema = DeckAnalysis.response_schema()
     assert "bracket_rating" in schema.required
 
-    assert schema.properties.bracket_rating.enum ==
-             [
-               nil,
-               "1-",
-               "1",
-               "1+",
-               "2-",
-               "2",
-               "2+",
-               "3-",
-               "3",
-               "3+",
-               "4-",
-               "4",
-               "4+",
-               "5-",
-               "5",
-               "5+"
+    # Azure rejects null enum members on a union type; keep each branch single-typed.
+    assert schema.properties.bracket_rating == %{
+             anyOf: [
+               %{
+                 type: "string",
+                 enum: [
+                   "1-",
+                   "1",
+                   "1+",
+                   "2-",
+                   "2",
+                   "2+",
+                   "3-",
+                   "3",
+                   "3+",
+                   "4-",
+                   "4",
+                   "4+",
+                   "5-",
+                   "5",
+                   "5+"
+                 ]
+               },
+               %{type: "null"}
              ]
+           }
   end
 
   test "Commander brackets do not apply to other formats" do
