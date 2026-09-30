@@ -102,7 +102,7 @@ test("renders saved one-time analyses newest first", () => {
   expect(entries[0]?.querySelector("summary")?.textContent).not.toContain("plays like")
   expect(screen.getByRole("heading", { name: "Overview" })).toBeInstanceOf(HTMLElement)
   expect(screen.getByRole("link", { name: "Sun Titan" }).getAttribute("href")).toBe(
-    "/cards?q=Sun%20Titan",
+    "https://scryfall.com/search?q=!%22Sun%20Titan%22",
   )
   expect(screen.getByRole("link", { name: /Open source decklist/ }).getAttribute("href")).toBe(
     "https://moxfield.com/decks/abcde",

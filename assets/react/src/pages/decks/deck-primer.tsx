@@ -147,6 +147,8 @@ function CardReference({ href, name }: { href: string; name: string }) {
         <a
           className="rounded-sm font-bold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
           href={href}
+          rel="noreferrer"
+          target="_blank"
           onBlur={() => setOpen(false)}
           onFocus={() => setOpen(true)}
         >
@@ -177,7 +179,7 @@ function CardReference({ href, name }: { href: string; name: string }) {
             />
           )}
           <p className="px-1 pb-1 pt-2 text-sm font-bold leading-snug text-base-content">{name}</p>
-          <p className="px-1 text-xs text-base-content/60">Open in the ManaVault card catalog</p>
+          <p className="px-1 text-xs text-base-content/60">Open on Scryfall in a new tab</p>
           <HoverCardPrimitive.Arrow className="fill-base-100" />
         </HoverCardPrimitive.Content>
       </HoverCardPrimitive.Portal>
@@ -216,7 +218,7 @@ function richTextNodes(value: string, cardReferences: boolean): MarkdownNode[] {
     if (cardName && cardReferences) {
       nodes.push({
         type: "link",
-        url: `/cards?q=${encodeURIComponent(cardName)}`,
+        url: `https://scryfall.com/search?q=${encodeURIComponent(`!"${cardName}"`)}`,
         title: `manavault-card:${cardName}`,
         children: [{ type: "text", value: cardName }],
       })

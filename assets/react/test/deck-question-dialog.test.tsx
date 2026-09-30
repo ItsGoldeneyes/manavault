@@ -237,7 +237,7 @@ test("renders answer tables, mana symbols, and card links with previews", async 
   expect(within(entry as HTMLElement).getAllByAltText("White")).toHaveLength(2)
 
   const cardLink = within(entry as HTMLElement).getByRole("link", { name: "Sun Titan" })
-  expect(cardLink.getAttribute("href")).toBe("/cards?q=Sun%20Titan")
+  expect(cardLink.getAttribute("href")).toBe("https://scryfall.com/search?q=!%22Sun%20Titan%22")
 
   fireEvent.focus(cardLink)
   const preview = await screen.findByRole("img", { name: "Sun Titan card preview" })

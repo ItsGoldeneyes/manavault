@@ -49,12 +49,17 @@ test("saved AI analysis links card references and shows previews on hover and fo
   await user.click(container.querySelector("summary") as HTMLElement)
   const titan = screen.getByRole("link", { name: "Sun Titan" })
   const emeria = screen.getByRole("link", { name: "Emeria, the Sky Ruin" })
-  expect(titan.getAttribute("href")).toBe("/cards?q=Sun%20Titan")
-  expect(emeria.getAttribute("href")).toBe("/cards?q=Emeria%2C%20the%20Sky%20Ruin")
+  expect(titan.getAttribute("href")).toBe("https://scryfall.com/search?q=!%22Sun%20Titan%22")
+  expect(emeria.getAttribute("href")).toBe(
+    "https://scryfall.com/search?q=!%22Emeria%2C%20the%20Sky%20Ruin%22",
+  )
+  expect(titan.getAttribute("target")).toBe("_blank")
+  expect(titan.getAttribute("rel")).toBe("noreferrer")
 
   await user.hover(titan)
   const preview = await screen.findByRole("img", { name: "Sun Titan card preview" })
   expect(preview.getAttribute("src")).toContain("exact=Sun%20Titan")
+  expect(screen.getByText("Open on Scryfall in a new tab")).toBeInstanceOf(HTMLElement)
   await user.unhover(titan)
 
   fireEvent.focus(emeria)
