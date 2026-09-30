@@ -119,6 +119,7 @@ defmodule Manavault.AITest do
       assert request["model"] == "anthropic/claude-sonnet-4"
       assert request["response_format"]["type"] == "json_schema"
       assert request["max_tokens"] == 20_000
+      refute Map.has_key?(request, "temperature")
       refute Map.has_key?(request, "max_completion_tokens")
       system_prompt = get_in(request, ["messages", Access.at(0), "content"])
       assert system_prompt =~ "Use deeper reasoning"
@@ -206,6 +207,7 @@ defmodule Manavault.AITest do
       assert request["response_format"]["type"] == "json_schema"
       assert request["plugins"] == [%{"id" => "response-healing"}]
       assert request["max_tokens"] == 20_000
+      refute Map.has_key?(request, "temperature")
       refute Map.has_key?(request, "max_completion_tokens")
       refute Map.has_key?(request, "reasoning")
 
@@ -727,6 +729,88 @@ defmodule Manavault.AITest do
              AI.answer_deck_question(question_answer.id)
 
     assert :counters.get(attempts, 1) == 1
+  end
+
+  test "analysis HTTP errors include the provider rejection without dumping raw metadata" do
+    insert_settings!("anthropic/claude-opus-5.5")
+    assert {:ok, deck} = Catalog.create_deck(%{"name" => "Private deck name"})
+    attempts = :counters.new(1, [])
+    rejection = "output_config.format.schema: unsupported constraint"
+
+    for raw <- [
+          %{"error" => %{"message" => rejection}, "request" => "private request data"},
+          Jason.encode!(%{
+            "error" => %{"message" => rejection},
+            "request" => "private request data"
+          })
+        ] do
+      Req.Test.stub(@stub, fn conn ->
+        :counters.add(attempts, 1, 1)
+
+        json_response(conn, 400, %{
+          "error" => %{
+            "code" => 400,
+            "message" => "Provider returned error",
+            "metadata" => %{
+              "provider_name" => "Anthropic",
+              "error_type" => "invalid_request",
+              "provider_code" => "invalid_request_error",
+              "raw" => raw,
+              "flagged_input" => "private flagged content"
+            }
+          }
+        })
+      end)
+
+      expected = "OpenRouter: Provider returned error: #{rejection}"
+
+      log =
+        capture_log(fn ->
+          assert {:error, ^expected} = AI.analyze_deck(deck)
+        end)
+
+      assert log =~ "operation=deck_analysis"
+      assert log =~ "status=400"
+      assert log =~ "result=http_error"
+      assert log =~ expected
+      assert log =~ ~s(error_provider="Anthropic")
+      assert log =~ ~s(error_type="invalid_request")
+      assert log =~ ~s(provider_error_code="invalid_request_error")
+      refute log =~ "private request data"
+      refute log =~ "private flagged content"
+      refute log =~ "Private deck name"
+      refute log =~ "test-openrouter-key"
+    end
+
+    assert :counters.get(attempts, 1) == 2
+    assert Catalog.get_deck!(deck.id).ai_analysis == nil
+  end
+
+  test "analysis HTTP errors handle missing or non-JSON provider details" do
+    insert_settings!("anthropic/claude-opus-5.5")
+    assert {:ok, deck} = Catalog.create_deck(%{"name" => "Error fallback"})
+
+    for {body, expected} <- [
+          {%{"error" => %{"message" => "Invalid parameter"}}, "OpenRouter: Invalid parameter"},
+          {%{
+             "error" => %{
+               "message" => "Invalid parameter",
+               "metadata" => %{"raw" => "private unstructured response"}
+             }
+           }, "OpenRouter: Invalid parameter"},
+          {%{"error" => nil}, "OpenRouter could not analyze this deck. (HTTP 400)"},
+          {"private unstructured response", "OpenRouter could not analyze this deck. (HTTP 400)"}
+        ] do
+      Req.Test.stub(@stub, &json_response(&1, 400, body))
+
+      log =
+        capture_log(fn ->
+          assert {:error, ^expected} = AI.analyze_deck(deck)
+        end)
+
+      assert log =~ "result=http_error"
+      refute log =~ "private unstructured response"
+    end
   end
 
   test "threads Swap cards chat turns and keeps them out of Ask AI history" do

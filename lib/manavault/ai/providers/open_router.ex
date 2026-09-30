@@ -47,7 +47,6 @@ defmodule Manavault.AI.Providers.OpenRouter do
         %{role: "user", content: DeckAnalysis.user_prompt(payload)}
       ],
       max_tokens: 20_000,
-      temperature: 0.2,
       tools: Tools.definitions(),
       response_format: %{
         type: "json_schema",
@@ -73,7 +72,6 @@ defmodule Manavault.AI.Providers.OpenRouter do
       model: settings.model,
       messages: deck_question_messages(payload, turn),
       max_tokens: 20_000,
-      temperature: 0.2,
       tools: Tools.definitions(),
       plugins: [%{id: "response-healing"}],
       response_format: %{
@@ -303,9 +301,20 @@ defmodule Manavault.AI.Providers.OpenRouter do
     Logger.log(
       level,
       completion_log(operation, model, started_at, status, body) <>
-        " result=#{completion_result(result)}"
+        " result=#{completion_result(result)}" <> completion_error_log(result, status, body)
     )
   end
+
+  defp completion_error_log(:http_error, status, body) do
+    metadata = body |> value("error") |> value("metadata")
+
+    " error=#{inspect(response_error(status, body, "OpenRouter request failed."), printable_limit: 2_000)}" <>
+      " error_type=#{inspect(value(metadata, "error_type"))}" <>
+      " provider_error_code=#{inspect(value(metadata, "provider_code"))}" <>
+      " error_provider=#{inspect(value(metadata, "provider_name"))}"
+  end
+
+  defp completion_error_log(_result, _status, _body), do: ""
 
   defp completion_log(operation, model, started_at, status, body) do
     choice =
@@ -371,14 +380,31 @@ defmodule Manavault.AI.Providers.OpenRouter do
   end
 
   defp response_error(status, body, fallback) do
-    message = if is_map(body), do: get_in(body, ["error", "message"])
+    error = value(body, "error")
+    raw = error |> value("metadata") |> value("raw")
 
-    if is_binary(message) and String.trim(message) != "" do
+    message =
+      [value(error, "message"), provider_error_message(raw)]
+      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> Enum.uniq()
+      |> Enum.join(": ")
+
+    if message != "" do
       "OpenRouter: #{message}"
     else
       "#{fallback} (HTTP #{status})"
     end
   end
+
+  # Select only the provider's error message, never log its entire raw response.
+  defp provider_error_message(raw) when is_binary(raw) do
+    case Jason.decode(raw) do
+      {:ok, decoded} -> provider_error_message(decoded)
+      _error -> nil
+    end
+  end
+
+  defp provider_error_message(raw), do: raw |> value("error") |> value("message")
 
   defp request_error(%{reason: :timeout}, fallback), do: fallback <> " The request timed out."
   defp request_error(_exception, fallback), do: fallback
