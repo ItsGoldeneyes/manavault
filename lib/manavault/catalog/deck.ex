@@ -20,6 +20,7 @@ defmodule Manavault.Catalog.Deck do
     field :ai_analyzed_at, :utc_datetime
     field :commander_bracket, :integer
     field :commander_bracket_estimate, :integer
+    field :commander_bracket_rating, :string
     field :share_token, :string
     field :cover_deck_card_id, :id
     field :card_count, :integer, virtual: true
@@ -75,11 +76,13 @@ defmodule Manavault.Catalog.Deck do
       :ai_analysis_model,
       :ai_analyzed_at,
       :commander_bracket,
-      :commander_bracket_estimate
+      :commander_bracket_estimate,
+      :commander_bracket_rating
     ])
     |> validate_required([:ai_analysis, :ai_analysis_model, :ai_analyzed_at])
     |> validate_length(:ai_analysis, max: 100_000)
     |> validate_length(:ai_analysis_model, max: 200)
+    |> validate_format(:commander_bracket_rating, ~r/\A[1-5][+-]?\z/)
     |> validate_number(:commander_bracket,
       greater_than_or_equal_to: 1,
       less_than_or_equal_to: 5

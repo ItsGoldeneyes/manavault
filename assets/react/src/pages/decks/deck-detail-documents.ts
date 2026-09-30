@@ -75,6 +75,7 @@ export const DeckDocument = graphql(`
       aiAnalyzedAt
       commanderBracket
       commanderBracketEstimate
+      commanderBracketRating
       shareToken
       coverDeckCardId
       coverImageUrl

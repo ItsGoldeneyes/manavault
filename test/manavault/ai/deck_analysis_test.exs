@@ -13,6 +13,7 @@ defmodule Manavault.AI.DeckAnalysisTest do
     "weaknesses" => ["Limited late game"],
     "official_bracket" => 2,
     "play_bracket" => 3,
+    "bracket_rating" => "3+",
     "bracket_rationale" => "The list plays above its card-based minimum.",
     "power_up" => ["Add stronger interaction"],
     "power_down" => ["Use slower threats"],
@@ -34,32 +35,68 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert {:ok, weaker_result} = DeckAnalysis.normalize_result(weaker, payload)
 
     assert DeckAnalysis.bracket_label(weaker_result.official_bracket, weaker_result.play_bracket) ==
-             "Bracket 2+"
+             "Bracket 3-"
   end
 
-  test "renders bracket suffixes while keeping the pace explanation in the body" do
+  test "renders independently assessed placement while keeping official guidance and pace in the body" do
     payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 0}}
 
-    for {official, practical, label} <- [
-          {2, 3, "Bracket 3-"},
-          {3, 3, "Bracket 3"},
-          {4, 3, "Bracket 3+"},
-          {3, 2, "Bracket 2+"},
-          {3, 4, "Bracket 4-"}
-        ] do
+    for rating <- ["3-", "3", "3+"] do
       response =
         Map.merge(@result, %{
-          "official_bracket" => official,
-          "play_bracket" => practical,
+          "official_bracket" => 3,
+          "play_bracket" => 3,
+          "bracket_rating" => rating,
           "bracket_rationale" => "Its engines support a turn-eight win with limited redundancy."
         })
 
       assert {:ok, result} = DeckAnalysis.normalize_result(response, payload)
-      assert DeckAnalysis.bracket_label(official, practical) == label
+      assert result.bracket_rating == rating
+      assert DeckAnalysis.bracket_label(3, 3, rating) == "Bracket #{rating}"
 
       assert DeckAnalysis.render_markdown(result) =~
-               "## Bracket read\n\n**#{label}**\n\nIts engines support a turn-eight win with limited redundancy."
+               "## Bracket read\n\n**Bracket #{rating}**\n\nOfficial WotC bracket: 3.\n\nIts engines support a turn-eight win with limited redundancy."
     end
+  end
+
+  test "legacy ratings use the higher bracket with a minus when the old values differ" do
+    assert DeckAnalysis.bracket_label(2, 3) == "Bracket 3-"
+    assert DeckAnalysis.bracket_label(4, 3) == "Bracket 4-"
+    assert DeckAnalysis.bracket_label(3, 3) == "Bracket 3"
+    assert DeckAnalysis.bracket_label(3, nil) == "Bracket 3"
+    assert DeckAnalysis.bracket_label(2, 3, "3+") == "Bracket 3+"
+  end
+
+  test "requires a valid explicit rating in new Commander responses" do
+    payload = %{deck: %{format: "commander"}, facts: %{game_changer_count: 0}}
+
+    for rating <- [nil, "", "0", "6-", "3++", "3+\n", 3] do
+      assert {:error, "The AI provider returned an invalid Commander bracket."} =
+               DeckAnalysis.normalize_result(Map.put(@result, "bracket_rating", rating), payload)
+    end
+
+    schema = DeckAnalysis.response_schema()
+    assert "bracket_rating" in schema.required
+
+    assert schema.properties.bracket_rating.enum ==
+             [
+               nil,
+               "1-",
+               "1",
+               "1+",
+               "2-",
+               "2",
+               "2+",
+               "3-",
+               "3",
+               "3+",
+               "4-",
+               "4",
+               "4+",
+               "5-",
+               "5",
+               "5+"
+             ]
   end
 
   test "Commander brackets do not apply to other formats" do
@@ -68,6 +105,7 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert {:ok, result} = DeckAnalysis.normalize_result(@result, payload)
     assert result.official_bracket == nil
     assert result.play_bracket == nil
+    assert result.bracket_rating == nil
   end
 
   test "rejects incomplete structured responses" do
@@ -124,8 +162,10 @@ defmodule Manavault.AI.DeckAnalysisTest do
     assert prompt =~ "does not, by itself, make an otherwise moderate deck Bracket 4"
     assert prompt =~ "density, redundancy, synergy, tutorability"
     assert prompt =~ "Do not recite each bracket's restrictions"
-    assert prompt =~ "explain the expected pace and any difference in bracket_rationale"
-    assert prompt =~ "practical estimates, not official sub-brackets"
+    assert prompt =~ "Do not calculate the suffix from the difference"
+    assert prompt =~ "plus means the upper end without quite reaching the next bracket"
+    assert prompt =~ "keeping the official comparison in the analysis body"
+    assert prompt =~ "not official WotC sub-brackets"
     refute prompt =~ "required by the literal Commander Brackets guidelines"
   end
 

@@ -14,6 +14,7 @@ defmodule Manavault.AI.DeckAnalysisRequest do
     field :model, :string
     field :commander_bracket, :integer
     field :commander_bracket_estimate, :integer
+    field :commander_bracket_rating, :string
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -28,7 +29,8 @@ defmodule Manavault.AI.DeckAnalysisRequest do
       :analysis,
       :model,
       :commander_bracket,
-      :commander_bracket_estimate
+      :commander_bracket_estimate,
+      :commander_bracket_rating
     ])
     |> validate_required([:source_type, :source, :source_name, :format, :analysis, :model])
     |> validate_inclusion(:source_type, ~w(url text))
@@ -37,6 +39,7 @@ defmodule Manavault.AI.DeckAnalysisRequest do
     |> validate_length(:source_name, max: 200)
     |> validate_length(:analysis, max: 100_000)
     |> validate_length(:model, max: 200)
+    |> validate_format(:commander_bracket_rating, ~r/\A[1-5][+-]?\z/)
     |> validate_number(:commander_bracket,
       greater_than_or_equal_to: 1,
       less_than_or_equal_to: 5

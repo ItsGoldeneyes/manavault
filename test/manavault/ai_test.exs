@@ -139,6 +139,7 @@ defmodule Manavault.AITest do
         weaknesses: ["Slow clock"],
         official_bracket: 2,
         play_bracket: 2,
+        bracket_rating: "3-",
         bracket_rationale: "One Game Changer raises the guideline bracket, but the list is slow.",
         power_up: ["Add efficient interaction"],
         power_down: ["Replace the Game Changer"],
@@ -160,7 +161,8 @@ defmodule Manavault.AITest do
     assert {:ok, analyzed} = AI.analyze_deck(deck)
     assert analyzed.commander_bracket == 3
     assert analyzed.commander_bracket_estimate == 2
-    assert analyzed.ai_analysis =~ "**Bracket 2+**"
+    assert analyzed.commander_bracket_rating == "3-"
+    assert analyzed.ai_analysis =~ "**Bracket 3-**"
     assert analyzed.ai_analysis =~ "## Ways to power it up"
     assert analyzed.ai_analysis =~ "## What it's like to play against it"
     assert analyzed.ai_analysis =~ "## Mulligan guide"

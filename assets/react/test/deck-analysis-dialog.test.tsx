@@ -12,6 +12,7 @@ type AnalysisRequest = {
   model: string
   commanderBracket: number | null
   commanderBracketEstimate: number | null
+  commanderBracketRating: string | null
   insertedAt: string
 }
 
@@ -33,6 +34,7 @@ const apolloMocks = vi.hoisted(() => ({
         model: "anthropic/claude-sonnet-4",
         commanderBracket: 3,
         commanderBracketEstimate: 2,
+        commanderBracketRating: "3+",
         insertedAt: "2026-08-30T12:00:00Z",
       },
     ] satisfies AnalysisRequest[],
@@ -65,6 +67,7 @@ vi.mock("@apollo/client/react", () => ({
             model: "anthropic/claude-sonnet-4",
             commanderBracket: null,
             commanderBracketEstimate: null,
+            commanderBracketRating: null,
             insertedAt: "2026-08-30T13:00:00Z",
           },
         },
@@ -95,7 +98,7 @@ test("renders saved one-time analyses newest first", () => {
   expect(entries).toHaveLength(1)
   expect(entries[0]?.open).toBe(true)
   expect(entries[0]?.textContent).toContain("Weekend counters")
-  expect(entries[0]?.textContent).toContain("Bracket 2+")
+  expect(entries[0]?.textContent).toContain("Bracket 3+")
   expect(entries[0]?.querySelector("summary")?.textContent).not.toContain("plays like")
   expect(screen.getByRole("heading", { name: "Overview" })).toBeInstanceOf(HTMLElement)
   expect(screen.getByRole("link", { name: "Sun Titan" }).getAttribute("href")).toBe(

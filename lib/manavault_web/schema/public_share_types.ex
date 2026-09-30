@@ -318,6 +318,7 @@ defmodule ManavaultWeb.Schema.PublicShareTypes do
     field :ai_analysis_model, :string
     field :commander_bracket, :integer
     field :commander_bracket_estimate, :integer
+    field :commander_bracket_rating, :string
     field :share_token, :string
 
     field :ai_analyzed_at, :string do

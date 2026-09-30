@@ -43,7 +43,8 @@ defmodule Manavault.AI.AnalyzeDeck do
       ai_analysis_model: settings.model,
       ai_analyzed_at: DateTime.utc_now() |> DateTime.truncate(:second),
       commander_bracket: result.official_bracket,
-      commander_bracket_estimate: result.play_bracket
+      commander_bracket_estimate: result.play_bracket,
+      commander_bracket_rating: result.bracket_rating
     }
   end
 end

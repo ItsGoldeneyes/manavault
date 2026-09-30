@@ -13,5 +13,5 @@ defmodule Manavault.AI.DeckAnalysis do
     as: :normalize
 
   defdelegate render_markdown(result), to: Result, as: :render_markdown
-  defdelegate bracket_label(official, practical), to: Result
+  defdelegate bracket_label(official, practical, rating \\ nil), to: Result
 end

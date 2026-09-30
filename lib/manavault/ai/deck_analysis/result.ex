@@ -9,7 +9,8 @@ defmodule Manavault.AI.DeckAnalysis.Result do
          normalized <-
            Map.merge(normalized, %{
              official_bracket: value(result, :official_bracket),
-             play_bracket: value(result, :play_bracket)
+             play_bracket: value(result, :play_bracket),
+             bracket_rating: value(result, :bracket_rating)
            }) do
       normalized_brackets(normalized, payload)
     end
@@ -37,10 +38,16 @@ defmodule Manavault.AI.DeckAnalysis.Result do
     Enum.join(standard_sections ++ custom_sections, "\n\n")
   end
 
-  def bracket_label(official, practical) when practical in 1..5 and practical != official,
-    do: "Bracket #{practical}#{if official < practical, do: "-", else: "+"}"
+  def bracket_label(official, practical, rating \\ nil)
 
-  def bracket_label(official, _practical), do: "Bracket #{official}"
+  def bracket_label(_official, _practical, rating) when is_binary(rating),
+    do: "Bracket #{rating}"
+
+  def bracket_label(official, practical, _rating)
+      when practical in 1..5 and practical != official,
+      do: "Bracket #{max(official, practical)}-"
+
+  def bracket_label(official, _practical, _rating), do: "Bracket #{official}"
 
   defp maybe_clear_custom_sections(normalized, instructions) do
     if custom_instructions?(instructions),
@@ -51,8 +58,9 @@ defmodule Manavault.AI.DeckAnalysis.Result do
   defp bracket_section(%{official_bracket: nil} = result), do: result.bracket_rationale
 
   defp bracket_section(result) do
-    label = bracket_label(result.official_bracket, result.play_bracket)
-    "**#{label}**\n\n#{result.bracket_rationale}"
+    label = bracket_label(result.official_bracket, result.play_bracket, result.bracket_rating)
+
+    "**#{label}**\n\nOfficial WotC bracket: #{result.official_bracket}.\n\n#{result.bracket_rationale}"
   end
 
   defp normalized_fields(result) do
@@ -96,13 +104,16 @@ defmodule Manavault.AI.DeckAnalysis.Result do
     if payload.deck.format == "commander" do
       normalize_commander_brackets(result, official, practical, payload.facts.game_changer_count)
     else
-      {:ok, Map.merge(result, %{official_bracket: nil, play_bracket: nil})}
+      {:ok, Map.merge(result, %{official_bracket: nil, play_bracket: nil, bracket_rating: nil})}
     end
   end
 
   defp normalize_commander_brackets(result, official, practical, game_changer_count) do
     with true <- valid_bracket?(official),
-         true <- valid_bracket?(practical) do
+         true <- valid_bracket?(practical),
+         true <-
+           is_binary(result.bracket_rating) and
+             Regex.match?(~r/\A[1-5][+-]?\z/, result.bracket_rating) do
       minimum = game_changer_minimum(game_changer_count)
 
       result =

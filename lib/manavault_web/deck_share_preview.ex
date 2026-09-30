@@ -34,7 +34,7 @@ defmodule ManavaultWeb.DeckSharePreview do
     format_label = titleize(deck.format)
     legality = Catalog.deck_legality(deck)
     legality_label = legality_label(legality)
-    bracket_label = bracket_label(deck.commander_bracket, deck.commander_bracket_estimate)
+    bracket_label = bracket_label(deck)
 
     price_label =
       deck |> counted_deck_cards() |> Price.deck_cards_total_cents() |> format_price_cents()
@@ -155,10 +155,15 @@ defmodule ManavaultWeb.DeckSharePreview do
   defp legality_tone("Legal"), do: :success
   defp legality_tone(_label), do: :error
 
-  defp bracket_label(official, practical) when official in 1..5,
-    do: Manavault.AI.DeckAnalysis.bracket_label(official, practical)
+  defp bracket_label(%{commander_bracket: official} = deck) when official in 1..5,
+    do:
+      Manavault.AI.DeckAnalysis.bracket_label(
+        official,
+        deck.commander_bracket_estimate,
+        deck.commander_bracket_rating
+      )
 
-  defp bracket_label(_official, _practical), do: nil
+  defp bracket_label(_deck), do: nil
 
   defp titleize(value) when is_binary(value) do
     value

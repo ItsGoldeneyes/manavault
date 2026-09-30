@@ -79,6 +79,7 @@ defmodule ManavaultWeb.Schema.AITest do
               aiAnalyzedAt
               commanderBracket
               commanderBracketEstimate
+              commanderBracketRating
             }
           }
         }
@@ -94,13 +95,14 @@ defmodule ManavaultWeb.Schema.AITest do
                    "aiAnalysisModel" => "anthropic/claude-sonnet-4",
                    "aiAnalyzedAt" => analyzed_at,
                    "commanderBracket" => 3,
-                   "commanderBracketEstimate" => 2
+                   "commanderBracketEstimate" => 2,
+                   "commanderBracketRating" => "3-"
                  }
                }
              }
            } = json_response(analyze_conn, 200)
 
-    assert analysis =~ "**Bracket 2+**"
+    assert analysis =~ "**Bracket 3-**"
     assert {:ok, _datetime, 0} = DateTime.from_iso8601(analyzed_at)
 
     decklist = "Commander\n1 Test Commander\n\nMainboard\n2 Plains"
@@ -120,6 +122,7 @@ defmodule ManavaultWeb.Schema.AITest do
               model
               commanderBracket
               commanderBracketEstimate
+              commanderBracketRating
               insertedAt
             }
           }
@@ -141,6 +144,7 @@ defmodule ManavaultWeb.Schema.AITest do
                    "model" => "anthropic/claude-sonnet-4",
                    "commanderBracket" => 3,
                    "commanderBracketEstimate" => 2,
+                   "commanderBracketRating" => "3-",
                    "insertedAt" => request_inserted_at
                  }
                }
@@ -417,6 +421,7 @@ defmodule ManavaultWeb.Schema.AITest do
               weaknesses: ["Slow start"],
               official_bracket: 2,
               play_bracket: 2,
+              bracket_rating: "3-",
               bracket_rationale: "Its single Game Changer raises the guideline bracket.",
               power_up: ["Add interaction"],
               power_down: ["Replace the Game Changer"],

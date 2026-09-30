@@ -72,6 +72,13 @@ and stats. Add recommendations directly to mainboard, maybeboard, or sideboard.
 Decks also include a browser playtest table and share links with read-only deck
 view, playtest, copy, and export actions.
 
+AI deck analysis assigns granular Commander ratings such as **Bracket 3-**,
+**Bracket 3**, and **Bracket 3+**: lower end, typical, and upper end without quite
+reaching the next bracket. The model assesses this placement directly; official
+WotC classification and expected pace stay in the analysis body. Older analyses
+use the higher of their saved official and practical brackets, with a minus when
+those values differ. Refresh an analysis to get a directly assessed rating.
+
 ### Use it on mobile
 
 The responsive web app can be installed as a PWA. Optional Capacitor Android and

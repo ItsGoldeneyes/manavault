@@ -10,6 +10,7 @@ export const AnalyzeDeckDocument = graphql(`
         aiAnalyzedAt
         commanderBracket
         commanderBracketEstimate
+        commanderBracketRating
       }
     }
   }
@@ -27,6 +28,7 @@ export const DeckAnalysisRequestsDocument = graphql(`
       model
       commanderBracket
       commanderBracketEstimate
+      commanderBracketRating
       insertedAt
     }
   }
@@ -45,6 +47,7 @@ export const AnalyzeDeckListDocument = graphql(`
         model
         commanderBracket
         commanderBracketEstimate
+        commanderBracketRating
         insertedAt
       }
     }

@@ -194,7 +194,8 @@ defmodule ManavaultWeb.Schema.DeckDetailAndShareTest do
         ai_analysis_model: "test/model",
         ai_analyzed_at: ~U[2026-08-19 02:09:23Z],
         commander_bracket: 3,
-        commander_bracket_estimate: 2
+        commander_bracket_estimate: 2,
+        commander_bracket_rating: "3+"
       })
 
     {:ok, deck_card} =
@@ -263,6 +264,7 @@ defmodule ManavaultWeb.Schema.DeckDetailAndShareTest do
             aiAnalyzedAt
             commanderBracket
             commanderBracketEstimate
+            commanderBracketRating
             shareToken
             cardCount
             uniqueCardCount
@@ -407,6 +409,7 @@ defmodule ManavaultWeb.Schema.DeckDetailAndShareTest do
                  "aiAnalyzedAt" => "2026-08-19T02:09:23Z",
                  "commanderBracket" => 3,
                  "commanderBracketEstimate" => 2,
+                 "commanderBracketRating" => "3+",
                  "shareToken" => ^share_token,
                  "cardCount" => 2,
                  "uniqueCardCount" => 1,

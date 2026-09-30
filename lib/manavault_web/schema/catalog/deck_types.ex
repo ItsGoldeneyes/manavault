@@ -91,6 +91,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     field :model, non_null(:string)
     field :commander_bracket, :integer
     field :commander_bracket_estimate, :integer
+    field :commander_bracket_rating, :string
 
     field :inserted_at, non_null(:string) do
       resolve(&DeckFields.deck_analysis_request_inserted_at/3)
@@ -109,6 +110,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     field :ai_analysis_model, :string
     field :commander_bracket, :integer
     field :commander_bracket_estimate, :integer
+    field :commander_bracket_rating, :string
     field :share_token, :string
 
     field :ai_analyzed_at, :string do

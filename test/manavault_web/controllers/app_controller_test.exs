@@ -226,12 +226,13 @@ defmodule ManavaultWeb.AppControllerTest do
                ai_analysis_model: "test/model",
                ai_analyzed_at: DateTime.utc_now(),
                commander_bracket: 3,
-               commander_bracket_estimate: 2
+               commander_bracket_estimate: 2,
+               commander_bracket_rating: "3+"
              })
 
     response = conn |> get("/share/decks/#{token}/preview.svg") |> response(200)
 
-    assert response =~ "Bracket 2+"
+    assert response =~ "Bracket 3+"
     refute response =~ "Pace"
   end
 

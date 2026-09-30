@@ -58,7 +58,7 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
     - When recommending cuts, remove the lowest-synergy cards from over-represented roles first,
       even when they are individually strong.
 
-    For Commander decks, distinguish two bracket values:
+    For Commander decks, assess an overall rating and retain two supporting bracket values:
 
     1. official_bracket is the closest label under the published Commander Brackets guidance and
        its deck-building barometers. One to three Game Changers means at least Bracket 3. More than
@@ -68,12 +68,19 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
        can belong above its minimum even with no Game Changers when its intent, speed, consistency,
        or interaction matches the higher bracket.
     2. play_bracket is how the complete deck is likely to play in practice. It may be lower or
-       higher than official_bracket. ManaVault displays play_bracket as the number, with a minus
-       suffix when official_bracket is lower, no suffix when they match, and a plus suffix when
-       official_bracket is higher. For example, official 2 and play 3 displays Bracket 3-;
-       official 4 and play 3 displays Bracket 3+. These suffixes are practical estimates, not
-       official sub-brackets. Keep both fields as integers; explain the expected pace and any
-       difference in bracket_rationale rather than creating a separate pace label.
+       higher than official_bracket. Keep both supporting fields as integers, and discuss the
+       official classification and expected pace in bracket_rationale, not as separate badges.
+    3. bracket_rating is the primary at-a-glance assessment: a string such as "3-", "3", or "3+".
+       Choose the bracket appropriate to the complete deck, considering both its deck-building
+       constraints and actual play experience. Then directly assess its placement WITHIN that
+       bracket: minus means the lower end, plain means typical, and plus means the upper end
+       without quite reaching the next bracket. Judge speed, consistency, resilience, interaction,
+       and ability to convert resources into wins together. Do not calculate the suffix from the
+       difference between official_bracket and play_bracket; even when both are 3, the rating may
+       be "3-", "3", or "3+". If deck-building constraints place a slower deck in a higher bracket,
+       use the lower end of that bracket rather than pretending those constraints do not apply.
+       These are ManaVault estimates, not official WotC sub-brackets. Explain the placement and
+       expected pace in bracket_rationale, keeping the official comparison in the analysis body.
 
     Apply the October 21, 2025 official expectations:
     - Bracket 1 Exhibition prioritizes a constrained theme or showcase over power and expects at
@@ -112,7 +119,7 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
       the absence of patterns the deck was never trying to use. Explain how the evidence affects
       expected pace and play experience.
 
-    For a non-Commander deck, return null for both bracket fields and explain that Commander
+    For a non-Commander deck, return null for all three bracket fields and explain that Commander
     Brackets do not apply. The official source is #{@official_guidance_url}.
     In game_plan, walk through the objective chain and how its pieces sequence over a typical game,
     including roughly when the deck expects to present a win or a dominant position.
@@ -152,8 +159,9 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
     ways to power it up, power it down, and improve consistency, naming both the cards to add and
     the cards to cut. Describe what playing against it is like,
     including turn length and salt-inducing patterns, and include a practical mulligan guide with good
-    early cards and hand patterns to look for. For Commander, assess both official and practical
-    brackets and call out the specific evidence creating any difference between them.
+    early cards and hand patterns to look for. For Commander, assess an overall bracket rating
+    with lower, typical, or upper placement within the bracket. Explain the specific evidence,
+    expected pace, and official WotC classification in the body.
 
     Deck data:
     #{Jason.encode!(payload)}
@@ -192,6 +200,10 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
         weaknesses: strings,
         official_bracket: nullable_bracket,
         play_bracket: nullable_bracket,
+        bracket_rating: %{
+          type: ["string", "null"],
+          enum: [nil | for(bracket <- 1..5, suffix <- ["-", "", "+"], do: "#{bracket}#{suffix}")]
+        },
         bracket_rationale: string,
         power_up: strings,
         power_down: strings,
@@ -201,7 +213,7 @@ defmodule Manavault.AI.DeckAnalysis.Prompt do
       },
       required: ~w(
         summary themes game_plan opponent_experience strengths weaknesses official_bracket play_bracket
-        bracket_rationale power_up power_down consistency mulligan_guide custom_sections
+        bracket_rating bracket_rationale power_up power_down consistency mulligan_guide custom_sections
       )
     }
   end

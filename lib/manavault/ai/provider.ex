@@ -11,6 +11,7 @@ defmodule Manavault.AI.Provider do
           required(:weaknesses) => [String.t()],
           required(:official_bracket) => 1..5 | nil,
           required(:play_bracket) => 1..5 | nil,
+          required(:bracket_rating) => String.t() | nil,
           required(:bracket_rationale) => String.t(),
           required(:power_up) => [String.t()],
           required(:power_down) => [String.t()],

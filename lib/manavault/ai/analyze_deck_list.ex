@@ -40,7 +40,8 @@ defmodule Manavault.AI.AnalyzeDeckList do
       analysis: DeckAnalysis.render_markdown(result),
       model: model,
       commander_bracket: result.official_bracket,
-      commander_bracket_estimate: result.play_bracket
+      commander_bracket_estimate: result.play_bracket,
+      commander_bracket_rating: result.bracket_rating
     })
     |> Repo.insert()
   end
