@@ -6,7 +6,7 @@ defmodule Manavault.Catalog.Decks.QuestionAnswers do
   alias Manavault.Catalog.{Deck, DeckQuestionAnswer}
   alias Manavault.Repo
 
-  @doc "One-off Ask AI questions, newest first. Swap cards chat turns are excluded."
+  @doc "Saved Ask AI conversations, newest first. Swap cards chat turns are excluded."
   def list_deck_question_answers(%Deck{id: deck_id}) do
     DeckQuestionAnswer
     |> where([question_answer], question_answer.deck_id == ^deck_id)
@@ -25,6 +25,30 @@ defmodule Manavault.Catalog.Decks.QuestionAnswers do
   end
 
   def get_deck_question_answer(id), do: Repo.get(DeckQuestionAnswer, id)
+
+  @doc "Recent completed turns from the same chat, before this question, oldest first."
+  def deck_question_history(%DeckQuestionAnswer{} = turn, count) do
+    thread_filter =
+      if is_nil(turn.thread_id),
+        do: dynamic([answer], is_nil(answer.thread_id)),
+        else: dynamic([answer], answer.thread_id == ^turn.thread_id)
+
+    conversation_filter =
+      if is_nil(turn.conversation_id),
+        do: dynamic([answer], is_nil(answer.conversation_id)),
+        else: dynamic([answer], answer.conversation_id == ^turn.conversation_id)
+
+    DeckQuestionAnswer
+    |> where([answer], answer.deck_id == ^turn.deck_id and answer.id < ^turn.id)
+    |> where([answer], answer.status == "completed")
+    |> where(^thread_filter)
+    |> where(^conversation_filter)
+    |> order_by([answer], desc: answer.inserted_at, desc: answer.id)
+    |> limit(^count)
+    |> select([answer], %{question: answer.question, answer: answer.answer})
+    |> Repo.all()
+    |> Enum.reverse()
+  end
 
   def create_deck_question_answer(%Deck{} = deck, attrs) when is_map(attrs) do
     deck

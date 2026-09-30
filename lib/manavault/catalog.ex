@@ -131,6 +131,7 @@ defmodule Manavault.Catalog do
 
   defdelegate list_deck_question_answers(deck), to: Decks
   defdelegate list_deck_question_thread(deck, thread_id), to: Decks
+  defdelegate deck_question_history(question_answer, count), to: Decks
   defdelegate get_deck_question_answer(id), to: Decks
   defdelegate change_deck_question_answer(deck, attrs), to: Decks
   defdelegate create_deck_question_answer(deck, attrs), to: Decks

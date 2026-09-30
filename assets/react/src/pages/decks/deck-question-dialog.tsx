@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@apollo/client/react"
-import { ChevronDown, LoaderCircle, Sparkles, Trash2 } from "lucide-react"
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react"
+import { Plus, Trash2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import type { DeckQuestionAnswersQuery } from "../../gql/graphql"
 import { Button } from "../../components/ui/button"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
@@ -11,9 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog"
-import { Textarea } from "../../components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SELECT_NONE_VALUE,
+} from "../../components/ui/select"
 import { formatDate } from "../settings/data"
-import { DeckMarkdown } from "./deck-primer"
+import { DeckChat, DeckChatTurn } from "./deck-chat"
 import { QuestionRecommendations } from "./deck-question-recommendations"
 import type { DeckCardEntry } from "./deck-types"
 import {
@@ -23,6 +30,12 @@ import {
 } from "./deck-analysis-documents"
 
 type QuestionAnswer = DeckQuestionAnswersQuery["deckQuestionAnswers"][number]
+
+const PROMPTS = [
+  "What is this deck’s game plan?",
+  "What are its biggest weaknesses?",
+  "How can I improve the mana base?",
+]
 
 export function DeckQuestionDialog({
   deckId,
@@ -38,6 +51,7 @@ export function DeckQuestionDialog({
   open: boolean
 }) {
   const [question, setQuestion] = useState("")
+  const [conversationId, setConversationId] = useState<string>()
   const [questionAnswers, setQuestionAnswers] = useState<QuestionAnswer[]>([])
   const [deletingQuestionAnswer, setDeletingQuestionAnswer] = useState<QuestionAnswer | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -48,41 +62,69 @@ export function DeckQuestionDialog({
   })
   const [askDeckQuestion, questionMutation] = useMutation(AskDeckQuestionDocument)
   const [deleteDeckQuestionAnswer, deleteMutation] = useMutation(DeleteDeckQuestionAnswerDocument)
+  const activeConversationId = conversationId ?? ""
+  const turns = questionAnswers.filter(
+    (turn) => (turn.conversationId ?? "") === activeConversationId,
+  )
+  const pending = turns.some(({ status }) => status === "pending")
+  const hasPending = questionAnswers.some(({ status }) => status === "pending")
+  const loading = questionAnswersQuery.loading && !questionAnswersQuery.data
+  // The query is newest-first: preserve that order for chats, but title each
+  // chat with its first question rather than its latest follow-up.
+  const conversations = new Map<string, QuestionAnswer>()
+  for (const turn of questionAnswers) conversations.set(turn.conversationId ?? "", turn)
 
   useEffect(() => {
     setQuestionAnswers([])
+    setConversationId(undefined)
+    setQuestion("")
+    setFormError(null)
   }, [deckId])
 
   useEffect(() => {
     if (questionAnswersQuery.data) {
       setQuestionAnswers(questionAnswersQuery.data.deckQuestionAnswers)
+      setConversationId(
+        (current) =>
+          current ?? questionAnswersQuery.data?.deckQuestionAnswers[0]?.conversationId ?? "",
+      )
     }
   }, [questionAnswersQuery.data])
 
   useEffect(() => {
-    const pending = questionAnswers.some(({ status }) => status === "pending")
-
-    if (open && pending) {
+    if (open && hasPending) {
       questionAnswersQuery.startPolling(2_000)
     } else {
       questionAnswersQuery.stopPolling()
     }
 
     return () => questionAnswersQuery.stopPolling()
-  }, [open, questionAnswers, questionAnswersQuery.startPolling, questionAnswersQuery.stopPolling])
+  }, [open, hasPending, questionAnswersQuery.startPolling, questionAnswersQuery.stopPolling])
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmedQuestion = question.trim()
+  function selectConversation(id: string) {
+    setConversationId(id)
+    setQuestion("")
+    setFormError(null)
+  }
 
-    if (!trimmedQuestion) {
-      setFormError("Enter a question about this deck.")
+  function send(text: string) {
+    const trimmedQuestion = text.trim()
+    if (
+      !trimmedQuestion ||
+      questionMutation.loading ||
+      pending ||
+      loading ||
+      questionAnswersQuery.error
+    )
       return
-    }
 
     setFormError(null)
     void askDeckQuestion({
-      variables: { id: deckId, question: trimmedQuestion },
+      variables: {
+        id: deckId,
+        question: trimmedQuestion,
+        conversationId: activeConversationId || null,
+      },
       onCompleted: (data) => {
         const savedAnswer = data.askDeckQuestion?.questionAnswer
 
@@ -118,7 +160,7 @@ export function DeckQuestionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl"
+        className="max-w-3xl sm:h-[min(48rem,90dvh)]"
         labelledBy="deck-question-title"
         describedBy="deck-question-description"
       >
@@ -126,77 +168,116 @@ export function DeckQuestionDialog({
           <div>
             <DialogTitle id="deck-question-title">Ask about this deck</DialogTitle>
             <p id="deck-question-description" className="mt-1 text-sm text-base-content/60">
-              {deckName}
+              {deckName} · Chats are saved with this deck. Each message uses the current decklist.
             </p>
           </div>
           <DialogClose onClose={() => onOpenChange(false)} />
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-          <form className="space-y-4" onSubmit={submit}>
-            <div className="space-y-2">
-              <label
-                className="block text-sm font-bold text-base-content"
-                htmlFor="deck-question-input"
-              >
-                Your question
-              </label>
-              <Textarea
-                id="deck-question-input"
-                className="min-h-28 resize-y"
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                placeholder="Would Doubling Season be a good card in this deck?"
-                maxLength={1_000}
-                autoFocus
-                disabled={questionMutation.loading}
-                aria-describedby="deck-question-help"
-              />
-              <p id="deck-question-help" className="max-w-[65ch] text-xs text-base-content/60">
-                Ask about card fit, possible cuts, matchups, or how a change affects the game plan.
-                Answers use the AI provider configured in Settings and are saved with this deck.
-              </p>
-            </div>
+        <div className="flex shrink-0 items-center gap-2 border-b border-base-300 px-3 py-3">
+          <Select
+            value={activeConversationId || SELECT_NONE_VALUE}
+            disabled={loading || questionMutation.loading || Boolean(questionAnswersQuery.error)}
+            onValueChange={(value) => selectConversation(value === SELECT_NONE_VALUE ? "" : value)}
+          >
+            <SelectTrigger aria-label="Saved chats" className="min-w-0 flex-1 [&>span]:truncate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-w-[calc(100vw-2rem)]">
+              {!conversations.has(activeConversationId) ? (
+                <SelectItem value={activeConversationId || SELECT_NONE_VALUE}>New chat</SelectItem>
+              ) : null}
+              {[...conversations].map(([id, firstTurn]) => (
+                <SelectItem key={id} value={id || SELECT_NONE_VALUE}>
+                  {firstTurn.question} · {formatDate(firstTurn.insertedAt)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={
+              loading ||
+              questionMutation.loading ||
+              Boolean(questionAnswersQuery.error) ||
+              !turns.length
+            }
+            onClick={() =>
+              selectConversation(
+                `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+              )
+            }
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New chat
+          </Button>
+        </div>
 
-            {formError ? (
-              <p
-                className="rounded-box border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
-                role="alert"
-              >
-                {formError}
-              </p>
-            ) : null}
-
-            <div className="flex justify-end">
+        <DeckChat
+          key={activeConversationId}
+          description="Ask about card fit, possible cuts, matchups, or the game plan. Follow up on any answer to keep the conversation going."
+          disabled={loading || Boolean(questionAnswersQuery.error)}
+          error={formError}
+          inputLabel="Ask about this deck"
+          pending={pending}
+          prompts={PROMPTS}
+          question={question}
+          sending={questionMutation.loading}
+          turnCount={turns.length}
+          onQuestionChange={setQuestion}
+          onSend={send}
+        >
+          {loading ? (
+            <p role="status" className="text-sm text-base-content/60">
+              Loading conversation…
+            </p>
+          ) : null}
+          {questionAnswersQuery.error ? (
+            <div role="alert" className="text-sm text-error">
+              <p>{questionAnswersQuery.error.message}</p>
               <Button
-                className="disabled:border-base-300 disabled:bg-base-200 disabled:text-base-content disabled:opacity-100"
-                type="submit"
-                disabled={!question.trim() || questionMutation.loading}
+                className="mt-3"
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => void questionAnswersQuery.refetch()}
               >
-                {questionMutation.loading ? (
-                  <LoaderCircle
-                    className="h-4 w-4 animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                )}
-                {questionMutation.loading ? "Thinking…" : "Ask question"}
+                Try again
               </Button>
             </div>
-          </form>
-
-          <QuestionHistory
-            deckCards={deckCards}
-            deckId={deckId}
-            deleting={deleteMutation.loading}
-            error={questionAnswersQuery.error?.message}
-            loading={questionAnswersQuery.loading && !questionAnswersQuery.data}
-            questionAnswers={questionAnswers}
-            onDelete={setDeletingQuestionAnswer}
-            onRetry={() => void questionAnswersQuery.refetch()}
-          />
-        </div>
+          ) : null}
+          {[...turns].reverse().map((turn) => (
+            <DeckChatTurn
+              key={turn.id}
+              turn={turn}
+              footer={
+                <div className="flex items-center justify-between gap-3 text-xs text-base-content/60">
+                  <p className="min-w-0 break-words">
+                    {turn.model ? `${turn.model} · ` : null}
+                    Asked <time dateTime={turn.insertedAt}>{formatDate(turn.insertedAt)}</time>
+                  </p>
+                  <Button
+                    aria-label={`Delete saved question: ${turn.question}`}
+                    disabled={deleteMutation.loading}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDeletingQuestionAnswer(turn)}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              }
+            >
+              <QuestionRecommendations
+                deckCards={deckCards}
+                deckId={deckId}
+                questionAnswer={turn}
+              />
+            </DeckChatTurn>
+          ))}
+        </DeckChat>
       </DialogContent>
 
       <ConfirmDialog
@@ -210,155 +291,5 @@ export function DeckQuestionDialog({
         This permanently removes this question and its answer from {deckName}.
       </ConfirmDialog>
     </Dialog>
-  )
-}
-
-function QuestionHistory({
-  deckCards,
-  deckId,
-  deleting,
-  error,
-  loading,
-  onDelete,
-  onRetry,
-  questionAnswers,
-}: {
-  deckCards: DeckCardEntry[]
-  deckId: string
-  deleting: boolean
-  error?: string
-  loading: boolean
-  onDelete: (questionAnswer: QuestionAnswer) => void
-  onRetry: () => void
-  questionAnswers: QuestionAnswer[]
-}) {
-  return (
-    <section
-      className="border-t border-base-300 pt-5"
-      aria-labelledby="deck-question-history-title"
-    >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 id="deck-question-history-title" className="flex items-center gap-2 text-lg font-black">
-          <Sparkles className="h-5 w-5 text-warning" aria-hidden="true" />
-          Saved questions
-        </h3>
-        {questionAnswers.length ? (
-          <span className="text-xs font-bold text-base-content/55">
-            {questionAnswers.length} saved
-          </span>
-        ) : null}
-      </div>
-
-      {loading ? (
-        <p className="flex items-center gap-2 py-3 text-sm text-base-content/65">
-          <LoaderCircle
-            className="h-4 w-4 animate-spin motion-reduce:animate-none"
-            aria-hidden="true"
-          />
-          Loading saved questions…
-        </p>
-      ) : error ? (
-        <div className="rounded-box border border-error/30 bg-error/10 px-4 py-3 text-sm">
-          <p className="text-error">{error}</p>
-          <Button className="mt-3" size="sm" type="button" variant="outline" onClick={onRetry}>
-            Try again
-          </Button>
-        </div>
-      ) : questionAnswers.length ? (
-        <div className="space-y-2" aria-live="polite">
-          {questionAnswers.map((questionAnswer, index) => (
-            <QuestionHistoryItem
-              deckCards={deckCards}
-              deckId={deckId}
-              deleting={deleting}
-              key={questionAnswer.id}
-              open={index === 0}
-              questionAnswer={questionAnswer}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-box border border-dashed border-base-300 px-4 py-4 text-sm text-base-content/60">
-          No saved questions yet. Ask one above to start this deck’s history.
-        </p>
-      )}
-    </section>
-  )
-}
-
-function QuestionHistoryItem({
-  deckCards,
-  deckId,
-  deleting,
-  onDelete,
-  open,
-  questionAnswer,
-}: {
-  deckCards: DeckCardEntry[]
-  deckId: string
-  deleting: boolean
-  onDelete: (questionAnswer: QuestionAnswer) => void
-  open: boolean
-  questionAnswer: QuestionAnswer
-}) {
-  function requestDelete(event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    onDelete(questionAnswer)
-  }
-
-  return (
-    <details className="group rounded-box border border-base-300 bg-base-100" open={open}>
-      <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0 flex-1">
-          <span className="block break-words font-bold leading-snug">
-            {questionAnswer.question}
-          </span>
-        </span>
-        <button
-          aria-label={`Delete saved question: ${questionAnswer.question}`}
-          className="btn btn-ghost btn-square min-h-10 h-10 w-10 shrink-0 text-error"
-          disabled={deleting}
-          type="button"
-          onClick={requestDelete}
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        </button>
-        <ChevronDown
-          className="h-4 w-4 shrink-0 text-base-content/55 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          aria-hidden="true"
-        />
-      </summary>
-      <div className="border-t border-base-300 px-4 py-4 sm:px-5">
-        {questionAnswer.status === "pending" ? (
-          <p className="flex items-center gap-2 text-sm text-base-content/65" role="status">
-            <LoaderCircle
-              className="h-4 w-4 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-            The AI is working on this question. You can close this dialog and come back later.
-          </p>
-        ) : questionAnswer.status === "failed" ? (
-          <p className="rounded-box border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">
-            {questionAnswer.error || "The AI question could not be completed. Try asking again."}
-          </p>
-        ) : (
-          <>
-            <DeckMarkdown cardReferences>{questionAnswer.answer}</DeckMarkdown>
-            <QuestionRecommendations
-              deckCards={deckCards}
-              deckId={deckId}
-              questionAnswer={questionAnswer}
-            />
-          </>
-        )}
-        <p className="mt-6 break-words text-xs text-base-content/60">
-          {questionAnswer.model ? `${questionAnswer.model} · ` : null}
-          Asked{" "}
-          <time dateTime={questionAnswer.insertedAt}>{formatDate(questionAnswer.insertedAt)}</time>
-        </p>
-      </div>
-    </details>
   )
 }

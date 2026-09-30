@@ -220,7 +220,7 @@ defmodule Manavault.AITest do
                "recommended_additions"
              ]
 
-      user_prompt = get_in(request, ["messages", Access.at(1), "content"])
+      user_prompt = get_in(request, ["messages", Access.at(-1), "content"])
 
       assert user_prompt =~ "Test Commander"
       assert user_prompt =~ ~s("commander_color_identity":["W"])
@@ -885,6 +885,168 @@ defmodule Manavault.AITest do
              "cuts" => [],
              "additions" => ["White Ward"]
            }
+  end
+
+  test "Ask AI follow-ups use the last six completed deck answers without swap context" do
+    insert_settings!("anthropic/claude-sonnet-4")
+    {:ok, deck} = Catalog.create_deck(%{"name" => "Deck Chat", "format" => "casual"})
+    {:ok, other_deck} = Catalog.create_deck(%{"name" => "Other Deck", "format" => "casual"})
+
+    for number <- 1..8 do
+      {:ok, _} =
+        Catalog.create_deck_question_answer(deck, %{
+          question: "Question #{number}",
+          answer: "Answer #{number}"
+        })
+    end
+
+    for {target, attrs} <- [
+          {deck, %{thread_id: "swap-thread"}},
+          {deck, %{conversation_id: "another-chat"}},
+          {other_deck, %{}},
+          {deck, %{status: "failed", error: "Provider failed"}},
+          {deck, %{status: "pending"}}
+        ] do
+      {:ok, _} =
+        Catalog.create_deck_question_answer(
+          target,
+          Map.merge(
+            %{
+              question: "Unrelated question",
+              answer: "Unrelated answer"
+            },
+            attrs
+          )
+        )
+    end
+
+    {:ok, follow_up} = AI.ask_deck_question(deck, "Why that choice?")
+
+    {:ok, _later} =
+      Catalog.create_deck_question_answer(deck, %{
+        question: "Future question",
+        answer: "Future answer"
+      })
+
+    Req.Test.stub(@stub, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      [system | messages] = Jason.decode!(body)["messages"]
+      refute system["content"] =~ "Swap cards workbench"
+
+      expected_history =
+        Enum.flat_map(3..8, fn number ->
+          [
+            %{"role" => "user", "content" => "Question #{number}"},
+            %{"role" => "assistant", "content" => "Answer #{number}"}
+          ]
+        end)
+
+      assert Enum.drop(messages, -1) == expected_history
+      assert List.last(messages)["content"] =~ "Why that choice?"
+      refute List.last(messages)["content"] =~ "staged_swap"
+
+      json_response(conn, 200, %{
+        "choices" => [
+          %{
+            "message" => %{
+              "content" =>
+                Jason.encode!(%{
+                  answer: "It supports the game plan.",
+                  recommended_cuts: [],
+                  recommended_additions: []
+                })
+            }
+          }
+        ]
+      })
+    end)
+
+    assert :ok = AI.answer_deck_question(follow_up.id)
+    assert Catalog.get_deck_question_answer(follow_up.id).answer == "It supports the game plan."
+  end
+
+  test "new chats isolate context, older chats resume, and follow-ups see deck edits" do
+    insert_settings!("anthropic/claude-sonnet-4")
+    {:ok, _} = Catalog.import_cards([CatalogTestSupport.legal_plains()])
+    {:ok, deck} = Catalog.create_deck(%{"name" => "Before edits", "format" => "casual"})
+    plains = CatalogTestSupport.add_deck_card!(deck, "Plains", 2, "mainboard")
+
+    {:ok, legacy} =
+      Catalog.create_deck_question_answer(deck, %{
+        question: "Original chat",
+        answer: "Original advice"
+      })
+
+    {:ok, archived} =
+      Catalog.create_deck_question_answer(deck, %{
+        conversation_id: "chat-old",
+        question: "Earlier plan",
+        answer: "Earlier advice"
+      })
+
+    {:ok, other_deck} = Catalog.create_deck(%{"name" => "Other", "format" => "casual"})
+
+    {:ok, _} =
+      Catalog.create_deck_question_answer(other_deck, %{
+        conversation_id: "chat-new",
+        question: "Unrelated deck",
+        answer: "Unrelated advice"
+      })
+
+    test_pid = self()
+
+    Req.Test.stub(@stub, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:chat_messages, Jason.decode!(body)["messages"]})
+
+      json_response(conn, 200, %{
+        "choices" => [
+          %{
+            "message" => %{
+              "content" =>
+                Jason.encode!(%{
+                  answer: "Saved reply.",
+                  recommended_cuts: [],
+                  recommended_additions: []
+                })
+            }
+          }
+        ]
+      })
+    end)
+
+    {:ok, first} = AI.ask_deck_question(deck, "Start fresh", conversation_id: "chat-new")
+    assert first.conversation_id == "chat-new"
+    assert :ok = AI.answer_deck_question(first.id)
+    assert_received {:chat_messages, [system, first_prompt]}
+    refute system["content"] =~ "Swap cards workbench"
+    assert first_prompt["content"] =~ "Before edits"
+    assert first_prompt["content"] =~ ~s("land_count":2)
+
+    {:ok, follow_up} =
+      AI.ask_deck_question(deck, "Does the change help?", conversation_id: "chat-new")
+
+    # Edit after queueing: the worker must load the deck at processing time.
+    {:ok, _} = Catalog.update_deck(deck, %{"name" => "After edits"})
+    {:ok, _} = Catalog.update_deck_card(plains, %{"quantity" => 5})
+    assert :ok = AI.answer_deck_question(follow_up.id)
+    assert_received {:chat_messages, [_system, prior_question, prior_answer, latest]}
+    assert prior_question == %{"role" => "user", "content" => "Start fresh"}
+    assert prior_answer == %{"role" => "assistant", "content" => "Saved reply."}
+    assert latest["content"] =~ "After edits"
+    assert latest["content"] =~ ~s("land_count":5)
+    refute latest["content"] =~ "Before edits"
+
+    {:ok, resumed} =
+      AI.ask_deck_question(deck, "Resume earlier plan", conversation_id: "chat-old")
+
+    assert :ok = AI.answer_deck_question(resumed.id)
+    assert_received {:chat_messages, [_system, old_question, old_answer, _latest]}
+    assert old_question["content"] == "Earlier plan"
+    assert old_answer["content"] == "Earlier advice"
+    assert Catalog.get_deck_question_answer(archived.id).answer == "Earlier advice"
+    assert Catalog.get_deck_question_answer(legacy.id).answer == "Original advice"
+    assert Catalog.get_deck_question_answer(first.id).answer == "Saved reply."
   end
 
   defp insert_settings!(model) do

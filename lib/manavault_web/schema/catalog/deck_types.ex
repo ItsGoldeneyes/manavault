@@ -71,6 +71,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
 
   object :deck_question_answer do
     field :id, non_null(:id)
+    field :conversation_id, :string
     field :question, non_null(:string)
     field :answer, non_null(:string)
     field :status, non_null(:string)

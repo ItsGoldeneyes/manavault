@@ -84,6 +84,15 @@ leave the page and return while it runs; the deck page checks progress and displ
 the result when ready. Refreshing keeps the previous analysis visible, and repeat
 requests reuse an active job. Failed jobs can be retried from the deck page.
 
+**Ask AI** opens a saved conversation about the deck, using the same chat controls
+as **Swap cards**. Press Enter to send or Shift+Enter for a new line. **New chat**
+starts fresh AI context without deleting earlier conversations; reopen them from
+**Saved chats**. A new chat is saved when you send its first message. Follow-ups
+include the last six completed answers from that conversation and the decklist
+as it exists when the message is processed. Earlier replies are not rewritten
+after deck edits. Swap cards chats stay separate, and existing saved questions
+remain together in the original chat with their recommendation and delete controls.
+
 ### Use it on mobile
 
 The responsive web app can be installed as a PWA. Optional Capacitor Android and

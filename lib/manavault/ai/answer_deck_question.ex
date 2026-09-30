@@ -16,12 +16,13 @@ defmodule Manavault.AI.AnswerDeckQuestion do
   alias Manavault.Catalog.Search.CardsByName
   alias Manavault.Repo
 
-  # Prior turns of a Swap cards chat thread sent with each new question.
+  # Completed prior turns sent with each new question in either chat surface.
   @thread_history_turns 6
 
   @doc """
   Queues a question about `deck`. Options:
 
+    * `:conversation_id` - isolates saved Ask AI chats; nil is the original conversation
     * `:thread_id` - groups Swap cards chat turns so later turns see earlier ones
     * `:swap_context` - card names staged to cut and add when the question was asked
   """
@@ -30,6 +31,8 @@ defmodule Manavault.AI.AnswerDeckQuestion do
 
     with {:ok, question} <- DeckQuestion.validate(question),
          {:ok, thread_id} <- DeckQuestion.validate_thread_id(Keyword.get(opts, :thread_id)),
+         {:ok, conversation_id} <-
+           DeckQuestion.validate_thread_id(Keyword.get(opts, :conversation_id)),
          {:ok, swap_context} <-
            DeckQuestion.validate_swap_context(Keyword.get(opts, :swap_context)),
          :ok <- UpdateSettings.configured(settings),
@@ -37,6 +40,7 @@ defmodule Manavault.AI.AnswerDeckQuestion do
       enqueue_question(deck, %{
         question: question,
         status: "pending",
+        conversation_id: conversation_id,
         thread_id: thread_id,
         swap_context: swap_context
       })
@@ -79,29 +83,19 @@ defmodule Manavault.AI.AnswerDeckQuestion do
     with :ok <- UpdateSettings.configured(settings),
          {:ok, provider} <- Provider.module(settings.provider),
          payload <- DeckAnalysis.payload(deck, Catalog.deck_cards(deck)),
-         {:ok, result} <- generate(provider, settings, payload, turn(deck, question_answer), 1),
+         {:ok, result} <- generate(provider, settings, payload, turn(question_answer), 1),
          {:ok, _question_answer} <- complete(question_answer, result, settings.model) do
       :ok
     end
   end
 
-  defp turn(deck, question_answer) do
+  defp turn(question_answer) do
     %{
       question: question_answer.question,
-      history: thread_history(deck, question_answer),
+      history: Catalog.deck_question_history(question_answer, @thread_history_turns),
       swap_context: question_answer.swap_context,
       thread?: not is_nil(question_answer.thread_id)
     }
-  end
-
-  defp thread_history(_deck, %DeckQuestionAnswer{thread_id: nil}), do: []
-
-  defp thread_history(deck, %DeckQuestionAnswer{id: id, thread_id: thread_id}) do
-    deck
-    |> Catalog.list_deck_question_thread(thread_id)
-    |> Enum.filter(&(&1.id < id and &1.status == "completed"))
-    |> Enum.take(-@thread_history_turns)
-    |> Enum.map(&%{question: &1.question, answer: &1.answer})
   end
 
   defp complete(question_answer, result, model) do

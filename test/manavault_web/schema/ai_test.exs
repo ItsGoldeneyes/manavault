@@ -265,9 +265,10 @@ defmodule ManavaultWeb.Schema.AITest do
       post(recycle(conn), "/api/graphql", %{
         "query" => """
         mutation AskDeckQuestion($id: ID!, $question: String!) {
-          askDeckQuestion(id: $id, question: $question) {
+          askDeckQuestion(id: $id, question: $question, conversationId: "chat-graphql") {
             questionAnswer {
               id
+              conversationId
               question
               answer
               status
@@ -291,6 +292,7 @@ defmodule ManavaultWeb.Schema.AITest do
                "askDeckQuestion" => %{
                  "questionAnswer" => %{
                    "id" => question_answer_id,
+                   "conversationId" => "chat-graphql",
                    "question" => "What should I cut for Doubling Season?",
                    "answer" => "",
                    "status" => "pending",
@@ -320,6 +322,7 @@ defmodule ManavaultWeb.Schema.AITest do
         query DeckQuestionAnswers($deckId: ID!) {
           deckQuestionAnswers(deckId: $deckId) {
             id
+            conversationId
             question
             answer
             status
@@ -339,6 +342,7 @@ defmodule ManavaultWeb.Schema.AITest do
                "deckQuestionAnswers" => [
                  %{
                    "id" => ^question_answer_id,
+                   "conversationId" => "chat-graphql",
                    "question" => "What should I cut for Doubling Season?",
                    "answer" => "Cut [[Test Commander]] for [[Plains]].",
                    "status" => "completed",

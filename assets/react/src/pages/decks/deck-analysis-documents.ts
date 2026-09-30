@@ -80,6 +80,7 @@ export const DeckQuestionAnswersDocument = graphql(`
   query DeckQuestionAnswers($deckId: ID!) {
     deckQuestionAnswers(deckId: $deckId) {
       id
+      conversationId
       question
       answer
       status
@@ -93,10 +94,11 @@ export const DeckQuestionAnswersDocument = graphql(`
 `)
 
 export const AskDeckQuestionDocument = graphql(`
-  mutation AskDeckQuestion($id: ID!, $question: String!) {
-    askDeckQuestion(id: $id, question: $question) {
+  mutation AskDeckQuestion($id: ID!, $question: String!, $conversationId: String) {
+    askDeckQuestion(id: $id, question: $question, conversationId: $conversationId) {
       questionAnswer {
         id
+        conversationId
         question
         answer
         status

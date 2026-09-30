@@ -5,6 +5,7 @@ import type { DeckCardEntry } from "../src/pages/decks/deck-types"
 
 type QuestionAnswer = {
   id: string
+  conversationId: string | null
   question: string
   answer: string
   status: string
@@ -16,7 +17,7 @@ type QuestionAnswer = {
 }
 
 const apolloMocks = vi.hoisted(() => ({
-  askVariables: null as { id: string; question: string } | null,
+  askVariables: null as { id: string; question: string; conversationId: string | null } | null,
   addVariables: [] as Array<{
     deckId: string
     input: { name: string; quantity: number; zone: string }
@@ -27,6 +28,7 @@ const apolloMocks = vi.hoisted(() => ({
     deckQuestionAnswers: [
       {
         id: "history-2",
+        conversationId: null,
         question: "How should I protect my counters?",
         answer: `Keep mana open for [[Flawless Maneuver]].
 
@@ -42,6 +44,7 @@ const apolloMocks = vi.hoisted(() => ({
       },
       {
         id: "history-1",
+        conversationId: null,
         question: "What is the weakest card?",
         answer: "Start by testing a cut from the top of the curve.",
         status: "completed",
@@ -51,7 +54,7 @@ const apolloMocks = vi.hoisted(() => ({
         recommendedAdditions: [],
         insertedAt: "2026-08-18T03:00:00Z",
       },
-    ] satisfies QuestionAnswer[],
+    ] as QuestionAnswer[],
   },
   refetchQueries: vi.fn(() => Promise.resolve()),
   refetch: vi.fn(),
@@ -90,7 +93,7 @@ vi.mock("@apollo/client/react", () => ({
     if (operationName === "AskDeckQuestion") {
       return [
         (options: {
-          variables: { id: string; question: string }
+          variables: { id: string; question: string; conversationId: string | null }
           onCompleted?: (data: { askDeckQuestion: { questionAnswer: QuestionAnswer } }) => void
         }) => {
           apolloMocks.askVariables = options.variables
@@ -98,6 +101,7 @@ vi.mock("@apollo/client/react", () => ({
             askDeckQuestion: {
               questionAnswer: {
                 id: "history-3",
+                conversationId: options.variables.conversationId,
                 question: options.variables.question,
                 answer: "",
                 status: "pending",
@@ -158,6 +162,8 @@ vi.mock("@apollo/client/react", () => ({
 
 import { DeckQuestionDialog } from "../src/pages/decks/deck-question-dialog"
 
+const originalHistory = structuredClone(apolloMocks.historyData)
+
 afterEach(() => {
   cleanup()
   apolloMocks.askVariables = null
@@ -167,11 +173,10 @@ afterEach(() => {
   apolloMocks.refetchQueries.mockClear()
   apolloMocks.startPolling.mockClear()
   apolloMocks.stopPolling.mockClear()
-  apolloMocks.historyData.deckQuestionAnswers[0]!.status = "completed"
-  apolloMocks.historyData.deckQuestionAnswers[0]!.error = null
+  apolloMocks.historyData = structuredClone(originalHistory)
 })
 
-test("renders saved questions newest first in collapsible sections", () => {
+test("renders saved questions as an oldest-first conversation", () => {
   render(
     <DeckQuestionDialog
       deckCards={deckCards}
@@ -183,19 +188,13 @@ test("renders saved questions newest first in collapsible sections", () => {
   )
 
   const dialog = screen.getByRole("dialog", { name: "Ask about this deck" })
-  const entries = dialog.querySelectorAll("details")
+  const entries = within(dialog).getAllByRole("article", { name: /\?/ })
 
-  expect(screen.getByRole("heading", { name: "Saved questions" })).toBeInstanceOf(HTMLElement)
-  expect(screen.getByText("2 saved")).toBeInstanceOf(HTMLElement)
+  expect(dialog.querySelector("details")).toBeNull()
   expect(entries).toHaveLength(2)
-  expect(entries[0]?.textContent).toContain("How should I protect my counters?")
-  expect(entries[0]?.textContent).toContain("anthropic/claude-sonnet-4 · Asked")
-  expect(entries[0]?.querySelector("summary")?.textContent).not.toContain(
-    "anthropic/claude-sonnet-4",
-  )
-  expect(entries[1]?.textContent).toContain("What is the weakest card?")
-  expect(entries[0]?.open).toBe(true)
-  expect(entries[1]?.open).toBe(false)
+  expect(entries[0]?.textContent).toContain("What is the weakest card?")
+  expect(entries[1]?.textContent).toContain("How should I protect my counters?")
+  expect(entries[1]?.textContent).toContain("anthropic/claude-sonnet-4 · Asked")
 })
 
 test("renders a persisted AI failure instead of an empty answer", () => {
@@ -228,8 +227,7 @@ test("renders answer tables, mana symbols, and card links with previews", async 
     />,
   )
 
-  const entry = screen.getByRole("dialog", { name: "Ask about this deck" }).querySelector("details")
-  expect(entry).not.toBeNull()
+  const entry = screen.getByRole("article", { name: "How should I protect my counters?" })
 
   const table = within(entry as HTMLElement).getByRole("table")
   expect(within(table).getAllByRole("row")).toHaveLength(2)
@@ -257,11 +255,11 @@ test("submits a trimmed deck question, shows pending work, and starts polling", 
   )
 
   const dialog = screen.getByRole("dialog", { name: "Ask about this deck" })
-  const question = screen.getByRole("textbox", { name: "Your question" })
-  const submit = screen.getByRole("button", { name: "Ask question" })
+  const question = screen.getByRole("textbox", { name: "Ask about this deck" })
+  const submit = screen.getByRole("button", { name: "Send question" })
 
   expect(dialog.getAttribute("aria-describedby")).toBe("deck-question-description")
-  expect(screen.getByText("Counter Deck")).toBeInstanceOf(HTMLElement)
+  expect(screen.getByText(/Counter Deck/)).toBeInstanceOf(HTMLElement)
   expect((submit as HTMLButtonElement).disabled).toBe(true)
 
   await user.type(question, "  Would Doubling Season fit?  ")
@@ -270,17 +268,142 @@ test("submits a trimmed deck question, shows pending work, and starts polling", 
   expect(apolloMocks.askVariables).toEqual({
     id: "deck-1",
     question: "Would Doubling Season fit?",
+    conversationId: null,
   })
   expect((question as HTMLTextAreaElement).value).toBe("")
   expect(screen.getByText("Would Doubling Season fit?")).toBeInstanceOf(HTMLElement)
-  expect(screen.getByRole("status").textContent).toMatch(/AI is working on this question/i)
+  expect(screen.getByRole("status").textContent).toBe("Thinking…")
   expect(screen.getByText(/saved with this deck/i)).toBeInstanceOf(HTMLElement)
   expect(apolloMocks.startPolling).toHaveBeenCalledWith(2_000)
 
-  const entries = screen
-    .getByRole("dialog", { name: "Ask about this deck" })
-    .querySelectorAll("details")
-  expect(entries[0]?.textContent).toContain("Would Doubling Season fit?")
+  const entries = screen.getAllByRole("article")
+  expect(entries.at(-1)?.textContent).toContain("Would Doubling Season fit?")
+
+  apolloMocks.askVariables = null
+  await user.type(question, "Anything cheaper?{Enter}")
+  expect(apolloMocks.askVariables).toBeNull()
+  expect((submit as HTMLButtonElement).disabled).toBe(true)
+  expect((question as HTMLTextAreaElement).value).toBe("Anything cheaper?")
+})
+
+test("Enter sends a follow-up while Shift+Enter adds a line break", async () => {
+  const user = userEvent.setup()
+  render(
+    <DeckQuestionDialog
+      deckCards={deckCards}
+      deckId="deck-1"
+      deckName="Counter Deck"
+      open
+      onOpenChange={() => {}}
+    />,
+  )
+  const question = screen.getByRole("textbox", { name: "Ask about this deck" })
+
+  await user.type(question, "Why that cut?{Shift>}{Enter}{/Shift}Keep the budget low.")
+  expect(apolloMocks.askVariables).toBeNull()
+  await user.keyboard("{Enter}")
+  expect(apolloMocks.askVariables).toEqual({
+    id: "deck-1",
+    question: "Why that cut?\nKeep the budget low.",
+    conversationId: null,
+  })
+})
+
+test("starter prompts send a deck question", async () => {
+  const user = userEvent.setup()
+  render(
+    <DeckQuestionDialog
+      deckCards={deckCards}
+      deckId="deck-1"
+      deckName="Counter Deck"
+      open
+      onOpenChange={() => {}}
+    />,
+  )
+  await user.click(screen.getByRole("button", { name: "How can I improve the mana base?" }))
+  expect(apolloMocks.askVariables).toEqual({
+    id: "deck-1",
+    question: "How can I improve the mana base?",
+    conversationId: null,
+  })
+})
+
+test("starts a fresh chat without deleting history and reopens the original conversation", async () => {
+  const user = userEvent.setup()
+  render(
+    <DeckQuestionDialog
+      deckCards={deckCards}
+      deckId="deck-1"
+      deckName="Counter Deck"
+      open
+      onOpenChange={() => {}}
+    />,
+  )
+
+  await user.click(screen.getByRole("button", { name: "New chat" }))
+  expect(screen.queryByRole("article", { name: "What is the weakest card?" })).toBeNull()
+  expect(apolloMocks.deleteVariables).toBeNull()
+  await user.type(
+    screen.getByRole("textbox", { name: "Ask about this deck" }),
+    "A fresh plan{Enter}",
+  )
+  expect(apolloMocks.askVariables).toMatchObject({
+    id: "deck-1",
+    question: "A fresh plan",
+    conversationId: expect.stringMatching(/^chat-/),
+  })
+  expect(screen.getByRole("article", { name: "A fresh plan" })).toBeTruthy()
+  expect(screen.getByRole("status").textContent).toBe("Thinking…")
+
+  await user.click(screen.getByRole("combobox", { name: "Saved chats" }))
+  await user.click(screen.getByRole("option", { name: /What is the weakest card/ }))
+  expect(screen.getByRole("article", { name: "What is the weakest card?" })).toBeTruthy()
+  expect(screen.getByRole("article", { name: "How should I protect my counters?" })).toBeTruthy()
+  expect(screen.queryByRole("article", { name: "A fresh plan" })).toBeNull()
+  expect(screen.queryByRole("status")).toBeNull()
+  // The pending answer in the other chat still gets polled.
+  expect(apolloMocks.startPolling).toHaveBeenCalledWith(2_000)
+
+  await user.type(
+    screen.getByRole("textbox", { name: "Ask about this deck" }),
+    "Continue the original{Enter}",
+  )
+  expect(apolloMocks.askVariables).toEqual({
+    id: "deck-1",
+    question: "Continue the original",
+    conversationId: null,
+  })
+})
+
+test("reopens the most recently active saved chat and sends to that conversation", async () => {
+  apolloMocks.historyData.deckQuestionAnswers.unshift({
+    ...apolloMocks.historyData.deckQuestionAnswers[1]!,
+    id: "new-chat-turn",
+    conversationId: "chat-newer",
+    question: "A separate plan",
+    insertedAt: "2026-08-20T03:00:00Z",
+  })
+  const user = userEvent.setup()
+  render(
+    <DeckQuestionDialog
+      deckCards={deckCards}
+      deckId="deck-1"
+      deckName="Counter Deck"
+      open
+      onOpenChange={() => {}}
+    />,
+  )
+  expect(screen.getByRole("article", { name: "A separate plan" })).toBeTruthy()
+  expect(screen.queryByRole("article", { name: "What is the weakest card?" })).toBeNull()
+  await user.type(
+    screen.getByRole("textbox", { name: "Ask about this deck" }),
+    "Tell me more{Enter}",
+  )
+  expect(apolloMocks.askVariables).toEqual({
+    id: "deck-1",
+    question: "Tell me more",
+    conversationId: "chat-newer",
+  })
 })
 
 test("selectively applies recommended cuts and additions", async () => {

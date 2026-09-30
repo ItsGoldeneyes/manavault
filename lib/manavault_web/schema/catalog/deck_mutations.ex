@@ -76,6 +76,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckMutations do
       id
       |> Catalog.get_deck!()
       |> AI.ask_deck_question(question,
+        conversation_id: Map.get(args, :conversation_id),
         thread_id: Map.get(args, :thread_id),
         swap_context: Map.get(args, :swap_context)
       )

@@ -179,6 +179,7 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
     payload field :ask_deck_question do
       arg(:id, non_null(:id))
       arg(:question, non_null(:string))
+      arg(:conversation_id, :string)
       arg(:thread_id, :string)
       arg(:swap_context, :deck_swap_context_input)
 
