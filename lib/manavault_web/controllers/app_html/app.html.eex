@@ -34,8 +34,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest?v=<%= @asset_version %>" crossorigin="use-credentials" />
-    <%# Versioned per deploy: the CDN and WebViews cache these for hours, and a stale
-        stylesheet lacks the classes the current React bundle uses. %>
+    <%!-- Versioned per deploy: the CDN and WebViews cache these for hours, and a stale
+        stylesheet lacks the classes the current React bundle uses. --%>
     <link rel="stylesheet" href="/assets/css/app.css?v=<%= @asset_version %>" />
     <%= if @vite_dev? do %>
       <script type="module" src="/shell/js/vite-bootstrap.js"></script>

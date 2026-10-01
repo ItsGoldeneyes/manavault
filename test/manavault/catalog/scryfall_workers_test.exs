@@ -24,7 +24,7 @@ defmodule Manavault.Catalog.ScryfallWorkersTest do
 
   test "Lifeline recovers orphaned SQLite jobs and unblocks exhausted catalog syncs" do
     plugins = Application.fetch_env!(:manavault, Oban) |> Keyword.fetch!(:plugins)
-    lifeline_options = Keyword.fetch!(plugins, Oban.Plugins.Lifeline)
+    lifeline_options = Keyword.fetch!(plugins, Oban.Lifeline)
 
     start_supervised!(
       {Oban,
@@ -34,7 +34,7 @@ defmodule Manavault.Catalog.ScryfallWorkersTest do
        peer: Oban.Peers.Isolated,
        queues: [],
        testing: :disabled,
-       plugins: [{Oban.Plugins.Lifeline, lifeline_options}]}
+       plugins: [{Oban.Lifeline, lifeline_options}]}
     )
 
     stale_time = DateTime.add(DateTime.utc_now(), -61, :minute)
@@ -61,7 +61,7 @@ defmodule Manavault.Catalog.ScryfallWorkersTest do
     assert blocked.id == stale_job.id
     assert blocked.conflict?
 
-    lifeline = Oban.Registry.whereis(__MODULE__, {:plugin, Oban.Plugins.Lifeline})
+    lifeline = Oban.Registry.whereis(__MODULE__, {:plugin, Oban.Lifeline})
     send(lifeline, :rescue)
     :sys.get_state(lifeline)
 

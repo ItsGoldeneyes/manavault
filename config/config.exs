@@ -48,8 +48,8 @@ config :manavault, Oban,
   plugins: [
     # Recover orphaned executions so infinite job uniqueness cannot block syncs.
     # Keep this above every worker timeout (currently at most 30 minutes).
-    {Oban.Plugins.Lifeline, rescue_after: :timer.hours(1)},
-    {Oban.Plugins.Cron,
+    {Oban.Lifeline, rescue_after: :timer.hours(1)},
+    {Oban.Cron,
      crontab: [
        {"@reboot", Manavault.Catalog.ScryfallCatalogWorker},
        {"@daily", Manavault.Catalog.ScryfallCatalogWorker},

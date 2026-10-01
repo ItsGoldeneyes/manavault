@@ -13,7 +13,7 @@ defmodule Manavault.ObanConfigTest do
              [ai: 2, backup: 1, catalog: 2, preview: 2, pricing: 1]
 
     plugins = Keyword.fetch!(config, :plugins)
-    cron_options = Keyword.fetch!(plugins, Oban.Plugins.Cron)
+    cron_options = Keyword.fetch!(plugins, Oban.Cron)
 
     assert Keyword.fetch!(cron_options, :crontab) == [
              {"@reboot", ScryfallCatalogWorker},
@@ -30,7 +30,7 @@ defmodule Manavault.ObanConfigTest do
 
   test "orphan recovery allows every worker to reach its execution timeout first" do
     plugins = Application.fetch_env!(:manavault, Oban) |> Keyword.fetch!(:plugins)
-    options = Keyword.fetch!(plugins, Oban.Plugins.Lifeline)
+    options = Keyword.fetch!(plugins, Oban.Lifeline)
     assert Keyword.fetch!(options, :rescue_after) == :timer.hours(1)
 
     {:ok, modules} = :application.get_key(:manavault, :modules)
