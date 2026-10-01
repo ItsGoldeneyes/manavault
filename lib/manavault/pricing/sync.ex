@@ -49,10 +49,16 @@ defmodule Manavault.Pricing.Sync do
   Replaces every price row for `vendor` with `rows`
   (`%{scryfall_id, finish, price_cents}`). Duplicate printing/finish pairs
   keep the cheapest price. Rows not present anymore are deleted.
+
+  Batches are written in autocommit mode on purpose: one transaction over a
+  full feed would hold SQLite's single write lock for seconds, long enough to
+  push other writers past `busy_timeout`. Each batch instead retries when it
+  finds the database busy.
   """
   def replace_vendor_prices(vendor, rows) do
     now = DateTime.utc_now()
     deduped = dedupe_cheapest(rows)
+    context = "Vendor price sync vendor=#{vendor}"
 
     deduped
     |> Enum.map(fn row ->
@@ -67,16 +73,26 @@ defmodule Manavault.Pricing.Sync do
     end)
     |> Enum.chunk_every(@batch_size)
     |> Enum.each(fn batch ->
-      Repo.insert_all(VendorPrice, batch,
-        conflict_target: [:vendor, :scryfall_id, :finish],
-        on_conflict: {:replace, [:price_cents, :updated_at]}
+      Repo.retry_when_busy(
+        fn ->
+          Repo.insert_all(VendorPrice, batch,
+            conflict_target: [:vendor, :scryfall_id, :finish],
+            on_conflict: {:replace, [:price_cents, :updated_at]}
+          )
+        end,
+        context
       )
     end)
 
     {deleted, _} =
-      VendorPrice
-      |> where([v], v.vendor == ^vendor and v.updated_at < ^now)
-      |> Repo.delete_all(timeout: :infinity)
+      Repo.retry_when_busy(
+        fn ->
+          VendorPrice
+          |> where([v], v.vendor == ^vendor and v.updated_at < ^now)
+          |> Repo.delete_all(timeout: :infinity)
+        end,
+        context
+      )
 
     Cache.invalidate_collection()
 
