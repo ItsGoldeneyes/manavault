@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG ELIXIR_VERSION=1.20.4
-ARG OTP_VERSION=29.0.6
+ARG OTP_VERSION=29.1.1
 ARG ALPINE_VERSION=3.24
 ARG NODE_VERSION=22.23.2
 ARG AUBE_VERSION=1.21.0
@@ -9,7 +9,7 @@ ARG MANAVAULT_ASSET_VERSION
 
 # Hex images pin the OTP patch release as well as Elixir. Keep the builder's
 # Alpine minor version aligned with the runner for native release dependencies.
-ARG BUILDER_IMAGE=hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-3.24.1
+ARG BUILDER_IMAGE=hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-alpine-3.24.2
 ARG RUNNER_IMAGE=alpine:${ALPINE_VERSION}
 
 FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS node-runtime
