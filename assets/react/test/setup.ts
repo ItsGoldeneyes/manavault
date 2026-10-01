@@ -14,6 +14,9 @@ if (typeof Element.prototype.scrollIntoView !== "function") {
   Element.prototype.scrollIntoView = () => {}
 }
 
+// jsdom exposes scrollTo but throws a not-implemented diagnostic when the router calls it.
+window.scrollTo = () => {}
+
 if (typeof Element.prototype.hasPointerCapture !== "function") {
   Element.prototype.hasPointerCapture = () => false
 }

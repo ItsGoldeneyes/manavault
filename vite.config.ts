@@ -1,6 +1,7 @@
 import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite-plus"
+import type { UserConfig } from "vite"
+import type { ViteUserConfig } from "vite-plus"
 
 const viteBase = process.env.NODE_ENV === "production" ? "/assets/react/" : "/"
 const phoenixOrigin = `http://127.0.0.1:${process.env.PORT || "4000"}`
@@ -10,7 +11,7 @@ const phoenixProxy = {
 }
 const phoenixSocketProxy = { ...phoenixProxy, ws: true }
 
-export default defineConfig({
+export default {
   base: viteBase,
   fmt: {
     ignorePatterns: [
@@ -24,7 +25,6 @@ export default defineConfig({
   lint: {
     ignorePatterns: ["assets/react/src/gql/**", "assets/react/src/routeTree.gen.ts"],
   },
-  // vite@8 Plugin type is incompatible with vite-plus-core@0.2.8 Plugin type
   plugins: [
     tanstackRouter({
       target: "react",
@@ -32,18 +32,33 @@ export default defineConfig({
       generatedRouteTree: "assets/react/src/routeTree.gen.ts",
       autoCodeSplitting: true,
       quoteStyle: "double",
-    }) as any,
-    react() as any,
-  ] as any,
+    }),
+    react(),
+  ],
   build: {
     emptyOutDir: true,
     manifest: true,
     outDir: "priv/static/assets/react",
-    rollupOptions: {
+    rolldownOptions: {
       input: "assets/react/src/main.tsx",
       output: {
         entryFileNames: "app.js",
         assetFileNames: "assets/[name][extname]",
+        codeSplitting: {
+          groups: [
+            {
+              name: "react-runtime",
+              test: /\/node_modules\/(?:react|react-dom|scheduler)\//,
+              priority: 30,
+            },
+            { name: "katex", test: /\/node_modules\/katex\//, priority: 20 },
+            {
+              name: "markdown",
+              test: /\/node_modules\/(?:react-markdown|remark-[^/]+|rehype-[^/]+)\//,
+              priority: 10,
+            },
+          ],
+        },
       },
     },
   },
@@ -79,4 +94,4 @@ export default defineConfig({
       "^/(favicon|apple-touch-icon|android-chrome|offline\\.html|robots\\.txt)": phoenixProxy,
     },
   },
-})
+} satisfies UserConfig & Pick<ViteUserConfig, "fmt" | "lint">
