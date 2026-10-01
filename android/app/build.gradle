@@ -87,7 +87,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            shrinkResources true
+            shrinkResources = true
             if (manavaultReleaseSigningConfigured) {
                 signingConfig signingConfigs.release
             }
