@@ -29,7 +29,8 @@ const sourceLabels: Record<string, { label: string; description: string }> = {
   },
   manapool: {
     label: "ManaPool",
-    description: "Market prices from ManaPool. Updated every 6 hours.",
+    description:
+      "Lowest near-mint listing from ManaPool, falling back to the best available condition. Matches finish. Updated every 6 hours.",
   },
 }
 

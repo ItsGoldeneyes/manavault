@@ -1,8 +1,6 @@
 defmodule Manavault.PricingTest do
   use Manavault.DataCase
-  use Manavault.CatalogTestFixtures, fixtures: [:black_lotus]
 
-  alias Manavault.Catalog
   alias Manavault.Catalog.{Price, Printing}
   alias Manavault.Pricing
   alias Manavault.Pricing.{Money, Store, Sync, VendorPrice}
@@ -102,67 +100,82 @@ defmodule Manavault.PricingTest do
   end
 
   describe "ManaPool.rows/1" do
-    test "maps ordinary printings from market prices and etched printings from listings" do
+    test "uses the lowest near-mint listing for each finish, ignoring market prices" do
       body = %{
         "data" => [
-          mana_pool_single("aaa", 500, 750),
-          mana_pool_single("bbb", 300, nil),
-          mana_pool_single("ccc", nil, 200),
-          mana_pool_single("ddd", 100, 150, %{"price_cents_nm_etched" => 900})
+          mana_pool_single("aaa", %{
+            "price_market" => 500,
+            "price_market_foil" => 750,
+            "price_cents" => 410,
+            "price_cents_lp_plus" => 450,
+            "price_cents_nm" => 525,
+            "price_cents_foil" => 600,
+            "price_cents_lp_plus_foil" => 700,
+            "price_cents_nm_foil" => 790,
+            "price_cents_etched" => 850,
+            "price_cents_lp_plus_etched" => 875,
+            "price_cents_nm_etched" => 900
+          })
         ]
       }
 
       assert MapSet.new(ManaPool.rows(body)) ==
                MapSet.new([
-                 %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 500},
-                 %{scryfall_id: "aaa", finish: "foil", price_cents: 750},
-                 %{scryfall_id: "bbb", finish: "nonfoil", price_cents: 300},
-                 %{scryfall_id: "ccc", finish: "foil", price_cents: 200},
-                 %{scryfall_id: "ddd", finish: "nonfoil", price_cents: 100},
-                 %{scryfall_id: "ddd", finish: "foil", price_cents: 150},
-                 %{scryfall_id: "ddd", finish: "etched", price_cents: 900}
+                 %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 525},
+                 %{scryfall_id: "aaa", finish: "foil", price_cents: 790},
+                 %{scryfall_id: "aaa", finish: "etched", price_cents: 900}
                ])
     end
 
-    test "uses treatment-specific listings instead of generic market prices" do
-      surge_foil_id = "42a1986c-9585-4544-b5a7-bee4be5c4506"
-
+    test "falls back to lightly played or better, then any condition, per finish" do
       body = %{
         "data" => [
-          mana_pool_single(surge_foil_id, 8595, 20_955, %{
-            "price_cents" => nil,
+          mana_pool_single("aaa", %{
+            "price_market" => 999,
+            "price_cents" => 147,
+            "price_cents_lp_plus" => 290,
             "price_cents_nm" => nil,
-            "price_cents_foil" => 43_000,
-            "price_cents_lp_plus_foil" => 43_000,
-            "price_cents_nm_foil" => 43_000
+            "price_cents_foil" => 310,
+            "price_cents_lp_plus_foil" => nil,
+            "price_cents_nm_foil" => nil
           })
         ]
       }
 
-      assert ManaPool.rows(body, MapSet.new([surge_foil_id])) == [
-               %{scryfall_id: surge_foil_id, finish: "foil", price_cents: 43_000}
+      assert MapSet.new(ManaPool.rows(body)) ==
+               MapSet.new([
+                 %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 290},
+                 %{scryfall_id: "aaa", finish: "foil", price_cents: 310}
+               ])
+    end
+
+    test "never borrows another finish's listing or market price" do
+      body = %{
+        "data" => [
+          mana_pool_single("foil-only", %{
+            "price_market" => 8595,
+            "price_market_foil" => 20_955,
+            "price_cents_nm_foil" => 43_000
+          }),
+          mana_pool_single("nonfoil-only", %{
+            "price_market_foil" => 300,
+            "price_cents_nm" => 200
+          })
+        ]
+      }
+
+      assert ManaPool.rows(body) == [
+               %{scryfall_id: "foil-only", finish: "foil", price_cents: 43_000},
+               %{scryfall_id: "nonfoil-only", finish: "nonfoil", price_cents: 200}
              ]
     end
 
-    test "fetch identifies special treatments from imported Scryfall metadata" do
-      surge_foil_id = "42a1986c-9585-4544-b5a7-bee4be5c4506"
-
-      gleaming_splendor =
-        Map.merge(@black_lotus, %{
-          "id" => surge_foil_id,
-          "oracle_id" => "c01aeaa5-1d3b-4493-9575-30175dcd780d",
-          "name" => "Gleaming Splendor",
-          "set" => "hob",
-          "collector_number" => "275",
-          "finishes" => ["foil"],
-          "promo_types" => ["surgefoil", "universesbeyond"]
-        })
-
-      assert {:ok, _counts} = Catalog.import_cards([gleaming_splendor])
-
+    test "fetch maps the feed into listing rows" do
       body = %{
         "data" => [
-          mana_pool_single(surge_foil_id, 8595, 20_955, %{
+          mana_pool_single("aaa", %{
+            "price_market" => 8595,
+            "price_cents_lp_plus" => 7000,
             "price_cents_nm_foil" => 43_000
           })
         ]
@@ -175,16 +188,21 @@ defmodule Manavault.PricingTest do
       end)
 
       assert ManaPool.fetch(plug: {Req.Test, @mana_pool_stub}) ==
-               {:ok, [%{scryfall_id: surge_foil_id, finish: "foil", price_cents: 43_000}]}
+               {:ok,
+                [
+                  %{scryfall_id: "aaa", finish: "nonfoil", price_cents: 7000},
+                  %{scryfall_id: "aaa", finish: "foil", price_cents: 43_000}
+                ]}
     end
 
-    test "skips missing and invalid market prices" do
+    test "skips missing and invalid listing prices" do
       body = %{
         "data" => [
-          mana_pool_single("aaa", nil, nil),
-          mana_pool_single("bbb", 0, -100),
-          mana_pool_single("", 200, 300),
-          %{"scryfall_id" => "ccc", "low_price" => 400},
+          mana_pool_single("aaa", %{"price_market" => 500, "price_market_foil" => 750}),
+          mana_pool_single("bbb", %{"price_cents_nm" => 0, "price_cents_foil" => -100}),
+          mana_pool_single("ccc", %{"price_cents_nm" => "12.00"}),
+          mana_pool_single("", %{"price_cents_nm" => 200}),
+          %{"scryfall_id" => "ddd", "low_price" => 400},
           %{"scryfall_id" => "aaa"}
         ]
       }
@@ -198,15 +216,8 @@ defmodule Manavault.PricingTest do
     end
   end
 
-  defp mana_pool_single(scryfall_id, market_price, foil_market_price, extra \\ %{}) do
-    Map.merge(
-      %{
-        "scryfall_id" => scryfall_id,
-        "price_market" => market_price,
-        "price_market_foil" => foil_market_price
-      },
-      extra
-    )
+  defp mana_pool_single(scryfall_id, prices) do
+    Map.merge(%{"scryfall_id" => scryfall_id}, prices)
   end
 
   describe "TcgTracking.rows/2" do
