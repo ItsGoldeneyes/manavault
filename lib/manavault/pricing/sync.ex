@@ -22,7 +22,12 @@ defmodule Manavault.Pricing.Sync do
 
   @batch_size 200
 
-  def vendor_module(vendor), do: Map.fetch!(@vendor_modules, vendor)
+  # Tests override the vendor map to exercise sync behavior without the network.
+  def vendor_module(vendor) do
+    :manavault
+    |> Application.get_env(:pricing_vendor_modules, @vendor_modules)
+    |> Map.fetch!(vendor)
+  end
 
   @doc """
   Syncs the given vendors sequentially and refreshes the price store once at
@@ -78,11 +83,26 @@ defmodule Manavault.Pricing.Sync do
     %{upserted: length(deduped), deleted: deleted}
   end
 
+  # Each vendor is isolated: an exception while fetching or storing one vendor
+  # is logged and reported as that vendor's error rather than crashing the Oban
+  # job, which would retry already-synced vendors from the top.
   defp sync_vendor(vendor) do
     module = vendor_module(vendor)
     Logger.info("Vendor price sync started vendor=#{vendor}")
 
-    case module.fetch() do
+    store_fetched_rows(vendor, module.fetch())
+  rescue
+    exception ->
+      Logger.error(
+        "Vendor price sync crashed vendor=#{vendor}\n" <>
+          Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      {:error, exception}
+  end
+
+  defp store_fetched_rows(vendor, fetch_result) do
+    case fetch_result do
       {:ok, rows} when rows != [] ->
         %{upserted: upserted, deleted: deleted} = replace_vendor_prices(vendor, rows)
 

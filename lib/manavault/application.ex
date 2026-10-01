@@ -7,6 +7,8 @@ defmodule Manavault.Application do
 
   @impl true
   def start(_type, _args) do
+    :ok = Manavault.ObanLogger.attach()
+
     children =
       [
         ManavaultWeb.Telemetry,
