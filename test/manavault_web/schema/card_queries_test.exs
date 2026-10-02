@@ -74,6 +74,44 @@ defmodule ManavaultWeb.Schema.CardQueriesTest do
     refute second_page["pageInfo"]["hasNextPage"]
   end
 
+  test "cardByName resolves an exact card name case-insensitively", %{conn: conn} do
+    assert %{"id" => id, "oracleId" => "oracle-1", "name" => "Black Lotus"} =
+             card_by_name(conn, "/api/graphql", "black lotus")
+
+    assert is_binary(id) and id != ""
+
+    assert %{"oracleId" => "oracle-2", "name" => "Time Walk"} =
+             card_by_name(conn, "/api/graphql", "Time Walk")
+  end
+
+  test "cardByName returns null for unknown names", %{conn: conn} do
+    assert card_by_name(conn, "/api/graphql", "Not A Real Card") == nil
+    assert card_by_name(conn, "/api/graphql", "Black") == nil
+  end
+
+  test "cardByName is available on the public share schema", %{conn: conn} do
+    assert %{"oracleId" => "oracle-1", "name" => "Black Lotus"} =
+             card_by_name(conn, "/share/graphql", "Black Lotus")
+  end
+
+  defp card_by_name(conn, endpoint, name) do
+    conn
+    |> post(endpoint, %{
+      "query" => """
+      query CardByName($name: String!) {
+        cardByName(name: $name) {
+          id
+          oracleId
+          name
+        }
+      }
+      """,
+      "variables" => %{"name" => name}
+    })
+    |> json_response(200)
+    |> get_in(["data", "cardByName"])
+  end
+
   defp card_names(conn, variables) do
     conn
     |> post("/api/graphql", %{

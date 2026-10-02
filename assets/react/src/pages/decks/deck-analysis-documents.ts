@@ -119,3 +119,12 @@ export const DeleteDeckQuestionAnswerDocument = graphql(`
     }
   }
 `)
+
+export const CardByNameDocument = graphql(`
+  query CardByName($name: String!) {
+    cardByName(name: $name) {
+      id
+      name
+    }
+  }
+`)

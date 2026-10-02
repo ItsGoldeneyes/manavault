@@ -330,7 +330,7 @@ export function DeckDetailHeader({
           </div>
         ) : null}
 
-        <DeckAIAnalysis deck={deck} />
+        <DeckAIAnalysis deck={deck} shareMode={shareMode} />
 
         {!canEdit ? (
           <div className="rounded-box border border-base-300 bg-base-200/60 p-4 text-sm text-base-content/75">

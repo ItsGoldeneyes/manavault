@@ -4,7 +4,13 @@ import { DeckBracketBadge } from "./deck-bracket"
 import { DeckMarkdown } from "./deck-primer"
 import type { DeckDetail } from "./deck-types"
 
-export function DeckAIAnalysis({ deck }: { deck: DeckDetail }) {
+export function DeckAIAnalysis({
+  deck,
+  shareMode = false,
+}: {
+  deck: DeckDetail
+  shareMode?: boolean
+}) {
   const analysis = deck.aiAnalysis?.trim()
 
   if (!analysis) return null
@@ -51,7 +57,9 @@ export function DeckAIAnalysis({ deck }: { deck: DeckDetail }) {
           .
         </p>
 
-        <DeckMarkdown cardReferences>{analysis}</DeckMarkdown>
+        <DeckMarkdown cardReferences shareMode={shareMode}>
+          {analysis}
+        </DeckMarkdown>
 
         {metadata ? (
           <p className="mt-6 break-words text-xs text-base-content/60">{metadata}</p>

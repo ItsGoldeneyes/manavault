@@ -46,6 +46,13 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
     end
   end
 
+  def card_by_name(_parent, %{name: name}, _resolution) do
+    case Catalog.find_card_by_name(name) do
+      nil -> {:ok, nil}
+      card -> {:ok, Catalog.get_card_with_printings(card.oracle_id)}
+    end
+  end
+
   def card_edhrec(_parent, %{name: name}, _resolution), do: Catalog.card_edhrec(name)
 
   def scanner_printings(_parent, %{scryfall_id: id} = args, _resolution) do

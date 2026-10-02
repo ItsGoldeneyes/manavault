@@ -20,6 +20,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
                "backupSettings",
                "binderList",
                "card",
+               "cardByName",
                "cardEdhrec",
                "cardNameSuggestions",
                "cards",
@@ -339,6 +340,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
              MapSet.new([
                "binderList",
                "card",
+               "cardByName",
                "deck",
                "deckBuylist",
                "deckBuylistExport",

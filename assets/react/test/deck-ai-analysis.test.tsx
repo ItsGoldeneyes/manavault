@@ -1,10 +1,63 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, expect, test, vi } from "vitest"
+
+const apolloMocks = vi.hoisted(() => ({
+  cards: {
+    "Sun Titan": { id: "card-sun-titan", name: "Sun Titan" },
+  } as Record<string, { id: string; name: string } | null>,
+  query: vi.fn(),
+  showToast: vi.fn(),
+}))
+
+vi.mock("@apollo/client/react", () => ({
+  useApolloClient: () => ({ query: apolloMocks.query }),
+}))
+
+vi.mock("../src/components/ui/toast", () => ({
+  useToast: () => ({ showToast: apolloMocks.showToast }),
+}))
+
+vi.mock("../src/pages/decks/deck-card-detail-dialog", () => ({
+  CardDetailDialog: ({
+    card,
+    graphqlEndpoint,
+    hidePrivateControls,
+    onOpenChange,
+  }: {
+    card: { id: string; name: string } | null
+    graphqlEndpoint?: string
+    hidePrivateControls?: boolean
+    onOpenChange: (open: boolean) => void
+  }) =>
+    card ? (
+      <div
+        role="dialog"
+        aria-label={card.name}
+        data-card-id={card.id}
+        data-endpoint={graphqlEndpoint ?? ""}
+        data-private-hidden={String(Boolean(hidePrivateControls))}
+      >
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close card
+        </button>
+      </div>
+    ) : null,
+}))
 
 import { SummaryActionMenu } from "../src/pages/decks/deck-actions"
 import { DeckAIAnalysis } from "../src/pages/decks/deck-ai-analysis"
 import type { DeckDetail } from "../src/pages/decks/deck-types"
+
+beforeEach(() => {
+  apolloMocks.query.mockReset()
+  apolloMocks.showToast.mockReset()
+  apolloMocks.query.mockImplementation(
+    async ({ variables }: { variables: { name: string }; context?: { uri?: string } }) => ({
+      data: { cardByName: apolloMocks.cards[variables.name] ?? null },
+    }),
+  )
+})
 
 afterEach(cleanup)
 
@@ -36,7 +89,7 @@ test("saved AI analysis is collapsed by default", () => {
   expect(screen.queryByRole("button", { name: /ask ai about this deck/i })).toBeNull()
 })
 
-test("saved AI analysis links card references and shows previews on hover and focus", async () => {
+test("saved AI analysis card references show previews on hover and focus", async () => {
   const user = userEvent.setup()
   const { container } = render(
     <DeckAIAnalysis
@@ -47,19 +100,14 @@ test("saved AI analysis links card references and shows previews on hover and fo
   )
 
   await user.click(container.querySelector("summary") as HTMLElement)
-  const titan = screen.getByRole("link", { name: "Sun Titan" })
-  const emeria = screen.getByRole("link", { name: "Emeria, the Sky Ruin" })
-  expect(titan.getAttribute("href")).toBe("https://scryfall.com/search?q=!%22Sun%20Titan%22")
-  expect(emeria.getAttribute("href")).toBe(
-    "https://scryfall.com/search?q=!%22Emeria%2C%20the%20Sky%20Ruin%22",
-  )
-  expect(titan.getAttribute("target")).toBe("_blank")
-  expect(titan.getAttribute("rel")).toBe("noreferrer")
+  const titan = screen.getByRole("button", { name: "Sun Titan" })
+  const emeria = screen.getByRole("button", { name: "Emeria, the Sky Ruin" })
+  expect(screen.queryByRole("link", { name: "Sun Titan" })).toBeNull()
 
   await user.hover(titan)
   const preview = await screen.findByRole("img", { name: "Sun Titan card preview" })
   expect(preview.getAttribute("src")).toContain("exact=Sun%20Titan")
-  expect(screen.getByText("Open on Scryfall in a new tab")).toBeInstanceOf(HTMLElement)
+  expect(screen.getByText("Click to view card details")).toBeInstanceOf(HTMLElement)
   await user.unhover(titan)
 
   fireEvent.focus(emeria)
@@ -67,6 +115,62 @@ test("saved AI analysis links card references and shows previews on hover and fo
     name: "Emeria, the Sky Ruin card preview",
   })
   expect(focusedPreview.getAttribute("src")).toContain("exact=Emeria%2C%20the%20Sky%20Ruin")
+})
+
+test("clicking a card reference resolves the catalog card and opens the card dialog", async () => {
+  const user = userEvent.setup()
+  const { container } = render(
+    <DeckAIAnalysis deck={deck({ aiAnalysis: "Recur [[Sun Titan]] every turn." })} />,
+  )
+
+  await user.click(container.querySelector("summary") as HTMLElement)
+  await user.click(screen.getByRole("button", { name: "Sun Titan" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Sun Titan" })
+  expect(dialog.getAttribute("data-card-id")).toBe("card-sun-titan")
+  expect(dialog.getAttribute("data-endpoint")).toBe("")
+  expect(dialog.getAttribute("data-private-hidden")).toBe("false")
+  expect(apolloMocks.query).toHaveBeenCalledOnce()
+  expect(apolloMocks.query.mock.calls[0]?.[0]).toMatchObject({
+    variables: { name: "Sun Titan" },
+    context: undefined,
+  })
+  expect(apolloMocks.showToast).not.toHaveBeenCalled()
+
+  await user.click(screen.getByRole("button", { name: "Close card" }))
+  expect(screen.queryByRole("dialog")).toBeNull()
+})
+
+test("card references on shared decks use the public share endpoint", async () => {
+  const user = userEvent.setup()
+  const { container } = render(
+    <DeckAIAnalysis shareMode deck={deck({ aiAnalysis: "Recur [[Sun Titan]]." })} />,
+  )
+
+  await user.click(container.querySelector("summary") as HTMLElement)
+  await user.click(screen.getByRole("button", { name: "Sun Titan" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Sun Titan" })
+  expect(dialog.getAttribute("data-endpoint")).toBe("/share/graphql")
+  expect(dialog.getAttribute("data-private-hidden")).toBe("true")
+  expect(apolloMocks.query.mock.calls[0]?.[0]).toMatchObject({
+    context: { uri: "/share/graphql" },
+  })
+})
+
+test("card references the catalog cannot resolve show a toast instead of a dialog", async () => {
+  const user = userEvent.setup()
+  const { container } = render(
+    <DeckAIAnalysis deck={deck({ aiAnalysis: "Try [[Totally Made Up Card]]." })} />,
+  )
+
+  await user.click(container.querySelector("summary") as HTMLElement)
+  await user.click(screen.getByRole("button", { name: "Totally Made Up Card" }))
+
+  await waitFor(() => expect(apolloMocks.showToast).toHaveBeenCalledOnce())
+  expect(apolloMocks.showToast.mock.calls[0]?.[0]).toContain("Totally Made Up Card")
+  expect(apolloMocks.showToast.mock.calls[0]?.[1]).toMatchObject({ tone: "error" })
+  expect(screen.queryByRole("dialog")).toBeNull()
 })
 
 test("AI analysis panel stays hidden until an analysis exists", () => {

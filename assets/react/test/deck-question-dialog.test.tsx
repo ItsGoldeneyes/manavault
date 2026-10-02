@@ -60,6 +60,9 @@ const apolloMocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   startPolling: vi.fn(),
   stopPolling: vi.fn(),
+  cardQuery: vi.fn(async () => ({
+    data: { cardByName: { id: "card-sun-titan", name: "Sun Titan" } },
+  })),
 }))
 
 const deckCards = [
@@ -78,7 +81,10 @@ const deckCards = [
 ] as unknown as DeckCardEntry[]
 
 vi.mock("@apollo/client/react", () => ({
-  useApolloClient: () => ({ refetchQueries: apolloMocks.refetchQueries }),
+  useApolloClient: () => ({
+    query: apolloMocks.cardQuery,
+    refetchQueries: apolloMocks.refetchQueries,
+  }),
   useQuery: () => ({
     data: apolloMocks.historyData,
     error: undefined,
@@ -234,10 +240,10 @@ test("renders answer tables, mana symbols, and card links with previews", async 
   expect(within(table).getByRole("columnheader", { name: "Addition" })).toBeInstanceOf(HTMLElement)
   expect(within(entry as HTMLElement).getAllByAltText("White")).toHaveLength(2)
 
-  const cardLink = within(entry as HTMLElement).getByRole("link", { name: "Sun Titan" })
-  expect(cardLink.getAttribute("href")).toBe("https://scryfall.com/search?q=!%22Sun%20Titan%22")
+  const cardReference = within(entry as HTMLElement).getByRole("button", { name: "Sun Titan" })
+  expect(within(entry as HTMLElement).queryByRole("link", { name: "Sun Titan" })).toBeNull()
 
-  fireEvent.focus(cardLink)
+  fireEvent.focus(cardReference)
   const preview = await screen.findByRole("img", { name: "Sun Titan card preview" })
   expect(preview.getAttribute("src")).toContain("exact=Sun%20Titan")
 })

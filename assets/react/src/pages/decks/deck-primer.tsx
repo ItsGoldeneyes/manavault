@@ -1,13 +1,18 @@
+import { useApolloClient } from "@apollo/client/react"
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card"
 import { BookOpen, ChevronDown } from "lucide-react"
 import Markdown from "react-markdown"
 import rehypeKatex from "rehype-katex"
 import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ManaSymbol } from "../../components/ui/mana-symbols"
 import { overlayLayers } from "../../components/ui/overlay-layers"
+import { useToast } from "../../components/ui/toast"
+import { graphqlEndpointContext } from "../../lib/apollo"
 import { cn } from "../../lib/utils"
+import { CardByNameDocument } from "./deck-analysis-documents"
+import { CardDetailDialog, type CardDetailDialogTarget } from "./deck-card-detail-dialog"
 import "katex/dist/katex.min.css"
 
 type MarkdownNode = {
@@ -33,10 +38,12 @@ export function DeckMarkdown({
   cardReferences = false,
   children,
   className,
+  shareMode = false,
 }: {
   cardReferences?: boolean
   children: string
   className?: string
+  shareMode?: boolean
 }) {
   return (
     <article
@@ -55,8 +62,8 @@ export function DeckMarkdown({
               ? title.slice("manavault-card:".length)
               : null
 
-            return cardName && href ? (
-              <CardReference href={href} name={cardName} />
+            return cardName ? (
+              <CardReference name={cardName} shareMode={shareMode} />
             ) : (
               <a
                 className="font-bold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary"
@@ -136,54 +143,120 @@ export function DeckMarkdown({
   )
 }
 
-function CardReference({ href, name }: { href: string; name: string }) {
+// Resolves a `[[Card Name]]` reference to a catalog card and opens it in the
+// shared card detail dialog. Names the catalog does not know (hallucinated or
+// misspelled by the AI) surface as a toast instead of a dead link.
+function useCardReferenceLookup(name: string, shareMode: boolean) {
+  const client = useApolloClient()
+  const { showToast } = useToast()
+  const [card, setCard] = useState<CardDetailDialogTarget | null>(null)
+  const [pending, setPending] = useState(false)
+  const requestId = useRef(0)
+
+  async function open() {
+    const id = ++requestId.current
+    setPending(true)
+
+    try {
+      const { data } = await client.query({
+        query: CardByNameDocument,
+        variables: { name },
+        context: graphqlEndpointContext(shareMode ? "/share/graphql" : undefined),
+      })
+      if (id !== requestId.current) return
+
+      const match = data?.cardByName
+      if (match) {
+        setCard({ id: match.id, name: match.name })
+      } else {
+        showToast(`“${name}” isn’t in the card catalog yet.`, { tone: "error" })
+      }
+    } catch {
+      if (id !== requestId.current) return
+      showToast(`Couldn’t look up “${name}”. Try again.`, { tone: "error" })
+    } finally {
+      if (id === requestId.current) setPending(false)
+    }
+  }
+
+  function close() {
+    requestId.current += 1
+    setCard(null)
+    setPending(false)
+  }
+
+  return { card, close, open, pending }
+}
+
+function CardReference({ name, shareMode }: { name: string; shareMode: boolean }) {
+  const lookup = useCardReferenceLookup(name, shareMode)
   const [open, setOpen] = useState(false)
   const [previewUnavailable, setPreviewUnavailable] = useState(false)
   const previewUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=normal`
 
   return (
-    <HoverCardPrimitive.Root closeDelay={80} open={open} openDelay={180} onOpenChange={setOpen}>
-      <HoverCardPrimitive.Trigger asChild>
-        <a
-          className="rounded-sm font-bold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-          href={href}
-          rel="noreferrer"
-          target="_blank"
-          onBlur={() => setOpen(false)}
-          onFocus={() => setOpen(true)}
-        >
-          {name}
-        </a>
-      </HoverCardPrimitive.Trigger>
-      <HoverCardPrimitive.Portal>
-        <HoverCardPrimitive.Content
-          align="center"
-          className="w-60 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl outline-none"
-          style={{ zIndex: overlayLayers.floating }}
-          collisionPadding={12}
-          sideOffset={8}
-        >
-          {previewUnavailable ? (
-            <div className="flex aspect-[5/7] items-center justify-center rounded-field bg-base-200 p-4 text-center text-sm text-base-content/65">
-              Card preview unavailable
-            </div>
-          ) : (
-            <img
-              alt={`${name} card preview`}
-              className="aspect-[5/7] w-full rounded-field object-cover"
-              height="340"
-              loading="lazy"
-              src={previewUrl}
-              width="244"
-              onError={() => setPreviewUnavailable(true)}
-            />
-          )}
-          <p className="px-1 pb-1 pt-2 text-sm font-bold leading-snug text-base-content">{name}</p>
-          <p className="px-1 text-xs text-base-content/60">Open on Scryfall in a new tab</p>
-          <HoverCardPrimitive.Arrow className="fill-base-100" />
-        </HoverCardPrimitive.Content>
-      </HoverCardPrimitive.Portal>
-    </HoverCardPrimitive.Root>
+    <>
+      <HoverCardPrimitive.Root
+        closeDelay={80}
+        open={open && !lookup.card}
+        openDelay={180}
+        onOpenChange={setOpen}
+      >
+        <HoverCardPrimitive.Trigger asChild>
+          <button
+            type="button"
+            aria-busy={lookup.pending || undefined}
+            className="cursor-pointer rounded-sm bg-transparent p-0 text-left font-bold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 aria-busy:opacity-70"
+            onBlur={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false)
+              void lookup.open()
+            }}
+            onFocus={() => setOpen(true)}
+          >
+            {name}
+          </button>
+        </HoverCardPrimitive.Trigger>
+        <HoverCardPrimitive.Portal>
+          <HoverCardPrimitive.Content
+            align="center"
+            className="w-60 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl outline-none"
+            style={{ zIndex: overlayLayers.floating }}
+            collisionPadding={12}
+            sideOffset={8}
+          >
+            {previewUnavailable ? (
+              <div className="flex aspect-[5/7] items-center justify-center rounded-field bg-base-200 p-4 text-center text-sm text-base-content/65">
+                Card preview unavailable
+              </div>
+            ) : (
+              <img
+                alt={`${name} card preview`}
+                className="aspect-[5/7] w-full rounded-field object-cover"
+                height="340"
+                loading="lazy"
+                src={previewUrl}
+                width="244"
+                onError={() => setPreviewUnavailable(true)}
+              />
+            )}
+            <p className="px-1 pb-1 pt-2 text-sm font-bold leading-snug text-base-content">
+              {name}
+            </p>
+            <p className="px-1 text-xs text-base-content/60">Click to view card details</p>
+            <HoverCardPrimitive.Arrow className="fill-base-100" />
+          </HoverCardPrimitive.Content>
+        </HoverCardPrimitive.Portal>
+      </HoverCardPrimitive.Root>
+      <CardDetailDialog
+        card={lookup.card}
+        graphqlEndpoint={shareMode ? "/share/graphql" : undefined}
+        hidePrivateControls={shareMode}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) lookup.close()
+        }}
+      />
+    </>
   )
 }
 

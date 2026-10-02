@@ -2,6 +2,11 @@ import type { ReactNode } from "react"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
+
+vi.mock("@apollo/client/react", () => ({
+  useApolloClient: () => ({ query: vi.fn(async () => ({ data: { cardByName: null } })) }),
+}))
+
 import { Dialog, DialogContent, DialogTitle } from "../src/components/ui/dialog"
 import {
   DropdownMenu,
@@ -166,7 +171,9 @@ test("Markdown card hover preview stays above stacked dialogs", async () => {
       </Modal>
     </Modal>,
   )
-  fireEvent.pointerEnter(screen.getByRole("link", { name: "Sol Ring" }), { pointerType: "mouse" })
+  fireEvent.pointerEnter(screen.getByRole("button", { name: "Sol Ring" }), {
+    pointerType: "mouse",
+  })
   const image = await screen.findByAltText("Sol Ring card preview")
   await expectAboveDialogs(image.parentElement!)
 })

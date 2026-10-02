@@ -45,6 +45,12 @@ defmodule ManavaultWeb.PublicShareSchema do
       resolve(&QueryResolvers.card/3)
     end
 
+    field :card_by_name, :card do
+      arg(:name, non_null(:string))
+      complexity(fn _args, child_complexity -> 10_000 + child_complexity end)
+      resolve(&QueryResolvers.card_by_name/3)
+    end
+
     field :deck_buylist, non_null(list_of(non_null(:deck_buylist_entry))) do
       arg(:id, non_null(:id))
       arg(:printing_mode, :string, default_value: "none")

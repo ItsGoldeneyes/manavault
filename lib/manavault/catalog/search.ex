@@ -5,6 +5,7 @@ defmodule Manavault.Catalog.Search do
 
   defdelegate search_cards(term, opts \\ []), to: Queries
   defdelegate cards_by_names(names), to: Queries
+  defdelegate find_card_by_name(name), to: Queries
   defdelegate suggest_card_names(term, opts \\ []), to: Queries
   defdelegate get_printing_by_scryfall_id(scryfall_id), to: Queries
   defdelegate scanner_printings(scryfall_id, illustration_id \\ nil), to: Queries

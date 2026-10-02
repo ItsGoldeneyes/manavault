@@ -40,9 +40,13 @@ const apolloMocks = vi.hoisted(() => ({
     ] satisfies AnalysisRequest[],
   },
   refetch: vi.fn(),
+  cardQuery: vi.fn(async () => ({
+    data: { cardByName: { id: "card-sun-titan", name: "Sun Titan" } },
+  })),
 }))
 
 vi.mock("@apollo/client/react", () => ({
+  useApolloClient: () => ({ query: apolloMocks.cardQuery }),
   useQuery: () => ({
     data: apolloMocks.historyData,
     error: undefined,
@@ -101,9 +105,8 @@ test("renders saved one-time analyses newest first", () => {
   expect(entries[0]?.textContent).toContain("Bracket 3+")
   expect(entries[0]?.querySelector("summary")?.textContent).not.toContain("plays like")
   expect(screen.getByRole("heading", { name: "Overview" })).toBeInstanceOf(HTMLElement)
-  expect(screen.getByRole("link", { name: "Sun Titan" }).getAttribute("href")).toBe(
-    "https://scryfall.com/search?q=!%22Sun%20Titan%22",
-  )
+  expect(screen.getByRole("button", { name: "Sun Titan" })).toBeInstanceOf(HTMLButtonElement)
+  expect(screen.queryByRole("link", { name: "Sun Titan" })).toBeNull()
   expect(screen.getByRole("link", { name: /Open source decklist/ }).getAttribute("href")).toBe(
     "https://moxfield.com/decks/abcde",
   )

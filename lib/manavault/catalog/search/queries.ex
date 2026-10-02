@@ -5,6 +5,7 @@ defmodule Manavault.Catalog.Search.Queries do
 
   defdelegate search_cards(term, opts \\ []), to: Cards
   defdelegate cards_by_names(names), to: CardsByName, as: :by_names
+  defdelegate find_card_by_name(name), to: CardsByName, as: :find
   defdelegate suggest_card_names(term, opts \\ []), to: CardNameSuggestions
   defdelegate clear_card_name_suggestion_cache(), to: CardNameSuggestions
 
