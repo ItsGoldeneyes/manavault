@@ -321,8 +321,8 @@ defmodule ManavaultWeb.Schema.Catalog.DeckMutations do
         {:ok, deck_card} ->
           {:ok, deck_card}
 
-        {:error, :not_legendary_creature} ->
-          {:error, Errors.commander_error(:not_legendary_creature)}
+        {:error, :not_commander_eligible} ->
+          {:error, Errors.commander_error(:not_commander_eligible)}
 
         {:error, changeset} when is_struct(changeset, Ecto.Changeset) ->
           {:error, Errors.changeset_error_message(changeset)}

@@ -3,7 +3,7 @@ defmodule Manavault.Catalog.Decks.SetDeckCommander do
 
   import Ecto.Query
 
-  alias Manavault.Catalog.{Card, DeckCard}
+  alias Manavault.Catalog.{CommanderRules, DeckCard}
   alias Manavault.Catalog.Decks.EditGuard
   alias Manavault.Repo
 
@@ -12,7 +12,8 @@ defmodule Manavault.Catalog.Decks.SetDeckCommander do
       Repo.transact(fn ->
         deck_card = Repo.preload(deck_card, [:card, :preferred_printing])
 
-        unless legendary_creature?(deck_card), do: Repo.rollback(:not_legendary_creature)
+        unless CommanderRules.can_be_commander?(deck_card.card),
+          do: Repo.rollback(:not_commander_eligible)
 
         DeckCard
         |> where(
@@ -57,11 +58,4 @@ defmodule Manavault.Catalog.Decks.SetDeckCommander do
         deck_card |> DeckCard.changeset(%{"zone" => zone}) |> Repo.update!()
     end
   end
-
-  defp legendary_creature?(%DeckCard{card: %Card{type_line: type_line}})
-       when is_binary(type_line) do
-    String.contains?(type_line, "Legendary") and String.contains?(type_line, "Creature")
-  end
-
-  defp legendary_creature?(_deck_card), do: false
 end

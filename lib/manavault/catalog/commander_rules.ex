@@ -1,7 +1,7 @@
 defmodule Manavault.Catalog.CommanderRules do
   @moduledoc """
-  Shared rules for which cards can be paired together in a Commander deck's
-  command zone.
+  Shared rules for which cards can lead a Commander deck and which cards can
+  be paired together in its command zone.
 
   Supports every current two-commander mechanic generically: the Partner
   keyword (including restricted variants such as "Partner—Survivors"),
@@ -10,6 +10,36 @@ defmodule Manavault.Catalog.CommanderRules do
   """
 
   alias Manavault.Catalog.Card
+
+  @doc """
+  Returns true when the card can be designated as a deck's commander.
+
+  Per Comprehensive Rules 903.3, that is a legendary creature, Vehicle, or
+  Spacecraft card (judged by the front face), plus any card whose text grants
+  the ability "can be your commander" (903.3a), such as planeswalker
+  commanders. Scryfall exposes no field for this, so the oracle text is the
+  source of truth.
+  """
+  def can_be_commander?(%Card{} = card) do
+    legendary_commander_type?(card) or can_be_your_commander_text?(card)
+  end
+
+  def can_be_commander?(_card), do: false
+
+  defp legendary_commander_type?(%Card{type_line: type_line}) when is_binary(type_line) do
+    front = type_line |> String.split("//", parts: 2) |> hd()
+
+    String.contains?(front, "Legendary") and
+      Regex.match?(~r/\b(?:Creature|Vehicle|Spacecraft)\b/, front)
+  end
+
+  defp legendary_commander_type?(_card), do: false
+
+  defp can_be_your_commander_text?(%Card{oracle_text: text}) when is_binary(text) do
+    Regex.match?(~r/can be your commander/iu, text)
+  end
+
+  defp can_be_your_commander_text?(_card), do: false
 
   @doc """
   Returns true when the two cards form a legal two-commander pairing.

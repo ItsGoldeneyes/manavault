@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 
 import type { DeckGroup } from "../../lib/deck-grouping"
 import { useIsMobile } from "../../lib/mobile-hover"
 import { GroupIcon } from "./deck-card-display"
-import { isLegendaryCreature } from "./deck-card-model"
+import { canBeCommander } from "./commander-pairing"
 import { DeckStackCard, DeckUnstackedSelectCard } from "./deck-stack-card"
 import {
   deckStackCardMenuOwnerId,
@@ -294,7 +294,9 @@ export function DeckStackGroup({
                   deckCard.zone !== "commander" &&
                   partnerCandidateIds.has(deckCard.id),
                 canSetCommander:
-                  canSetCommander && deckCard.zone !== "commander" && isLegendaryCreature(deckCard),
+                  canSetCommander &&
+                  deckCard.zone !== "commander" &&
+                  canBeCommander(deckCard.card || {}),
               }}
               card={deckCard}
               context={{ deckId, deckTags, shareMode }}

@@ -1,11 +1,23 @@
-// Client-side mirror of Manavault.Catalog.CommanderRules: which cards can be
-// paired together in a Commander deck's command zone. The backend re-validates
-// every pairing; this only decides when to offer "Add as partner" in the UI.
+// Client-side mirror of Manavault.Catalog.CommanderRules: which cards can lead
+// a Commander deck and which can be paired together in its command zone. The
+// backend re-validates every change; this only decides when to offer "Set as
+// commander" and "Add as partner" in the UI.
 
 export type CommanderPairingCard = {
   name?: string | null
   typeLine?: string | null
   oracleText?: string | null
+}
+
+// CR 903.3: a legendary creature, Vehicle, or Spacecraft (front face), or any
+// card whose text says it "can be your commander" (903.3a), e.g. planeswalker
+// commanders such as Jace, Multiverse Architect.
+export function canBeCommander(card: CommanderPairingCard): boolean {
+  const front = (card.typeLine || "").split("//", 1)[0]
+  const legendaryCommanderType =
+    front.includes("Legendary") && /\b(?:Creature|Vehicle|Spacecraft)\b/.test(front)
+
+  return legendaryCommanderType || /can be your commander/iu.test(card.oracleText || "")
 }
 
 export function isValidCommanderPair(

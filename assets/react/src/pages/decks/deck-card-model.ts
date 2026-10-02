@@ -15,11 +15,6 @@ export function countDeckZones(deckCards: DeckCardEntry[]) {
   )
 }
 
-export function isLegendaryCreature(deckCard: DeckCardEntry) {
-  const typeLine = deckCard.card?.typeLine || ""
-  return typeLine.includes("Legendary") && typeLine.includes("Creature")
-}
-
 // DeckCardEntry is assignable to DeckGroupingDeckCard, so the grouping module's
 // comparator serves both; re-export it to keep existing importers working.
 export { compareDeckCards }

@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { isValidCommanderPair } from "../src/pages/decks/commander-pairing.ts"
+import { canBeCommander, isValidCommanderPair } from "../src/pages/decks/commander-pairing.ts"
 
 const doctor = {
   name: "The Tenth Doctor",
@@ -92,4 +92,51 @@ test("Choose a Background pairs with a Background", () => {
 test("cards with no pairing text never pair", () => {
   const legend = { name: "Solo Legend", typeLine: "Legendary Creature — Cat", oracleText: "" }
   assert.equal(isValidCommanderPair(legend, legend), false)
+})
+
+test("canBeCommander accepts legendary creatures, Vehicles, Spacecraft, and cards that say so", () => {
+  assert.equal(canBeCommander(doctor), true)
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Artifact — Vehicle", oracleText: "Crew 2" }),
+    true,
+  )
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Artifact — Spacecraft", oracleText: "" }),
+    true,
+  )
+  assert.equal(
+    canBeCommander({
+      typeLine: "Legendary Planeswalker — Jace",
+      oracleText: "Jace, Multiverse Architect can be your commander.\n+1: Draw a card.",
+    }),
+    true,
+  )
+  assert.equal(
+    canBeCommander({
+      typeLine: "Legendary Enchantment",
+      oracleText: "Ashaya's Enduring Bond can be your commander.",
+    }),
+    true,
+  )
+})
+
+test("canBeCommander rejects non-legendary cards, Backgrounds, and back-face-only creatures", () => {
+  assert.equal(canBeCommander({ typeLine: "Creature — Cat", oracleText: "" }), false)
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Planeswalker — Jace", oracleText: "+1: Draw." }),
+    false,
+  )
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Enchantment — Background", oracleText: "" }),
+    false,
+  )
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Enchantment — Saga // Legendary Creature — Snake" }),
+    false,
+  )
+  assert.equal(
+    canBeCommander({ typeLine: "Legendary Creature — God // Legendary Enchantment" }),
+    true,
+  )
+  assert.equal(canBeCommander({}), false)
 })

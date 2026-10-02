@@ -16,7 +16,7 @@ defmodule ManavaultWeb.Schema.Catalog.Errors do
   def not_found_error(:location), do: "Location was not found."
   def not_found_error(:auto_sort_target_location), do: "Auto-sort target location was not found."
 
-  def commander_error(:not_legendary_creature), do: "card must be a legendary creature"
+  def commander_error(:not_commander_eligible), do: "card can't be your commander"
   def commander_error(:already_commander), do: "card is already in the command zone"
   def commander_error(:no_commander), do: "deck has no commander to pair with"
   def commander_error(:command_zone_full), do: "deck already has two commanders"

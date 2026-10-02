@@ -558,6 +558,82 @@ defmodule ManavaultWeb.Schema.DeckCardsTest do
     assert Enum.any?(loaded.deck_cards, &(&1.id == new_commander.id and &1.zone == "commander"))
   end
 
+  test "set deck commander accepts cards that can be your commander and rejects others",
+       %{conn: conn} do
+    {:ok, %{cards_count: 2, printings_count: 2}} =
+      Catalog.import_cards([
+        %{
+          "id" => "scryfall-printing-jace",
+          "oracle_id" => "oracle-jace",
+          "name" => "Jace, Multiverse Architect",
+          "type_line" => "Legendary Planeswalker — Jace",
+          "oracle_text" => "Jace, Multiverse Architect can be your commander.\n+1: Draw a card.",
+          "collector_number" => "1",
+          "set" => "tst",
+          "set_name" => "Test Set",
+          "lang" => "en",
+          "image_uris" => %{},
+          "finishes" => ["nonfoil"],
+          "legalities" => %{}
+        },
+        %{
+          "id" => "scryfall-printing-rock",
+          "oracle_id" => "oracle-rock",
+          "name" => "Plain Rock",
+          "type_line" => "Legendary Artifact",
+          "oracle_text" => "{T}: Add {C}.",
+          "collector_number" => "2",
+          "set" => "tst",
+          "set_name" => "Test Set",
+          "lang" => "en",
+          "image_uris" => %{},
+          "finishes" => ["nonfoil"],
+          "legalities" => %{}
+        }
+      ])
+
+    {:ok, deck} = Catalog.create_deck(%{"name" => "Planeswalker Commander"})
+    {:ok, jace} = Catalog.add_card_to_deck(deck, %{"name" => "Jace, Multiverse Architect"})
+    {:ok, rock} = Catalog.add_card_to_deck(deck, %{"name" => "Plain Rock"})
+
+    mutation = """
+    mutation SetDeckCommander($id: ID!) {
+      setDeckCommander(id: $id) {
+        deckCard {
+          zone
+          card { name }
+        }
+      }
+    }
+    """
+
+    rejected =
+      post(conn, "/api/graphql", %{
+        "query" => mutation,
+        "variables" => %{"id" => global_id(:deck_card, rock.id)}
+      })
+
+    assert %{"errors" => [%{"message" => message}]} = json_response(rejected, 200)
+    assert message =~ "can't be your commander"
+
+    accepted =
+      post(conn, "/api/graphql", %{
+        "query" => mutation,
+        "variables" => %{"id" => global_id(:deck_card, jace.id)}
+      })
+
+    assert %{
+             "data" => %{
+               "setDeckCommander" => %{
+                 "deckCard" => %{
+                   "zone" => "commander",
+                   "card" => %{"name" => "Jace, Multiverse Architect"}
+                 }
+               }
+             }
+           } = json_response(accepted, 200)
+  end
+
   test "add deck partner keeps the current commander and pairs the candidate", %{conn: conn} do
     {:ok, %{cards_count: 3, printings_count: 3}} =
       Catalog.import_cards([
