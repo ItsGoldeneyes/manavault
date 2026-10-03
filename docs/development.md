@@ -18,13 +18,19 @@ database, and assets:
 mise run setup
 ```
 
-Start Phoenix:
+Start Phoenix (the Vite dev server runs as a Phoenix watcher):
 
 ```sh
 mise run dev
 ```
 
-Visit <http://localhost:4000>.
+Visit <http://localhost:4000>. If something is already listening on port 4000
+(`ss -ltnp 'sport = :4000'`), reuse that server instead of starting another.
+
+The development database is `manavault_dev.db` in the repository root. The
+Scryfall catalog sync starts on boot; until it finishes, card search returns
+few or no results. Force a reload from **Settings -> Scryfall data** or run
+`mise exec -- mix manavault.scryfall.sync`.
 
 Health check:
 
@@ -50,16 +56,16 @@ mise run precommit
 Useful frontend commands:
 
 ```sh
-aube run typecheck
-aube run test:react
-aube run build
+mise exec -- aube run typecheck
+mise exec -- aube run test:react
+mise exec -- aube run build
 ```
 
 Audit dependencies for known advisories:
 
 ```sh
-mix hex.audit
-aube audit
+mise exec -- mix hex.audit
+mise exec -- aube audit
 ```
 
 `mix hex.audit` also runs as part of `precommit`. Transitive JavaScript
@@ -74,7 +80,7 @@ findings are false positives (the real `vite` stays on the version declared in
 GraphQL TypeScript artifacts are generated from `codegen.ts`:
 
 ```sh
-aube run codegen
+mise exec -- aube run codegen
 ```
 
 `aube run codegen` first dumps the Absinthe schema to
