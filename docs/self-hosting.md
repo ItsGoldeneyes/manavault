@@ -110,6 +110,8 @@ services:
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       PHX_HOST: ${PHX_HOST:-localhost}
       MANAVAULT_ADMIN_PASSWORD_HASH: ${MANAVAULT_ADMIN_PASSWORD_HASH}
+      # Only needed when ManaVault is also reached under hostnames other than PHX_HOST:
+      # MANAVAULT_ALLOWED_ORIGINS: https://manavault.mytailnet.ts.net
     healthcheck:
       test: ["CMD", "/usr/local/bin/manavault-healthcheck"]
       interval: 30s
@@ -181,6 +183,23 @@ Trusting proxy headers gives each client its own login rate-limit key instead of
 collapsing all clients into the proxy's IP address. Enable proxy-header trust
 only when a proxy you control overwrites or appends the configured forwarded-IP
 header.
+
+### Serving more than one hostname
+
+Live updates use a WebSocket, and ManaVault only accepts WebSocket connections
+from pages served on `PHX_HOST`. If the same instance is also reached under
+another name, for example through a reverse proxy at `manavault.example.com` and
+through `tailscale serve` at `manavault.mytailnet.ts.net`, list the extra origins:
+
+```sh
+PHX_HOST=manavault.example.com
+MANAVAULT_ALLOWED_ORIGINS=https://manavault.mytailnet.ts.net,https://manavault.lan
+```
+
+Each entry is a scheme, hostname, and optional port (`https://manavault.lan:8443`)
+with no path. `PHX_HOST` stays allowed automatically, and ManaVault refuses to
+start if an entry is malformed. Absolute URLs that ManaVault generates, such as
+deck share links and link-preview metadata, still use `PHX_HOST`.
 
 ### Recover from a permanent login ban
 
@@ -338,6 +357,11 @@ Common optional values:
 - `PORT` - HTTP port inside the container. Defaults to `4000`.
 - `PHX_HOST` - host used for generated URLs. Defaults to `example.com` in
   Phoenix production config; set to your deployment host.
+- `MANAVAULT_ALLOWED_ORIGINS` - comma-separated extra origins allowed to open the
+  live-update WebSocket, e.g. `https://manavault.mytailnet.ts.net`. Needed only
+  when the instance is reached under more than one hostname, such as a reverse
+  proxy plus Tailscale. Unset by default, which allows `PHX_HOST` only. See
+  [Serving more than one hostname](#serving-more-than-one-hostname).
 - `MANAVAULT_ADMIN_PASSWORD_HASH` - owner password hash for built-in login.
   Generate with `mise exec -- mix manavault.auth.hash 'your-password'`.
 - `MANAVAULT_AUTH_DISABLED` - set to `true` only when another layer already

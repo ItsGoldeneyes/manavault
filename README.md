@@ -133,7 +133,9 @@ IP header. `MANAVAULT_FORWARDED_IP_HEADER` selects that header (default
 lifetime (default `180`). If an owner is permanently locked out, clear one
 client with `mix manavault.auth.unban CLIENT_ID` or every client with
 `mix manavault.auth.unban --all`; the self-hosting guide includes container
-release commands.
+release commands. If the same instance is reached under more than one hostname,
+list the extra origins in `MANAVAULT_ALLOWED_ORIGINS` so live updates keep
+working on each of them.
 
 ## Documentation
 
