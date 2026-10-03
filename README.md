@@ -9,105 +9,63 @@ storage.
 
 It is built for players who care about exact printings, physical inventory, and
 repeatable deck-building workflows without handing collection data to a hosted
-service.
+service. One container, one SQLite database: no Postgres, Redis, object
+storage, or hosted backend required.
 
-## Why ManaVault
+## Features
 
-- **Own your data.** Production state lives in SQLite and local files under your
-  mounted data directory.
-- **Track real cardboard.** Quantity, condition, language, finish, purchase
-  price, storage location, and exact Scryfall printing stay attached to each
-  collection item.
-- **Reserve cards intentionally.** Deck allocation connects deck cards to the
-  physical copies that satisfy them, so one card is not promised to two decks by
-  accident.
-- **Turn deck gaps into actions.** Missing-card views and buylist exports show
-  what a deck still needs after owned and allocated copies are counted.
-- **Run it anywhere boring.** One container, one SQLite database, no Postgres,
-  Redis, object storage, or hosted backend required.
+Each area links to the [feature reference](docs/features.md) for details.
 
-## What You Can Do
+- **[Card catalog](docs/features.md#card-catalog)** - local Scryfall sync with
+  fast search, exact printings, prices, legalities, rulings, oracle tags, EDHREC
+  synergies, and full-screen previews.
+- **[Collection](docs/features.md#collection)** - track quantity, condition,
+  language, finish, purchase price, and storage location per printing. TXT/CSV
+  import and export, structured filters, bulk edits, a value dashboard with
+  gains and losses, rule-based auto-sort into locations, list availability
+  checks, and sold-list removal.
+- **[Card scanner](docs/features.md#card-scanner)** - identify cards from the
+  camera entirely in the browser, log them hands-free, and import the scanned
+  list into the collection.
+- **[Decks](docs/features.md#decks)** - commander/mainboard/considering zones,
+  decklist import/export, preferred printings, custom tags, flexible grouping,
+  primers, keyboard shortcuts, and a Swap cards workbench with a legality
+  preview.
+- **[Allocation](docs/features.md#allocation-pull-lists-and-missing-cards)** -
+  reserve physical copies for deck cards so a card is never promised to two
+  decks, then turn gaps into pull lists, proxies, and buylists for Mana Pool,
+  Card Kingdom, StarCityGames, or TCGplayer.
+- **[Deck analysis](docs/features.md#legality-stats-combos-and-playtest)** -
+  format legality, mana curve and production, tokens, Commander Spellbook
+  combos, salt scores, and an in-browser playtest table.
+- **[Recommendations](docs/features.md#recommendations-edhrec-and-recommander)** -
+  EDHREC recommendations, cuts, themes, and commander pages, plus Recommander
+  suggestions.
+- **[AI deck insights](docs/features.md#ai-deck-insights)** (optional,
+  OpenRouter) - saved deck analysis with granular Commander bracket ratings,
+  analysis of pasted lists, and saved Ask AI conversations that can check your
+  collection for free copies.
+- **[Random deck picker](docs/features.md#random-deck-picker-and-play-history)** -
+  a weighted "pick a deck" suggestion with play history.
+- **[Trade](docs/features.md#trade)** - a trade binder, want list, and matches
+  against a partner's list or a Moxfield, Archidekt, or ManaVault link, plus
+  decklist diffs.
+- **[Sharing](docs/features.md#sharing)** - revocable read-only links for
+  decks, buylists, want lists, and trade binders.
+- **[Pricing](docs/features.md#pricing)** - choose Scryfall, TCGplayer, Card
+  Kingdom, or Mana Pool as the price source.
+- **[Settings and appearance](docs/features.md#settings-and-appearance)** -
+  Liquid Glass or classic styling, a dozen color palettes, live server logs, and
+  read-only [personal API keys](docs/api.md).
+- **[Mobile](docs/features.md#mobile-and-native-shells)** - an installable PWA
+  plus optional Android and iOS shells with Share/Open with collection imports.
+- **[Backups](docs/self-hosting.md#manual-backups)** - SQLite-safe local
+  backups, Google Drive or S3-compatible (including Cloudflare R2) cloud
+  backups on a CRON schedule, and automatic pre-migration snapshots.
 
-### Search the card catalog
+## Quick Start
 
-ManaVault syncs Scryfall bulk data locally, then lets you search cards and exact
-printings with prices, images, legalities, rulings, Scryfall oracle tags, deck
-categories, and themes. Full-screen printing previews keep high-resolution card
-art close while you choose the copy you want.
-
-### Manage a physical collection
-
-Import TXT/CSV exports, add individual cards, organize cards into locations,
-filter and sort across the full collection, track purchase price versus current
-value, and export filtered CSV/TXT lists. Collection state is preserved while you
-move between locations and cards, so back navigation returns to the same view.
-
-Auto-sort type filters and deck type grouping use a permanent's front-face type,
-not its adventure, prepared spell, or back face. Split spells retain both types.
-
-### Build and maintain decks
-
-Create decks, import/export decklists, manage commander/main/side/maybe zones,
-choose preferred printings and finishes, group cards by theme or category, tag
-decks, check format legality, and inspect mana curve, mana production, and token
-creation summaries.
-
-Use **Pick a deck** for a random suggestion. To keep a deck out of random picks
-without archiving it, open **Edit**, turn off **Included for play**, and save.
-New and existing decks are included by default; archived decks remain excluded.
-Turning the switch back on restores eligibility without changing play history.
-
-### Allocate owned cards to decks
-
-Allocation status shows which deck cards are satisfied, missing, unavailable, or
-already allocated elsewhere. Bulk allocation can reserve matching collection
-items, and missing-card/buylist exports can include or exclude basics and target
-exact or matching printings.
-Purchase missing cards through Mana Pool, Card Kingdom, StarCityGames, or TCGplayer.
-
-### Find upgrades and test lists
-
-Commander decks can pull EDHREC recommendations, cuts, commander pages, themes,
-and stats. Add recommendations directly to mainboard, maybeboard, or sideboard.
-Decks also include a browser playtest table and share links with read-only deck
-view, playtest, copy, and export actions.
-
-AI deck analysis assigns granular Commander ratings such as **Bracket 3-**,
-**Bracket 3**, and **Bracket 3+**: lower end, typical, and upper end without quite
-reaching the next bracket. The model assesses this placement directly; official
-WotC classification and expected pace stay in the analysis body. Older analyses
-use the higher of their saved official and practical brackets, with a minus when
-those values differ. Refresh an analysis to get a directly assessed rating.
-
-Saved-deck analysis runs in the background, including individual refreshes. You can
-leave the page and return while it runs; the deck page checks progress and displays
-the result when ready. Refreshing keeps the previous analysis visible, and repeat
-requests reuse an active job. Failed jobs can be retried from the deck page.
-
-**Ask AI** opens a saved conversation about the deck, using the same chat controls
-as **Swap cards**. Press Enter to send or Shift+Enter for a new line. **New chat**
-starts fresh AI context without deleting earlier conversations; reopen them from
-**Saved chats**. A new chat is saved when you send its first message. Follow-ups
-include the last six completed answers from that conversation and the decklist
-as it exists when the message is processed. Earlier replies are not rewritten
-after deck edits. Swap cards chats stay separate, and existing saved questions
-remain together in the original chat with their recommendation and delete controls.
-
-### Use it on mobile
-
-The responsive web app can be installed as a PWA. Optional Capacitor Android and
-iOS shells load your ManaVault server, handle native back/app controls, and
-accept text/CSV share or open-with flows for collection imports.
-
-### Back up the vault
-
-Manual backup/restore tasks create SQLite-safe zip artifacts. In-app cloud
-backup settings support Google Drive and S3-compatible storage, including
-Cloudflare R2, with scheduled UTC CRON runs and staged restores.
-
-## Quick Local Trial
-
-For a localhost-only smoke test with auth disabled:
+For a localhost-only trial with auth disabled:
 
 ```sh
 mkdir -p data
@@ -121,39 +79,122 @@ docker run --rm \
   ghcr.io/cfbender/manavault:1.4.3
 ```
 
-Then visit <http://localhost:4000>. For anything exposed beyond localhost, enable
-built-in auth and follow the self-hosting guide.
+Visit <http://localhost:4000>. The first boot downloads the Scryfall catalog in
+the background; card search and import matching work once that sync finishes
+(**Settings -> Server logs** reports when it completes).
 
-For an HTTPS deployment behind a reverse proxy, set
-`MANAVAULT_SECURE_COOKIES=true` and `MANAVAULT_TRUST_PROXY_HEADERS=true`. The
-latter keeps login rate limiting separate per client instead of treating the
-proxy as one client; enable it only when a proxy you control sets the forwarded
-IP header. `MANAVAULT_FORWARDED_IP_HEADER` selects that header (default
-`x-forwarded-for`), and `MANAVAULT_SESSION_MAX_AGE_DAYS` controls the session
-lifetime (default `180`). If an owner is permanently locked out, clear one
-client with `mix manavault.auth.unban CLIENT_ID` or every client with
-`mix manavault.auth.unban --all`; the self-hosting guide includes container
-release commands. If the same instance is reached under more than one hostname,
-list the extra origins in `MANAVAULT_ALLOWED_ORIGINS` so live updates keep
-working on each of them.
+## Self-Hosting
+
+For anything reachable beyond localhost, enable built-in auth. Generate a
+Phoenix secret and an owner password hash from a source checkout:
+
+```sh
+mise exec -- mix phx.gen.secret
+mise exec -- mix manavault.auth.hash 'your-password'
+```
+
+Then run the published image with Docker Compose:
+
+```yaml
+services:
+  manavault:
+    image: ghcr.io/cfbender/manavault:1.4.3
+    container_name: manavault
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./data:/data
+    environment:
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      MANAVAULT_ADMIN_PASSWORD_HASH: ${MANAVAULT_ADMIN_PASSWORD_HASH}
+      PHX_HOST: vault.example.com
+      # Behind an HTTPS reverse proxy you control:
+      MANAVAULT_SECURE_COOKIES: "true"
+      MANAVAULT_TRUST_PROXY_HEADERS: "true"
+```
+
+Keep `SECRET_KEY_BASE` stable and saved somewhere safe: it signs sessions and
+encrypts stored secrets (AI and cloud backup credentials), so changing it means
+re-entering those secrets.
+
+The [self-hosting guide](docs/self-hosting.md) covers the full environment
+variable list, reverse proxies, data layout, and building your own image. If the
+same instance is reached under more than one hostname, list the extra origins in
+`MANAVAULT_ALLOWED_ORIGINS` so live updates keep working on each of them; see
+[Serving more than one hostname](docs/self-hosting.md#serving-more-than-one-hostname).
+
+## Operating
+
+- **Health check** - `GET /health` returns `{"status":"ok"}`; the image ships a
+  Docker healthcheck.
+- **Upgrade** - pull a newer tag and recreate the container. Pending migrations
+  run on boot after an automatic pre-migration backup. See
+  [Upgrading](docs/self-hosting.md#upgrading).
+- **Back up** - schedule cloud backups in **Settings -> Cloud backups**, copy the
+  stopped `data/` directory, or create a zip in the running container:
+
+  ```sh
+  docker exec manavault /app/bin/manavault rpc 'Manavault.Backup.create!()'
+  ```
+
+  See [Manual backups](docs/self-hosting.md#manual-backups).
+
+- **Restore** - stop the container and run `mix manavault.restore` from a
+  checkout, or stage a cloud restore in Settings and restart. See
+  [Restore](docs/self-hosting.md#restore).
+- **Card data** - the Scryfall catalog and symbols refresh daily and vendor
+  prices every 30 minutes; force a reload from **Settings -> Scryfall data**.
+  See [stalled syncs](docs/self-hosting.md#diagnosing-a-stalled-catalog-sync).
+- **Logs** - **Settings -> Server logs** streams live output, and
+  `docker logs manavault` shows the same.
+- **Locked out** - clear permanent login bans in the running container; see
+  [login bans](docs/self-hosting.md#recover-from-a-permanent-login-ban):
+
+  ```sh
+  docker exec manavault /app/bin/manavault rpc 'Manavault.Auth.AttemptLimiter.reset_all()'
+  ```
+
+- **Scanner models** - downloaded from GitHub releases at startup and every six
+  hours; see [scanner.md](docs/scanner.md#bundles-server).
 
 ## Documentation
 
 - [Feature reference](docs/features.md) - concepts and product-area behavior.
-- [Self-hosting](docs/self-hosting.md) - Docker, data layout, auth, environment
-  variables, backups, and restores.
-- [Card scanner](docs/scanner.md) - scanner models, updates, and the browser pipeline.
-- [Improving card recognition](https://github.com/cfbender/oracle/blob/main/CONTRIBUTING.md) - train, test and contribute data for the scanner's models (in Oracle).
+- [Self-hosting](docs/self-hosting.md) - Docker, data layout, auth, reverse
+  proxies, environment variables, backups, restores, and upgrades.
+- [Card scanner](docs/scanner.md) - scanner models, updates, training data, and
+  the browser pipeline.
+- [Improving card recognition](https://github.com/cfbender/oracle/blob/main/CONTRIBUTING.md) -
+  train, test, and contribute data for the scanner's models (in Oracle).
 - [Personal API](docs/api.md) - create read-only API keys and list decks for
   integrations such as The Gathering.
-- [Development](docs/development.md) - local setup, tests, and native shell dev
-  commands.
 - [Android builds](docs/android.md) - official APK behavior, Share/Open with
   imports, custom domains, App Links, and release signing.
+- [Development](docs/development.md) - local setup, tests, codegen, and native
+  shell commands.
 - [Releasing](docs/releasing.md) - changelog, version bump, tag, container, and
   APK release flow.
+- [Changelog](CHANGELOG.md)
+
+## Development
+
+Tool versions are pinned in `mise.toml`:
+
+```sh
+mise run setup   # toolchain, dependencies, database, assets
+mise run dev     # Phoenix with Vite watcher on http://localhost:4000
+mise run test
+```
+
+See [development.md](docs/development.md) for the full workflow.
 
 ## Tech Stack
 
-Phoenix, Absinthe GraphQL, Ecto/SQLite, Vite, React, TanStack Router/Query,
-Tailwind/DaisyUI styling, and optional Capacitor native shells.
+Phoenix, Absinthe GraphQL, Ecto/SQLite, Oban, Vite, React, TanStack
+Router/Query, Tailwind/DaisyUI styling, onnxruntime-web for the scanner, and
+optional Capacitor native shells.
+
+## License
+
+[Mozilla Public License 2.0](LICENSE).
