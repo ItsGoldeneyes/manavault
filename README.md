@@ -119,7 +119,10 @@ encrypts stored secrets (AI and cloud backup credentials), so changing it means
 re-entering those secrets.
 
 The [self-hosting guide](docs/self-hosting.md) covers the full environment
-variable list, reverse proxies, data layout, and building your own image.
+variable list, reverse proxies, data layout, and building your own image. If the
+same instance is reached under more than one hostname, list the extra origins in
+`MANAVAULT_ALLOWED_ORIGINS` so live updates keep working on each of them; see
+[Serving more than one hostname](docs/self-hosting.md#serving-more-than-one-hostname).
 
 ## Operating
 

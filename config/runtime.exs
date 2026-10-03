@@ -187,6 +187,15 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  # Extra origins (beyond PHX_HOST) allowed to open the WebSocket, for instances
+  # reached under more than one hostname. Unset keeps Phoenix's default check.
+  check_origin =
+    ManavaultWeb.AllowedOrigins.check_origin(host, System.get_env("MANAVAULT_ALLOWED_ORIGINS"))
+
+  if check_origin do
+    config :manavault, ManavaultWeb.Endpoint, check_origin: check_origin
+  end
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key
