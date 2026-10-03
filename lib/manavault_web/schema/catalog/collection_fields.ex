@@ -274,8 +274,14 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionFields do
   def collection_value_dashboard_data(dashboard) do
     dashboard
     |> Map.update!(:summary, &collection_value_summary_data/1)
-    |> Map.update!(:biggest_gains, &Enum.map(&1, fn position -> value_position(position) end))
-    |> Map.update!(:biggest_losses, &Enum.map(&1, fn position -> value_position(position) end))
+    |> value_positions(:biggest_gains)
+    |> value_positions(:biggest_losses)
+    |> value_positions(:biggest_percent_gains)
+    |> value_positions(:biggest_percent_losses)
+  end
+
+  defp value_positions(dashboard, key) do
+    Map.update!(dashboard, key, fn positions -> Enum.map(positions, &value_position/1) end)
   end
 
   def location_value_summary_data(

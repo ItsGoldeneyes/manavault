@@ -8,7 +8,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 import { CollectionPageHeader } from "../src/pages/collection/collection-page-header"
@@ -64,6 +64,8 @@ test("shows source-dependent totals, position charts, gains, and losses", async 
       },
       biggestGains: [position("gain", "Stronghold", 6_000, 2_000, 4_000)],
       biggestLosses: [position("loss", "Downshift", 1_500, 3_000, -1_500)],
+      biggestPercentGains: [position("gain", "Stronghold", 6_000, 2_000, 4_000)],
+      biggestPercentLosses: [position("loss", "Downshift", 1_500, 3_000, -1_500)],
     },
   })
 
@@ -86,6 +88,41 @@ test("shows source-dependent totals, position charts, gains, and losses", async 
     "/cards/card-loss?returnCollection=true",
   )
 })
+
+test("toggles gain and loss rankings between total and percent comparison", async () => {
+  window.localStorage.clear()
+  const data = dashboardData({
+    biggestGains: [
+      position("big", "Stronghold", 60_000, 50_000, 10_000),
+      position("pct", "Llanowar Elves", 1_000, 100, 900),
+    ],
+    biggestPercentGains: [
+      position("pct", "Llanowar Elves", 1_000, 100, 900),
+      position("big", "Stronghold", 60_000, 50_000, 10_000),
+    ],
+  })
+  renderDashboard(data)
+
+  const total = await screen.findByRole("radio", { name: "Total $" })
+  expect(total.getAttribute("aria-checked")).toBe("true")
+  expect(gainNames()).toEqual(["Stronghold", "Llanowar Elves"])
+
+  await userEvent.click(screen.getByRole("radio", { name: "Percent %" }))
+
+  expect(gainNames()).toEqual(["Llanowar Elves", "Stronghold"])
+  expect(
+    screen.getByText("Positions with the highest return on their purchase basis."),
+  ).toBeTruthy()
+  expect(window.localStorage.getItem("manavault.collection.valueRanking")).toBe('"percent"')
+  window.localStorage.clear()
+})
+
+function gainNames() {
+  const gains = screen.getByRole("region", { name: "Biggest gains" })
+  return within(gains)
+    .getAllByRole("link")
+    .map((link) => link.textContent)
+}
 
 test("quick edits the per-card purchase basis for every item in a printing position", async () => {
   const gain = position("gain", "Stronghold", 6_000, 2_000, 4_000)
@@ -142,6 +179,8 @@ test("teaches an empty collection how to start value tracking", async () => {
       },
       biggestGains: [],
       biggestLosses: [],
+      biggestPercentGains: [],
+      biggestPercentLosses: [],
     },
   })
 
@@ -191,7 +230,13 @@ function renderDashboard(
   )
 }
 
-function dashboardData({ biggestGains = [] }: { biggestGains?: ReturnType<typeof position>[] }) {
+function dashboardData({
+  biggestGains = [],
+  biggestPercentGains = biggestGains,
+}: {
+  biggestGains?: ReturnType<typeof position>[]
+  biggestPercentGains?: ReturnType<typeof position>[]
+}) {
   return {
     pricingSettings: { source: "manapool" },
     collectionValueDashboard: {
@@ -212,6 +257,8 @@ function dashboardData({ biggestGains = [] }: { biggestGains?: ReturnType<typeof
       },
       biggestGains,
       biggestLosses: [],
+      biggestPercentGains,
+      biggestPercentLosses: [],
     },
   }
 }
@@ -227,6 +274,7 @@ function position(
     valueGainCents > 0 ? `+$${valueGainCents / 100}` : `-$${Math.abs(valueGainCents) / 100}`
 
   return {
+    __typename: "CollectionValuePosition",
     items: [{ id: `item-${slug}-1` }, { id: `item-${slug}-2` }],
     quantity: 2,
     totalPriceCents,
@@ -235,8 +283,8 @@ function position(
     purchasePriceText: `$${purchasePriceCents / 100}`,
     valueGainCents,
     valueGainText: signedGain,
-    valueGainPercent: null,
-    valueGainPercentText: null,
+    valueGainPercent: (valueGainCents * 100) / purchasePriceCents,
+    valueGainPercentText: `${valueGainCents > 0 ? "+" : ""}${Math.round((valueGainCents * 100) / purchasePriceCents)}%`,
     printing: {
       id: `printing-${slug}`,
       scryfallId: `scryfall-${slug}`,

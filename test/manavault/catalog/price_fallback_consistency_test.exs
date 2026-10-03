@@ -149,7 +149,7 @@ defmodule Manavault.Catalog.PriceFallbackConsistencyTest do
     assert ["Higher Market", "Lower Market"] == sorted_group_names("desc")
   end
 
-  test "collection value dashboard ranks total printing gains and refreshes after source changes" do
+  test "collection value dashboard ranks total and percent printing gains and refreshes after source changes" do
     cards = [
       market_sort_card("gain-most", "Gain Most", "20.00"),
       market_sort_card("gain-second", "Gain Second", "15.00"),
@@ -207,6 +207,8 @@ defmodule Manavault.Catalog.PriceFallbackConsistencyTest do
     assert tcgplayer.unchanged_position_count == 1
     assert position_names(tcgplayer.biggest_gains) == ["Gain Most", "Gain Second"]
     assert position_names(tcgplayer.biggest_losses) == ["Loss Most", "Loss Second"]
+    assert position_names(tcgplayer.biggest_percent_gains) == ["Gain Most", "Gain Second"]
+    assert position_names(tcgplayer.biggest_percent_losses) == ["Loss Most", "Loss Second"]
 
     assert {:ok, %{source: "manapool"}} = Pricing.set_source("manapool")
 
@@ -215,6 +217,14 @@ defmodule Manavault.Catalog.PriceFallbackConsistencyTest do
     refute manapool.summary.total_price_cents == tcgplayer.summary.total_price_cents
     assert position_names(manapool.biggest_gains) == ["Loss Most", "Loss Second", "Gain Most"]
     assert position_names(manapool.biggest_losses) == ["Gain Second"]
+
+    assert position_names(manapool.biggest_percent_gains) == [
+             "Loss Second",
+             "Loss Most",
+             "Gain Most"
+           ]
+
+    assert position_names(manapool.biggest_percent_losses) == ["Gain Second"]
   end
 
   defp collection_item_finishes(query) do

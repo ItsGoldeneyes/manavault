@@ -15,6 +15,7 @@ import type {
   CollectionSortDirection,
   CollectionSortField,
   CollectionTab,
+  CollectionValueRanking,
 } from "./types"
 
 export function deserializeCollectionTab(value: string): CollectionTab {
@@ -35,6 +36,14 @@ export function deserializeCollectionTab(value: string): CollectionTab {
     return decoded
   }
   return "locations"
+}
+
+export function deserializeCollectionValueRanking(value: string): CollectionValueRanking {
+  try {
+    return JSON.parse(value) === "percent" ? "percent" : "total"
+  } catch {
+    return "total"
+  }
 }
 
 export function isBlankStorageString(value: string) {

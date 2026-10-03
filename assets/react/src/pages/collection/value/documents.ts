@@ -1,5 +1,34 @@
 import { graphql } from "../../../gql"
 
+export const CollectionValuePositionFragment = graphql(`
+  fragment CollectionValuePositionFields on CollectionValuePosition {
+    items {
+      id
+    }
+    quantity
+    totalPriceCents
+    totalPriceText
+    purchasePriceCents
+    purchasePriceText
+    valueGainCents
+    valueGainText
+    valueGainPercent
+    valueGainPercentText
+    printing {
+      id
+      scryfallId
+      setCode
+      setName
+      collectorNumber
+      imageUrl
+      card {
+        id
+        name
+      }
+    }
+  }
+`)
+
 export const CollectionValueDashboardDocument = graphql(`
   query CollectionValueDashboard {
     pricingSettings {
@@ -22,56 +51,16 @@ export const CollectionValueDashboardDocument = graphql(`
       lossPositionCount
       unchangedPositionCount
       biggestGains {
-        items {
-          id
-        }
-        quantity
-        totalPriceCents
-        totalPriceText
-        purchasePriceCents
-        purchasePriceText
-        valueGainCents
-        valueGainText
-        valueGainPercent
-        valueGainPercentText
-        printing {
-          id
-          scryfallId
-          setCode
-          setName
-          collectorNumber
-          imageUrl
-          card {
-            id
-            name
-          }
-        }
+        ...CollectionValuePositionFields
       }
       biggestLosses {
-        items {
-          id
-        }
-        quantity
-        totalPriceCents
-        totalPriceText
-        purchasePriceCents
-        purchasePriceText
-        valueGainCents
-        valueGainText
-        valueGainPercent
-        valueGainPercentText
-        printing {
-          id
-          scryfallId
-          setCode
-          setName
-          collectorNumber
-          imageUrl
-          card {
-            id
-            name
-          }
-        }
+        ...CollectionValuePositionFields
+      }
+      biggestPercentGains {
+        ...CollectionValuePositionFields
+      }
+      biggestPercentLosses {
+        ...CollectionValuePositionFields
       }
     }
   }

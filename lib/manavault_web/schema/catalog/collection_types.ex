@@ -159,6 +159,8 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionTypes do
     field :unchanged_position_count, non_null(:integer)
     field :biggest_gains, non_null(list_of(non_null(:collection_value_position)))
     field :biggest_losses, non_null(list_of(non_null(:collection_value_position)))
+    field :biggest_percent_gains, non_null(list_of(non_null(:collection_value_position)))
+    field :biggest_percent_losses, non_null(list_of(non_null(:collection_value_position)))
   end
 
   object :collection_value_position do

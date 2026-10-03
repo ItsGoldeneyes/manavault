@@ -52,28 +52,46 @@ defmodule Manavault.Catalog.CardCollection.ItemQueries.ValueSummary do
     gains = Enum.filter(positions, &(&1.value_gain_cents > 0))
     losses = Enum.filter(positions, &(&1.value_gain_cents < 0))
 
-    biggest_gains =
-      gains
-      |> Enum.sort_by(&{-&1.value_gain_cents, &1.scryfall_id})
-      |> Enum.take(5)
+    rankings =
+      attach_ranked_printings(%{
+        biggest_gains: Enum.sort_by(gains, &{-&1.value_gain_cents, &1.scryfall_id}),
+        biggest_losses: Enum.sort_by(losses, &{&1.value_gain_cents, &1.scryfall_id}),
+        biggest_percent_gains:
+          gains
+          |> Enum.filter(&(&1.purchase_price_cents > 0))
+          |> Enum.sort_by(&{-gain_ratio(&1), -&1.value_gain_cents, &1.scryfall_id}),
+        biggest_percent_losses:
+          losses
+          |> Enum.filter(&(&1.purchase_price_cents > 0))
+          |> Enum.sort_by(&{gain_ratio(&1), &1.value_gain_cents, &1.scryfall_id})
+      })
 
-    biggest_losses =
-      losses
-      |> Enum.sort_by(&{&1.value_gain_cents, &1.scryfall_id})
-      |> Enum.take(5)
-
-    ranked_positions = attach_printings(biggest_gains ++ biggest_losses)
-
-    %{
+    Map.merge(rankings, %{
       summary: summary,
       item_count: summary.item_count,
       position_count: length(positions),
       gain_position_count: length(gains),
       loss_position_count: length(losses),
-      unchanged_position_count: length(positions) - length(gains) - length(losses),
-      biggest_gains: ranked_positions |> Enum.take(length(biggest_gains)),
-      biggest_losses: ranked_positions |> Enum.drop(length(biggest_gains))
-    }
+      unchanged_position_count: length(positions) - length(gains) - length(losses)
+    })
+  end
+
+  defp gain_ratio(position), do: position.value_gain_cents / position.purchase_price_cents
+
+  defp attach_ranked_printings(rankings) do
+    rankings = Map.new(rankings, fn {key, positions} -> {key, Enum.take(positions, 5)} end)
+
+    attached =
+      rankings
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.uniq_by(& &1.scryfall_id)
+      |> attach_printings()
+      |> Map.new(&{&1.scryfall_id, &1})
+
+    Map.new(rankings, fn {key, positions} ->
+      {key, Enum.flat_map(positions, &List.wrap(attached[&1.scryfall_id]))}
+    end)
   end
 
   def location_summaries do

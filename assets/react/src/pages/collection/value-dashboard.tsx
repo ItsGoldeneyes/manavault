@@ -8,10 +8,18 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "../../components/ui/popover"
 import { useToast } from "../../components/ui/toast"
+import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group"
+import { useLocalStorageState } from "../../lib/use-local-storage"
 import { cn, pluralize } from "../../lib/utils"
 import { centsToCurrencyInput, parseCurrencyInputCents } from "./form-helpers"
 import { BulkUpdateCollectionItemsDocument } from "./items/documents"
-import type { CollectionValueDashboardData, CollectionValuePosition } from "./types"
+import { deserializeCollectionValueRanking } from "./storage"
+import { COLLECTION_VALUE_RANKING_STORAGE_KEY } from "./storage-keys"
+import type {
+  CollectionValueDashboardData,
+  CollectionValuePosition,
+  CollectionValueRanking,
+} from "./types"
 import { CollectionValueDashboardDocument } from "./value/documents"
 import { collectionValueGainClass } from "./value-summary"
 
@@ -20,6 +28,12 @@ export function CollectionValueDashboard() {
     fetchPolicy: "network-only",
   })
   const dashboard = data?.collectionValueDashboard
+  const [ranking, setRanking] = useLocalStorageState<CollectionValueRanking>(
+    COLLECTION_VALUE_RANKING_STORAGE_KEY,
+    "total",
+    { deserialize: deserializeCollectionValueRanking },
+  )
+  const byPercent = ranking === "percent"
 
   if (loading && !dashboard) return <CollectionValueDashboardSkeleton />
 
@@ -47,22 +61,56 @@ export function CollectionValueDashboard() {
         dashboard={dashboard}
         priceSource={priceSourceLabel(data?.pricingSettings.source)}
       />
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <span id="value-ranking-label" className="text-sm font-bold">
+          Rank by
+        </span>
+        <ToggleGroup
+          type="single"
+          aria-labelledby="value-ranking-label"
+          value={ranking}
+          onValueChange={(value) => {
+            if (value === "total" || value === "percent") setRanking(value)
+          }}
+          className="flex gap-1 rounded-btn border border-base-300 bg-base-100 p-1"
+        >
+          {(["total", "percent"] as const).map((value) => (
+            <ToggleGroupItem
+              key={value}
+              value={value}
+              className="min-h-11 rounded-btn px-4 text-sm font-bold transition-colors hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=on]:bg-primary data-[state=on]:text-primary-content sm:min-h-9"
+            >
+              {value === "total" ? "Total $" : "Percent %"}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
       <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2">
         <PositionRanking
-          description="Positions adding the most value at current market prices."
+          byPercent={byPercent}
+          description={
+            byPercent
+              ? "Positions with the highest return on their purchase basis."
+              : "Positions adding the most value at current market prices."
+          }
           emptyDescription="No positions are currently above their purchase basis."
           icon={TrendingUp}
           onBasisUpdated={() => void refetch()}
-          positions={dashboard.biggestGains}
+          positions={byPercent ? dashboard.biggestPercentGains : dashboard.biggestGains}
           title="Biggest gains"
           tone="gain"
         />
         <PositionRanking
-          description="Positions furthest below their purchase basis."
+          byPercent={byPercent}
+          description={
+            byPercent
+              ? "Positions with the steepest decline from their purchase basis."
+              : "Positions furthest below their purchase basis."
+          }
           emptyDescription="No positions are currently below their purchase basis."
           icon={TrendingDown}
           onBasisUpdated={() => void refetch()}
-          positions={dashboard.biggestLosses}
+          positions={byPercent ? dashboard.biggestPercentLosses : dashboard.biggestLosses}
           title="Biggest losses"
           tone="loss"
         />
@@ -251,6 +299,7 @@ function PositionDistribution({ dashboard }: { dashboard: CollectionValueDashboa
 }
 
 function PositionRanking({
+  byPercent,
   description,
   emptyDescription,
   icon: Icon,
@@ -259,6 +308,7 @@ function PositionRanking({
   title,
   tone,
 }: {
+  byPercent: boolean
   description: string
   emptyDescription: string
   icon: typeof TrendingUp
@@ -283,7 +333,11 @@ function PositionRanking({
         <ol className="min-w-0 divide-y divide-base-300">
           {positions.map((position) => (
             <li key={position.printing.scryfallId} className="min-w-0">
-              <ValuePositionRow onBasisUpdated={onBasisUpdated} position={position} />
+              <ValuePositionRow
+                byPercent={byPercent}
+                onBasisUpdated={onBasisUpdated}
+                position={position}
+              />
             </li>
           ))}
         </ol>
@@ -297,12 +351,17 @@ function PositionRanking({
 }
 
 function ValuePositionRow({
+  byPercent,
   onBasisUpdated,
   position,
 }: {
+  byPercent: boolean
   onBasisUpdated: () => void
   position: CollectionValuePosition
 }) {
+  const [primaryGain, secondaryGain] = byPercent
+    ? [position.valueGainPercentText, position.valueGainText]
+    : [position.valueGainText, position.valueGainPercentText]
   const cardName = position.printing.card?.name || "Unknown card"
   const setLabel = [position.printing.setCode?.toUpperCase(), position.printing.collectorNumber]
     .filter(Boolean)
@@ -362,10 +421,8 @@ function ValuePositionRow({
             collectionValueGainClass(position.valueGainText),
           )}
         >
-          <span className="font-mono font-black tabular-nums">{position.valueGainText}</span>
-          {position.valueGainPercentText ? (
-            <span className="font-bold tabular-nums">{position.valueGainPercentText}</span>
-          ) : null}
+          <span className="font-mono font-black tabular-nums">{primaryGain}</span>
+          {secondaryGain ? <span className="font-bold tabular-nums">{secondaryGain}</span> : null}
         </div>
       </div>
       <dl className="hidden shrink-0 grid-cols-2 gap-x-5 text-right text-xs sm:grid">
@@ -384,9 +441,9 @@ function ValuePositionRow({
           collectionValueGainClass(position.valueGainText),
         )}
       >
-        <p className="font-mono font-black tabular-nums">{position.valueGainText}</p>
-        {position.valueGainPercentText ? (
-          <p className="mt-0.5 text-xs font-bold tabular-nums">{position.valueGainPercentText}</p>
+        <p className="font-mono font-black tabular-nums">{primaryGain}</p>
+        {secondaryGain ? (
+          <p className="mt-0.5 text-xs font-bold tabular-nums">{secondaryGain}</p>
         ) : null}
       </div>
       <PurchaseBasisQuickEdit position={position} onDone={onBasisUpdated} />
