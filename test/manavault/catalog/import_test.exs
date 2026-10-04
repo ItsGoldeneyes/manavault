@@ -78,6 +78,21 @@ defmodule Manavault.Catalog.ImportTest do
     assert %Printing{illustration_id: "front-illustration"} = Repo.get!(Printing, card["id"])
   end
 
+  test "import_cards falls back to the first face oracle_id for reversible cards" do
+    card =
+      @black_lotus
+      |> Map.delete("oracle_id")
+      |> Map.put("layout", "reversible_card")
+      |> Map.put("card_faces", [
+        %{"oracle_id" => "oracle-1", "illustration_id" => "front-illustration"},
+        %{"oracle_id" => "oracle-1", "illustration_id" => "back-illustration"}
+      ])
+
+    assert {:ok, %{cards_count: 1, printings_count: 1}} = Catalog.import_cards([card])
+    assert %Card{oracle_id: "oracle-1"} = Repo.get!(Card, "oracle-1")
+    assert %Printing{oracle_id: "oracle-1"} = Repo.get!(Printing, card["id"])
+  end
+
   test "import_cards excludes memorabilia and token set printings" do
     memorabilia =
       Map.merge(@black_lotus, %{
