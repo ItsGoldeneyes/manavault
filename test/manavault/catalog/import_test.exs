@@ -78,19 +78,63 @@ defmodule Manavault.Catalog.ImportTest do
     assert %Printing{illustration_id: "front-illustration"} = Repo.get!(Printing, card["id"])
   end
 
-  test "import_cards falls back to the first face oracle_id for reversible cards" do
-    card =
-      @black_lotus
-      |> Map.delete("oracle_id")
-      |> Map.put("layout", "reversible_card")
-      |> Map.put("card_faces", [
-        %{"oracle_id" => "oracle-1", "illustration_id" => "front-illustration"},
-        %{"oracle_id" => "oracle-1", "illustration_id" => "back-illustration"}
-      ])
+  describe "reversible cards without a top-level oracle_id" do
+    # Mirrors Scryfall's reversible_card layout: the name is "A // B", the
+    # type/cost fields live on the faces, and oracle_id is only on each face.
+    defp reversible_lotus do
+      face = %{
+        "oracle_id" => "oracle-1",
+        "name" => "Black Lotus",
+        "type_line" => "Artifact",
+        "mana_cost" => "{0}",
+        "cmc" => 0.0,
+        "oracle_text" => "{T}, Sacrifice Black Lotus: Add three mana of any one color."
+      }
 
-    assert {:ok, %{cards_count: 1, printings_count: 1}} = Catalog.import_cards([card])
-    assert %Card{oracle_id: "oracle-1"} = Repo.get!(Card, "oracle-1")
-    assert %Printing{oracle_id: "oracle-1"} = Repo.get!(Printing, card["id"])
+      @black_lotus
+      |> Map.drop(["oracle_id", "type_line", "mana_cost", "cmc", "oracle_text"])
+      |> Map.merge(%{
+        "id" => "scryfall-reversible-1",
+        "name" => "Black Lotus // Black Lotus",
+        "layout" => "reversible_card",
+        "set" => "leb",
+        "collector_number" => "351",
+        "card_faces" => [
+          Map.put(face, "illustration_id", "front-illustration"),
+          Map.put(face, "illustration_id", "back-illustration")
+        ]
+      })
+    end
+
+    test "imports the printing and resolves the card from its first face" do
+      card = reversible_lotus()
+
+      assert {:ok, %{cards_count: 1, printings_count: 1}} = Catalog.import_cards([card])
+
+      assert %Card{name: "Black Lotus", type_line: "Artifact", mana_cost: "{0}", cmc: cmc} =
+               Repo.get!(Card, "oracle-1")
+
+      assert cmc == 0.0
+
+      assert %Printing{oracle_id: "oracle-1", collector_number: "351"} =
+               Repo.get!(Printing, card["id"])
+    end
+
+    test "does not overwrite the canonical card when imported after it" do
+      assert {:ok, _result} = Catalog.import_cards([@black_lotus])
+      assert {:ok, _result} = Catalog.import_cards([reversible_lotus()])
+
+      assert %Card{name: "Black Lotus", type_line: "Artifact"} = Repo.get!(Card, "oracle-1")
+      assert Repo.aggregate(Card, :count) == 1
+      assert Repo.aggregate(Printing, :count) == 2
+    end
+
+    test "does not overwrite the canonical card when imported before it" do
+      assert {:ok, _result} = Catalog.import_cards([reversible_lotus(), @black_lotus])
+
+      assert %Card{name: "Black Lotus", type_line: "Artifact"} = Repo.get!(Card, "oracle-1")
+      assert Repo.aggregate(Printing, :count) == 2
+    end
   end
 
   test "import_cards excludes memorabilia and token set printings" do
