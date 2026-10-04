@@ -1,6 +1,7 @@
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog"
 import { AutoSortSetupDialog } from "../auto-sort-setup-dialog"
 import { AutoSortSummaryDialog } from "../auto-sort-summary-dialog"
+import { BulkCleanDialog } from "../bulk-clean-dialog"
 import { ExportCollectionDialog } from "../export/collection-export-dialog"
 import { ImportCollectionDialog } from "../import/collection-import-dialog"
 import {
@@ -60,6 +61,7 @@ export function CollectionDialogs({
         onDone={finishBulkAction}
         onOpenChange={closeWhenClosed(close)}
       />
+      <BulkCleanDialog open={overlay.type === "bulk-clean"} onOpenChange={closeWhenClosed(close)} />
       <ExportCollectionDialog
         filters={overlay.type === "export-location" ? { locationId: overlay.location.id } : {}}
         format={overlay.type === "export-location" ? overlay.format : "csv"}

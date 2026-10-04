@@ -33,6 +33,7 @@ test("moves collection value into a persisted tab", async () => {
       onExportCsv={() => {}}
       onImport={() => {}}
       onSellCards={() => {}}
+      onBulkClean={() => {}}
       onSelectTab={onSelectTab}
     />,
   )

@@ -1,5 +1,6 @@
 import {
   Boxes,
+  BrushCleaning,
   ChevronDown,
   ClipboardCheck,
   Download,
@@ -36,6 +37,7 @@ type CollectionPageHeaderProps = {
   onImport: () => void
   onExportCsv: () => void
   onSellCards: () => void
+  onBulkClean: () => void
   onQuickCheck: () => void
   onAutoSort: () => void
   onSelectTab: (tab: CollectionTab) => void
@@ -55,6 +57,7 @@ export function CollectionPageHeader({
   onQuickCheck,
   onExportCsv,
   onSellCards,
+  onBulkClean,
   onSelectTab,
 }: CollectionPageHeaderProps) {
   return (
@@ -124,6 +127,16 @@ export function CollectionPageHeader({
               onClick={onSellCards}
             >
               <Tags className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Bulk clean"
+              aria-label="Bulk clean"
+              onClick={onBulkClean}
+            >
+              <BrushCleaning className="h-4 w-4" />
             </Button>
             <Button
               type="button"

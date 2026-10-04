@@ -26,6 +26,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
                "cards",
                "cloudBackups",
                "collectionAutoSortRules",
+               "collectionBulkClean",
                "collectionExportCsv",
                "collectionExportText",
                "collectionItemCount",

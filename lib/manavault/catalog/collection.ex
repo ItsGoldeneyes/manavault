@@ -3,6 +3,7 @@ defmodule Manavault.Catalog.Collection do
 
   alias Manavault.Catalog.Collection.{
     AutoSort,
+    BulkClean,
     BulkUpdateItems,
     DeleteItems,
     ExportCollection,
@@ -136,6 +137,8 @@ defmodule Manavault.Catalog.Collection do
     |> auto_sort_opts()
     |> AutoSort.run()
   end
+
+  defdelegate collection_bulk_clean(opts \\ []), to: BulkClean, as: :preview
 
   def delete_location(%Location{} = location) do
     Locations.delete(location)

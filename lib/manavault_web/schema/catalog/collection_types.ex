@@ -247,6 +247,41 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionTypes do
     field :moves, non_null(list_of(non_null(:collection_auto_sort_move)))
   end
 
+  object :collection_bulk_clean_pull do
+    field :collection_item_id, non_null(:id)
+    field :card_id, non_null(:id)
+    field :card_name, non_null(:string)
+    field :set_code, non_null(:string)
+    field :collector_number, non_null(:string)
+    field :image_url, :string
+    field :finish, non_null(:string)
+    field :price_cents, non_null(:integer)
+    field :owned_quantity, non_null(:integer)
+    field :quantity, non_null(:integer)
+    field :from_location_id, :id
+    field :from_location_name, non_null(:string)
+  end
+
+  object :collection_bulk_clean_card do
+    field :card_id, non_null(:id)
+    field :card_name, non_null(:string)
+    field :image_url, :string
+    field :total_copies, non_null(:integer)
+    field :pull_quantity, non_null(:integer)
+    field :pull_value_cents, non_null(:integer)
+    field :pulls, non_null(list_of(non_null(:collection_bulk_clean_pull)))
+  end
+
+  object :collection_bulk_clean_result do
+    field :max_price_cents, non_null(:integer)
+    field :min_copies, non_null(:integer)
+    field :keep_copies, non_null(:integer)
+    field :card_count, non_null(:integer)
+    field :pull_quantity, non_null(:integer)
+    field :pull_value_cents, non_null(:integer)
+    field :cards, non_null(list_of(non_null(:collection_bulk_clean_card)))
+  end
+
   object :collection_import_attrs do
     field :name, :string do
       resolve(&ValueResolvers.map_value/3)

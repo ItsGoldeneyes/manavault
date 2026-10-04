@@ -168,6 +168,13 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
     {:ok, Catalog.list_collection_auto_sort_rules()}
   end
 
+  def collection_bulk_clean(_parent, args, _resolution) do
+    args
+    |> Map.take([:max_price_cents, :min_copies, :keep_copies])
+    |> Enum.into([])
+    |> Catalog.collection_bulk_clean()
+  end
+
   def default_deck_tags(_parent, _args, _resolution) do
     {:ok, Catalog.list_default_deck_tags()}
   end

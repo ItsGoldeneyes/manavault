@@ -51,6 +51,7 @@ export function CollectionPage({ importFile = false }: { importFile?: boolean })
         onQuickCheck={() => overlays.setQuickCheckOpen((open) => !open)}
         onExportCsv={() => overlays.setOverlay({ type: "export-collection" })}
         onSellCards={() => overlays.setOverlay({ type: "sell-cards" })}
+        onBulkClean={() => overlays.setOverlay({ type: "bulk-clean" })}
         onSelectTab={selectTab}
       />
 

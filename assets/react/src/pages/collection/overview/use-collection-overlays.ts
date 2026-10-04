@@ -15,6 +15,7 @@ export type CollectionOverlay =
   | { type: "import"; initialImport: SharedImportPayload | null }
   | { type: "export-collection" }
   | { type: "sell-cards" }
+  | { type: "bulk-clean" }
   | { type: "auto-sort-setup" }
   | { type: "auto-sort-summary"; result: AutoSortCollectionResult }
   | { type: "edit-location"; location: LocationSummary }

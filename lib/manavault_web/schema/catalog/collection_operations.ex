@@ -60,6 +60,13 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionOperations do
     field :collection_auto_sort_rules, non_null(list_of(non_null(:collection_auto_sort_rule))) do
       resolve(&QueryResolvers.collection_auto_sort_rules/3)
     end
+
+    field :collection_bulk_clean, non_null(:collection_bulk_clean_result) do
+      arg(:max_price_cents, :integer)
+      arg(:min_copies, :integer)
+      arg(:keep_copies, :integer)
+      resolve(&QueryResolvers.collection_bulk_clean/3)
+    end
   end
 
   object :collection_mutations do

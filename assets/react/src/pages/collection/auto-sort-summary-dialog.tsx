@@ -250,7 +250,7 @@ function EmptyMoveSummary({ description, title }: { description?: string; title:
   )
 }
 
-function FinishBadge({ finish }: { finish: string }) {
+export function FinishBadge({ finish }: { finish: string }) {
   const isFoil = finish === "foil" || finish === "etched"
   const label = finishLabel(finish)
 
@@ -285,7 +285,11 @@ const previewHeight = 240
 const previewGap = 8
 const viewportPadding = 12
 
-function CardNamePreview({ move }: { move: AutoSortSummaryMove }) {
+export function CardNamePreview({
+  move,
+}: {
+  move: Pick<AutoSortSummaryMove, "cardId" | "cardName" | "imageUrl">
+}) {
   const triggerRef = useRef<HTMLAnchorElement>(null)
   const hideTimeoutRef = useRef<number | null>(null)
   const [position, setPosition] = useState<PreviewPosition | null>(null)
