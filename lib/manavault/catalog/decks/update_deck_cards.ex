@@ -32,7 +32,7 @@ defmodule Manavault.Catalog.Decks.UpdateDeckCards do
 
     Repo.transact(fn ->
       with {:ok, deck_cards} <- load_for_optimization(deck_card_ids),
-           :ok <- EditGuard.ensure_deck_cards_editable(Map.values(deck_cards)) do
+           :ok <- EditGuard.ensure_deck_cards_decklist_editable(Map.values(deck_cards)) do
         optimized =
           Enum.reduce(deck_card_ids, [], fn deck_card_id, acc ->
             deck_card = Map.fetch!(deck_cards, deck_card_id)

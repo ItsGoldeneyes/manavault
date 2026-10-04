@@ -2,6 +2,7 @@ defmodule Manavault.ObanConfigTest do
   use ExUnit.Case, async: true
 
   alias Manavault.Backup.CloudBackupWorker
+  alias Manavault.Catalog.Decks.ExternalDeckSyncWorker
   alias Manavault.Catalog.{ScryfallAssetsWorker, ScryfallCatalogWorker}
   alias Manavault.Pricing.VendorSyncWorker
   alias Manavault.Scanner.BundleUpdateWorker
@@ -24,6 +25,7 @@ defmodule Manavault.ObanConfigTest do
              {"0 */6 * * *", BundleUpdateWorker},
              {"@reboot", VendorSyncWorker},
              {"*/30 * * * *", VendorSyncWorker},
+             {"0 * * * *", ExternalDeckSyncWorker},
              {"* * * * *", CloudBackupWorker}
            ]
   end

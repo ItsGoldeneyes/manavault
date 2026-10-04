@@ -5,6 +5,7 @@ defmodule Manavault.Catalog.Deck do
 
   @formats ~w(commander standard pioneer modern legacy vintage pauper limited casual)
   @statuses ~w(brewing active archived)
+  @external_sources ~w(moxfield archidekt)
 
   schema "decks" do
     field :name, :string
@@ -22,6 +23,11 @@ defmodule Manavault.Catalog.Deck do
     field :commander_bracket_estimate, :integer
     field :commander_bracket_rating, :string
     field :share_token, :string
+    field :external_source, :string
+    field :external_id, :string
+    field :external_url, :string
+    field :external_synced_at, :utc_datetime
+    field :external_sync_error, :string
     field :cover_deck_card_id, :id
     field :card_count, :integer, virtual: true
     field :unique_card_count, :integer, virtual: true
@@ -38,6 +44,9 @@ defmodule Manavault.Catalog.Deck do
 
   def formats, do: @formats
   def statuses, do: @statuses
+  def external_sources, do: @external_sources
+
+  def linked?(%__MODULE__{external_source: source}), do: is_binary(source)
 
   def changeset(deck, attrs) do
     deck
@@ -94,4 +103,30 @@ defmodule Manavault.Catalog.Deck do
   end
 
   def disable_share_changeset(deck), do: change(deck, share_token: nil)
+
+  def external_source_changeset(deck, attrs) do
+    deck
+    |> cast(attrs, [:external_source, :external_id, :external_url])
+    |> validate_required([:external_source, :external_id, :external_url])
+    |> validate_inclusion(:external_source, @external_sources)
+    |> validate_length(:external_url, max: 2_000)
+    |> put_change(:external_synced_at, nil)
+    |> put_change(:external_sync_error, nil)
+  end
+
+  def external_sync_changeset(deck, attrs) do
+    deck
+    |> cast(attrs, [:external_synced_at, :external_sync_error])
+    |> validate_length(:external_sync_error, max: 1_000)
+  end
+
+  def unlink_external_source_changeset(deck) do
+    change(deck,
+      external_source: nil,
+      external_id: nil,
+      external_url: nil,
+      external_synced_at: nil,
+      external_sync_error: nil
+    )
+  end
 end

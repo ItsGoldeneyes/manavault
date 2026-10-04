@@ -7,8 +7,11 @@ import {
   Clipboard,
   createLucideIcon,
   Download,
+  ExternalLink,
   Layers,
+  Link2,
   MessageCircleQuestion,
+  RefreshCw,
   Play,
   Plus,
   ShoppingCart,
@@ -32,6 +35,8 @@ import { DeckQuestionDialog } from "./deck-question-dialog"
 import { DeckTagsSidebar } from "./deck-tags-sidebar"
 import type { DeckCardEntry, DeckCustomTag, DeckDetail } from "./deck-types"
 import { useDeckAnalysis } from "./use-deck-analysis"
+import { externalSourceLabel, useDeckExternalSource } from "./use-deck-external-source"
+import { formatDate } from "../settings/data"
 
 type DeckTagActions = {
   activeTagId: string | null
@@ -44,6 +49,9 @@ type DeckTagActions = {
 
 type DeckDetailHeaderProps = {
   children: ReactNode
+  /** Collection allocation is allowed (deck is not archived). */
+  canAllocate: boolean
+  /** Decklist edits are allowed (not archived and not linked to an external deck). */
   canEdit: boolean
   deck: DeckDetail
   deckCards: DeckCardEntry[]
@@ -64,6 +72,7 @@ type DeckDetailHeaderProps = {
   onDownloadSharedDecklist: () => void
   onEditDeck: () => void
   onExportDeck: () => void
+  onExternalSource: () => void
   onGroupByChange: (groupBy: DeckGroupBy) => void
   onImportDeck: () => void
   onMissingCards: () => void
@@ -184,7 +193,67 @@ export function DeckMobileTagsPanel({
   )
 }
 
+function DeckExternalSourceNotice({ deck, onManage }: { deck: DeckDetail; onManage: () => void }) {
+  const { isSyncing, sync } = useDeckExternalSource(deck.id)
+  const sourceLabel = externalSourceLabel(deck.externalSource)
+
+  return (
+    <div
+      className={cn(
+        "rounded-box border p-4 text-sm text-base-content/75",
+        deck.externalSyncError
+          ? "border-warning/40 bg-warning/5"
+          : "border-base-300 bg-base-200/60",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 font-bold text-base-content">
+            <Link2 className="h-4 w-4" />
+            <span>Linked to {sourceLabel}</span>
+          </div>
+          <p className="mt-1 max-w-3xl">
+            The decklist mirrors {sourceLabel} and syncs hourly, so card edits are disabled here.
+            Allocating copies from your collection still works.
+          </p>
+          <p className="mt-1 text-xs text-base-content/60">
+            {deck.externalSyncError
+              ? `Last sync failed: ${deck.externalSyncError}`
+              : deck.externalSyncedAt
+                ? `Last synced ${formatDate(deck.externalSyncedAt)}`
+                : "Not synced yet"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {deck.externalUrl ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={deck.externalUrl} rel="noreferrer" target="_blank">
+                <ExternalLink className="h-4 w-4" />
+                Open in {sourceLabel}
+              </a>
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSyncing}
+            onClick={() => sync()}
+          >
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            {isSyncing ? "Syncing..." : "Sync now"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onManage}>
+            Manage
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DeckDetailHeader({
+  canAllocate,
   canEdit,
   children,
   deck,
@@ -206,6 +275,7 @@ export function DeckDetailHeader({
   onDownloadSharedDecklist,
   onEditDeck,
   onExportDeck,
+  onExternalSource,
   onGroupByChange,
   onImportDeck,
   onMissingCards,
@@ -282,15 +352,17 @@ export function DeckDetailHeader({
                 onAnalyze={analysis.analyze}
                 onCombos={onCombos}
                 onCompare={onCompareDeck}
-                onDisassemble={canEdit ? onDisassemble : undefined}
+                externalSourceLinked={Boolean(deck.externalSource)}
+                onDisassemble={canAllocate ? onDisassemble : undefined}
                 onEdhrec={canEdit && deck.format === "commander" ? onOpenEdhrec : undefined}
                 onRecommander={
                   canEdit && deck.format === "commander" ? onOpenRecommander : undefined
                 }
                 onEdit={onEditDeck}
                 onExport={onExportDeck}
+                onExternalSource={canAllocate ? onExternalSource : undefined}
                 onImport={canEdit ? onImportDeck : undefined}
-                onMissing={canEdit && hasBuylistWork ? onMissingCards : undefined}
+                onMissing={canAllocate && hasBuylistWork ? onMissingCards : undefined}
                 onShare={onShareDeck}
               />
             </ShareModeHidden>
@@ -332,7 +404,7 @@ export function DeckDetailHeader({
 
         <DeckAIAnalysis deck={deck} shareMode={shareMode} />
 
-        {!canEdit ? (
+        {!canAllocate ? (
           <div className="rounded-box border border-base-300 bg-base-200/60 p-4 text-sm text-base-content/75">
             <div className="flex flex-wrap items-center gap-2 font-bold text-base-content">
               <Archive className="h-4 w-4" />
@@ -343,6 +415,8 @@ export function DeckDetailHeader({
               printings, or collection allocations.
             </p>
           </div>
+        ) : deck.externalSource && !shareMode ? (
+          <DeckExternalSourceNotice deck={deck} onManage={onExternalSource} />
         ) : null}
 
         {legalityIssues.length ? (
@@ -488,12 +562,12 @@ export function DeckDetailHeader({
                       Select
                     </Button>
                   ) : null}
-                  {hasReadinessWork ? (
-                    <Button type="button" variant="outline" size="sm" onClick={onOpenReadiness}>
-                      Pull list
-                    </Button>
-                  ) : null}
                 </>
+              ) : null}
+              {canAllocate && hasReadinessWork ? (
+                <Button type="button" variant="outline" size="sm" onClick={onOpenReadiness}>
+                  Pull list
+                </Button>
               ) : null}
             </ShareModeHidden>
             <DeckGroupMenu value={groupBy} onChange={onGroupByChange} />

@@ -16,7 +16,7 @@ defmodule Manavault.Catalog.Decks.AddCardToDeck do
       |> normalize_blank_preferred_printing()
       |> normalize_blank_deck_card_tag()
 
-    with :ok <- EditGuard.ensure_deck_editable(deck),
+    with :ok <- EditGuard.ensure_decklist_editable(deck),
          {:ok, attrs} <- resolve_deck_card_identity(attrs),
          {:ok, attrs} <- validate_preferred_printing_identity(attrs) do
       upsert_deck_card(attrs)

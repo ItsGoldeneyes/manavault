@@ -29,8 +29,9 @@ Each area links to the [feature reference](docs/features.md) for details.
   list into the collection.
 - **[Decks](docs/features.md#decks)** - commander/mainboard/considering zones,
   decklist import/export, preferred printings, custom tags, flexible grouping,
-  primers, keyboard shortcuts, and a Swap cards workbench with a legality
-  preview.
+  primers, keyboard shortcuts, a Swap cards workbench with a legality
+  preview, and read-only decks linked to a Moxfield or Archidekt list that
+  re-sync hourly.
 - **[Allocation](docs/features.md#allocation-pull-lists-and-missing-cards)** -
   reserve physical copies for deck cards so a card is never promised to two
   decks, then turn gaps into pull lists, proxies, and buylists for Mana Pool,
@@ -146,6 +147,9 @@ same instance is reached under more than one hostname, list the extra origins in
 - **Card data** - the Scryfall catalog and symbols refresh daily and vendor
   prices every 30 minutes; force a reload from **Settings -> Scryfall data**.
   See [stalled syncs](docs/self-hosting.md#diagnosing-a-stalled-catalog-sync).
+- **Linked decks** - decks linked to Moxfield or Archidekt re-import on the
+  hour (`ExternalDeckSyncWorker`, Oban cron); use **Sync now** on the deck page
+  to refresh immediately.
 - **Logs** - **Settings -> Server logs** streams live output, and
   `docker logs manavault` shows the same.
 - **Locked out** - clear permanent login bans in the running container; see

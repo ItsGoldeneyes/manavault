@@ -54,7 +54,7 @@ defmodule Manavault.Catalog.Decks.SwapDeckCards do
   end
 
   def apply(%Deck{} = deck, swap) do
-    with :ok <- EditGuard.ensure_deck_editable(deck),
+    with :ok <- EditGuard.ensure_decklist_editable(deck),
          {:ok, swap} <- normalize(swap) do
       Repo.transact(fn ->
         deck_cards = Repo.all(from deck_card in DeckCard, where: deck_card.deck_id == ^deck.id)

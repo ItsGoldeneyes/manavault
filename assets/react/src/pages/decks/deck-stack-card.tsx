@@ -24,7 +24,7 @@ export function DeckStackCard({
   position,
   state,
 }: DeckStackCardProps) {
-  const { deckId, deckTags, shareMode } = context
+  const { canEditDecklist, deckId, deckTags, shareMode } = context
   const { index, size, slideOffset, top } = position
   const { isActive, isDimmed, isSelecting, isSelected, isUpdating } = state
   const interaction = useDeckStackCard({
@@ -65,7 +65,7 @@ export function DeckStackCard({
         )}
       >
         <ShareModeHidden shareMode={shareMode}>
-          {isSelecting ? (
+          {isSelecting && canEditDecklist ? (
             <button
               type="button"
               className={cn(
@@ -107,6 +107,7 @@ export function DeckStackCard({
             <DeckStackActionMenu
               actions={actions}
               canAddPartner={capabilities.canAddPartner}
+              canEdit={canEditDecklist}
               canSetCommander={capabilities.canSetCommander}
               deckCard={deckCard}
               isInteractive={interaction.isInteractive}
@@ -145,17 +146,19 @@ export function DeckStackCard({
                 onReveal={actions.reveal}
                 onToggleProxy={actions.toggleProxy}
               />
-              <DeckCardTagQuickButton
-                disabled={isUpdating}
-                isVisible={interaction.isInteractive}
-                tag={tag?.value ?? null}
-                onChange={actions.tag}
-              />
+              {canEditDecklist ? (
+                <DeckCardTagQuickButton
+                  disabled={isUpdating}
+                  isVisible={interaction.isInteractive}
+                  tag={tag?.value ?? null}
+                  onChange={actions.tag}
+                />
+              ) : null}
             </div>
           </ShareModeHidden>
         ) : null}
 
-        {!isSelecting ? (
+        {!isSelecting && canEditDecklist ? (
           <ShareModeHidden shareMode={shareMode}>
             <div
               className={cn(

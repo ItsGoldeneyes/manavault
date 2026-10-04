@@ -13,7 +13,7 @@ defmodule Manavault.Catalog.Decks.DecklistIO do
   @lock_retry_sleep_ms 250
 
   def import_decklist(%Deck{} = deck, text, opts \\ []) when is_binary(text) and is_list(opts) do
-    with :ok <- EditGuard.ensure_deck_editable(deck),
+    with :ok <- EditGuard.ensure_decklist_editable(deck),
          {:ok, zone} <- import_zone(Keyword.get(opts, :zone)),
          {:ok, prepared} <- prepare_import_entries(text, zone) do
       import_with_lock_retry(deck, prepared, opts, @lock_retry_attempts)

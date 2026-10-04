@@ -122,6 +122,13 @@ defmodule ManavaultWeb.Schema.Catalog.DeckTypes do
     field :commander_bracket_estimate, :integer
     field :commander_bracket_rating, :string
     field :share_token, :string
+    field :external_source, :string
+    field :external_url, :string
+    field :external_sync_error, :string
+
+    field :external_synced_at, :string do
+      resolve(&DeckFields.deck_external_synced_at/3)
+    end
 
     field :ai_analyzed_at, :string do
       resolve(&DeckFields.deck_ai_analyzed_at/3)

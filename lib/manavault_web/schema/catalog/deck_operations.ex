@@ -253,6 +253,45 @@ defmodule ManavaultWeb.Schema.Catalog.DeckOperations do
       end)
     end
 
+    payload field :link_deck_external_source do
+      arg(:id, non_null(:id))
+      arg(:url, non_null(:string))
+
+      output do
+        field :deck, :deck
+        field :unresolved, non_null(list_of(non_null(:string)))
+      end
+
+      resolve(fn parent, args, resolution ->
+        payload(parent, args, resolution, &MutationResolvers.link_deck_external_source/3, :deck)
+      end)
+    end
+
+    payload field :unlink_deck_external_source do
+      arg(:id, non_null(:id))
+
+      output do
+        field :deck, :deck
+      end
+
+      resolve(fn parent, args, resolution ->
+        payload(parent, args, resolution, &MutationResolvers.unlink_deck_external_source/3, :deck)
+      end)
+    end
+
+    payload field :sync_deck_external_source do
+      arg(:id, non_null(:id))
+
+      output do
+        field :deck, :deck
+        field :unresolved, non_null(list_of(non_null(:string)))
+      end
+
+      resolve(fn parent, args, resolution ->
+        payload(parent, args, resolution, &MutationResolvers.sync_deck_external_source/3, :deck)
+      end)
+    end
+
     payload field :add_deck_card do
       arg(:deck_id, non_null(:id))
       arg(:input, non_null(:deck_card_input))

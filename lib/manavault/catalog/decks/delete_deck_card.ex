@@ -6,7 +6,7 @@ defmodule Manavault.Catalog.Decks.DeleteDeckCard do
   alias Manavault.Repo
 
   def run(%DeckCard{} = deck_card) do
-    with :ok <- EditGuard.ensure_deck_card_editable(deck_card) do
+    with :ok <- EditGuard.ensure_deck_card_decklist_editable(deck_card) do
       for_deck_deletion(deck_card)
     end
   end

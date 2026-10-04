@@ -71,8 +71,13 @@ export function DeckDetailScreen({
     isRefreshing: isRefreshingDeck,
     refetch: refetchDeckQueries,
   } = useDeckDetail({ id, shareMode })
-  const canEditDecklist = deck?.status !== "archived"
+  // Archived decks are fully read-only. Decks linked to Moxfield/Archidekt
+  // keep collection allocation but block every decklist edit.
+  const canAllocate = deck?.status !== "archived"
+  const isLinked = Boolean(deck?.externalSource)
+  const canEditDecklist = canAllocate && !isLinked
   const { activeTagId, overlay, setActiveTagId, setOverlay } = useDeckDialogs({
+    canAllocate,
     canEdit: canEditDecklist,
     deckId: id,
     edhrecOpen: Boolean(edhrecTab),
@@ -270,6 +275,7 @@ export function DeckDetailScreen({
         }
       >
         <DeckDetailHeader
+          canAllocate={canAllocate}
           canEdit={canEditDecklist}
           deck={deck}
           deckCards={deckCards}
@@ -291,6 +297,7 @@ export function DeckDetailScreen({
           onDownloadSharedDecklist={downloadSharedDecklist}
           onEditDeck={() => setOverlay({ kind: "edit-deck" })}
           onExportDeck={() => setOverlay({ kind: "export-deck" })}
+          onExternalSource={() => setOverlay({ kind: "external-source" })}
           onGroupByChange={setGroupBy}
           onImportDeck={() => setOverlay({ kind: "import-deck" })}
           onMissingCards={() => setOverlay({ kind: "missing-cards" })}
@@ -319,7 +326,8 @@ export function DeckDetailScreen({
           <DeckDetailReadiness
             allocationError={workflowError}
             buylistPrice={buylistPrice}
-            canBulkAllocate={canEditDecklist && hasBulkAllocationAvailable}
+            canBulkAllocate={canAllocate && hasBulkAllocationAvailable}
+            canEditDecklist={canEditDecklist}
             deckCards={deckCards}
             isPending={isUpdatingDeckCard}
             onAllocate={(deckCard, collectionItemId) =>
@@ -334,8 +342,8 @@ export function DeckDetailScreen({
             onOpenOptimizePrintings={() => setOverlay({ kind: "optimize-printings", error: null })}
             onTagCard={cardActions.tagDeckCard}
             onToggleProxy={allocationActions.toggleProxy}
-            open={canEditDecklist && overlay.kind === "readiness"}
-            readOnly={shareMode || !canEditDecklist}
+            open={canAllocate && overlay.kind === "readiness"}
+            readOnly={shareMode || !canAllocate}
           />
 
           {!shareMode && canEditDecklist && selection.isSelectionActive ? (
@@ -392,7 +400,8 @@ export function DeckDetailScreen({
           />
 
           <DeckDetailCardCollections
-            canEdit={canEditDecklist}
+            canAllocate={canAllocate}
+            canEditDecklist={canEditDecklist}
             consideringCards={consideringCards}
             deckFormat={deck.format}
             deckId={deck.id}
@@ -431,6 +440,7 @@ export function DeckDetailScreen({
       </div>
 
       <DeckDetailDialogLauncher
+        canAllocate={canAllocate}
         canEdit={canEditDecklist}
         deck={deck}
         deckCards={deckCards}

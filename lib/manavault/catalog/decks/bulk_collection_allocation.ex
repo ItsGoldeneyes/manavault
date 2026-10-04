@@ -19,7 +19,7 @@ defmodule Manavault.Catalog.Decks.BulkCollectionAllocation do
     Repo.transact(fn ->
       deck = load_deck!(deck_or_id)
 
-      with :ok <- EditGuard.ensure_deck_editable(deck) do
+      with :ok <- EditGuard.ensure_decklist_editable(deck) do
         {:ok, []}
       end
     end)
@@ -31,7 +31,7 @@ defmodule Manavault.Catalog.Decks.BulkCollectionAllocation do
       Repo.transact(fn ->
         deck = load_deck!(deck_or_id)
 
-        with :ok <- EditGuard.ensure_deck_editable(deck),
+        with :ok <- EditGuard.ensure_decklist_editable(deck),
              {:ok, items} <- load_ordered_collection_items(item_ids),
              :ok <- validate_single_finish_per_card(items),
              {:ok, deck_cards_by_key} <- upsert_bulk_deck_cards(deck, items, zone),

@@ -43,6 +43,7 @@ export function deckStackIndexFromPointer(
 }
 
 export function DeckStackGroup({
+  canEditDecklist = true,
   canSetCommander,
   deckId,
   deckTags,
@@ -67,6 +68,7 @@ export function DeckStackGroup({
   highlightedCardIds,
   shareMode = false,
 }: {
+  canEditDecklist?: boolean
   canSetCommander: boolean
   deckId: string
   deckTags: DeckCustomTag[]
@@ -299,7 +301,7 @@ export function DeckStackGroup({
                   canBeCommander(deckCard.card || {}),
               }}
               card={deckCard}
-              context={{ deckId, deckTags, shareMode }}
+              context={{ canEditDecklist, deckId, deckTags, shareMode }}
               position={{
                 index,
                 size,

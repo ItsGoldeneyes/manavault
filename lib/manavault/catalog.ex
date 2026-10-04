@@ -110,6 +110,10 @@ defmodule Manavault.Catalog do
   defdelegate ensure_deck_share_token(deck), to: Decks
   defdelegate disable_deck_sharing(deck), to: Decks
   defdelegate rotate_deck_share_token(deck), to: Decks
+  defdelegate link_deck_external_source(deck, url), to: Decks
+  defdelegate unlink_deck_external_source(deck), to: Decks
+  defdelegate sync_deck_external_source(deck), to: Decks
+  defdelegate sync_all_deck_external_sources(), to: Decks
   defdelegate delete_deck(deck), to: Decks
   defdelegate preview_deck_disassembly(deck), to: Decks
   defdelegate disassemble_deck(deck), to: Decks

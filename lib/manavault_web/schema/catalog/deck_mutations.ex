@@ -144,6 +144,38 @@ defmodule ManavaultWeb.Schema.Catalog.DeckMutations do
     end
   end
 
+  def link_deck_external_source(_parent, %{id: id, url: url}, resolution) do
+    mutate_external_source(id, resolution, &Catalog.link_deck_external_source(&1, url))
+  end
+
+  def unlink_deck_external_source(_parent, %{id: id}, resolution) do
+    mutate_external_source(id, resolution, &Catalog.unlink_deck_external_source/1)
+  end
+
+  def sync_deck_external_source(_parent, %{id: id}, resolution) do
+    mutate_external_source(id, resolution, &Catalog.sync_deck_external_source/1)
+  end
+
+  defp mutate_external_source(id, resolution, operation) do
+    with {:ok, id} <- RelayHelpers.node_id(id, :deck, resolution) do
+      id
+      |> Catalog.get_deck!()
+      |> operation.()
+      |> case do
+        # Re-read so the payload reflects the synced decklist rather than the
+        # stale preloads on the struct the operation started from.
+        {:ok, %{deck: deck, unresolved: unresolved}} ->
+          {:ok, %{deck: Catalog.get_deck!(deck.id), unresolved: unresolved}}
+
+        {:ok, deck} ->
+          {:ok, %{deck: Catalog.get_deck!(deck.id), unresolved: []}}
+
+        {:error, reason} ->
+          {:error, Errors.external_source_error(reason)}
+      end
+    end
+  end
+
   def add_deck_card(_parent, %{deck_id: deck_id, input: input}, resolution) do
     with {:ok, deck_id} <- RelayHelpers.node_id(deck_id, :deck, resolution),
          {:ok, input} <- normalize_deck_card_input(input, resolution) do

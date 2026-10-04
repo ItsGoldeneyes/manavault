@@ -77,6 +77,10 @@ export const DeckDocument = graphql(`
       commanderBracketEstimate
       commanderBracketRating
       shareToken
+      externalSource
+      externalUrl
+      externalSyncedAt
+      externalSyncError
       coverDeckCardId
       coverImageUrl
       cardCount

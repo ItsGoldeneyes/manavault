@@ -22,7 +22,7 @@ defmodule Manavault.Catalog.Decks.UpdateDeckCard do
       |> Map.put_new("deck_id", deck_card.deck_id)
       |> Map.put_new("oracle_id", deck_card.oracle_id)
 
-    with :ok <- EditGuard.ensure_deck_card_editable(deck_card),
+    with :ok <- EditGuard.ensure_deck_card_decklist_editable(deck_card),
          {:ok, attrs} <- validate_preferred_printing_identity(attrs) do
       update_with_allocation_switch(deck_card, attrs)
     end

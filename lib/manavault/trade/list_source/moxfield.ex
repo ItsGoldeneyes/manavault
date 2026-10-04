@@ -11,12 +11,14 @@ defmodule Manavault.Trade.ListSource.Moxfield do
   @hosts ~w(moxfield.com www.moxfield.com)
   @id_pattern ~r/^[A-Za-z0-9_-]{5,64}$/
   @api_base "https://api2.moxfield.com/v3/decks/all/"
+  @public_base "https://moxfield.com/decks/"
   @boards %{
     "mainboard" => "mainboard",
     "sideboard" => "considering",
     "maybeboard" => "considering",
     "commanders" => "commander"
   }
+  @finishes %{"nonFoil" => "nonfoil", "foil" => "foil", "etched" => "etched"}
   @friendly_error "Couldn't fetch that Moxfield deck (it may be private). Paste the deck export text instead."
   @forbidden_error "Moxfield blocked the request — their API only serves approved apps. " <>
                      "Use Moxfield's Export > Copy and paste the list instead."
@@ -34,12 +36,31 @@ defmodule Manavault.Trade.ListSource.Moxfield do
 
   def deck_id(_path), do: :error
 
-  @doc "Fetches and normalizes the deck for a validated `id`."
+  @doc "Canonical public URL for a validated deck id."
+  def public_url(id) when is_binary(id), do: @public_base <> id
+
+  @doc """
+  Fetches and normalizes the deck for a validated `id`, translating failures
+  into a user-facing paste-suggesting message.
+  """
   def fetch(id) when is_binary(id) do
-    case Http.get_json(@api_base <> id, req_options: req_options()) do
-      {:ok, payload} -> {:ok, entries_from_payload(payload)}
+    case fetch_deck(id) do
+      {:ok, deck} -> {:ok, deck}
       {:error, :forbidden} -> {:error, @forbidden_error}
       {:error, _reason} -> {:error, @friendly_error}
+    end
+  end
+
+  @doc """
+  Fetches and normalizes the deck for a validated `id`, returning the raw
+  `Manavault.Trade.ListSource.Http` error reason on failure. Each entry
+  carries `name`, `quantity`, `zone`, `set_code`, `collector_number`,
+  `scryfall_id`, and `finish`.
+  """
+  def fetch_deck(id) when is_binary(id) do
+    case Http.get_json(@api_base <> id, req_options: req_options()) do
+      {:ok, payload} -> {:ok, entries_from_payload(payload)}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -71,11 +92,19 @@ defmodule Manavault.Trade.ListSource.Moxfield do
       quantity: entry |> Map.get("quantity", 1) |> Util.positive_quantity(),
       zone: zone,
       set_code: get_in(entry, ["card", "set"]),
-      collector_number: get_in(entry, ["card", "cn"])
+      collector_number: get_in(entry, ["card", "cn"]),
+      scryfall_id: get_in(entry, ["card", "scryfall_id"]),
+      finish: finish(entry)
     }
   end
 
   defp normalize_entry(_entry, _zone), do: nil
+
+  defp finish(%{"finish" => finish}) when is_map_key(@finishes, finish),
+    do: Map.fetch!(@finishes, finish)
+
+  defp finish(%{"isFoil" => true}), do: "foil"
+  defp finish(_entry), do: "nonfoil"
 
   defp req_options, do: Application.get_env(:manavault, :trade_moxfield_req_options, [])
 end

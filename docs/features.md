@@ -215,6 +215,17 @@ Deck workflows include:
   and catalog checks but stay out of the Ask AI history.
 - **Compare decklist** - diff an external list against the open deck as adds,
   cuts, and quantity changes (see [Trade](#trade) for supported sources)
+- **Link external deck** - attach a public Moxfield or Archidekt deck URL from
+  the deck actions menu. Linking imports that list (replacing the current
+  cards) and keeps it in sync every hour; the header shows the last sync time
+  and a **Sync now** button, and failed syncs leave the last good list in
+  place with the error shown. While linked, every decklist edit (add, swap,
+  import, move, tag, printing, commander, delete, EDHREC/Recommander adds) is
+  disabled and the Share dialog offers the external page instead of a
+  ManaVault link; allocation, pull lists, proxies, and buylists still work.
+  Printing and finish follow the remote only for cards without allocated
+  copies, since an allocation pins the deck card to the owned printing.
+  **Unlink** keeps the imported cards and makes the deck editable again.
 
 ## Allocation, Pull Lists, and Missing Cards
 
@@ -411,6 +422,8 @@ Share pages offer copy-to-clipboard (with a plain-http fallback) and `.txt`
 download as standard decklist text, ready to paste into any ManaVault Matches
 tab or other deck tools. Owners can rotate a link or disable sharing from the
 Share dialog; the old token stops working immediately.
+Decks linked to Moxfield or Archidekt share their external page instead; the
+Share dialog shows that URL and hides the rotate/disable controls.
 
 ## Pricing
 

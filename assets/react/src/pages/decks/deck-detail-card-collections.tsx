@@ -5,7 +5,10 @@ import type { DeckCardEntry, DeckCardTag, DeckCustomTag } from "./deck-types"
 import { DeckZoneTable } from "./deck-zone-table"
 
 type DeckDetailCardCollectionsProps = {
-  canEdit: boolean
+  /** Allocation controls render (deck is not archived). */
+  canAllocate: boolean
+  /** Decklist edits render (not archived, not linked to an external deck). */
+  canEditDecklist: boolean
   consideringCards: DeckCardEntry[]
   deckFormat: string
   deckId: string
@@ -33,7 +36,8 @@ type DeckDetailCardCollectionsProps = {
 }
 
 export function DeckDetailCardCollections({
-  canEdit,
+  canAllocate,
+  canEditDecklist,
   consideringCards,
   deckFormat,
   deckId,
@@ -59,18 +63,19 @@ export function DeckDetailCardCollections({
   selectedCardIds,
   shareMode,
 }: DeckDetailCardCollectionsProps) {
-  const readOnly = shareMode || !canEdit
+  const readOnly = shareMode || !canAllocate
 
   return (
     <>
       {groupedCards.length ? (
         <DeckGroupGrid
-          canSetCommander={canEdit && deckFormat === "commander"}
+          canEditDecklist={canEditDecklist}
+          canSetCommander={canEditDecklist && deckFormat === "commander"}
           deckId={deckId}
           deckTags={deckTags}
           groups={groupedCards}
           highlightedCardIds={highlightedCardIds}
-          isSelecting={canEdit && isSelecting}
+          isSelecting={canEditDecklist && isSelecting}
           isUpdating={isUpdating}
           onAddPartner={onAddPartner}
           onAllocate={onAllocate}
@@ -95,10 +100,11 @@ export function DeckDetailCardCollections({
 
       <div className="space-y-3">
         <DeckZoneTable
+          canEdit={canEditDecklist}
           cards={consideringCards}
           deckId={deckId}
           highlightedCardIds={highlightedCardIds}
-          isSelecting={canEdit && isSelecting}
+          isSelecting={canEditDecklist && isSelecting}
           isUpdating={isUpdating}
           onDelete={onDelete}
           onEdit={onEdit}

@@ -58,11 +58,15 @@ export function ShareDeckDialog({
   const [ensureShareToken, ensureShare] = useMutation(EnsureDeckShareTokenDocument)
   const [rotateShareToken, rotateShare] = useMutation(RotateDeckShareTokenDocument)
   const [disableSharing, disableShare] = useMutation(DisableDeckSharingDocument)
+  // A deck linked to Moxfield/Archidekt shares its external page instead of a
+  // ManaVault share token.
+  const externalUrl = deck?.externalUrl ?? null
   const shareToken = managedToken ?? ""
   const shareUrl =
-    shareToken && typeof window !== "undefined"
+    externalUrl ??
+    (shareToken && typeof window !== "undefined"
       ? `${window.location.origin}/share/decks/${encodeURIComponent(shareToken)}`
-      : ""
+      : "")
   const mutationError = ensureShare.error || rotateShare.error || disableShare.error
   const error = mutationError instanceof Error ? mutationError.message : null
   const changingShare = ensureShare.loading || rotateShare.loading || disableShare.loading
@@ -75,7 +79,7 @@ export function ShareDeckDialog({
       return
     }
 
-    if (!deck?.id || shareTokenDeckIdRef.current === deck.id) return
+    if (!deck?.id || externalUrl || shareTokenDeckIdRef.current === deck.id) return
 
     shareTokenDeckIdRef.current = deck.id
     void ensureShareToken({
@@ -85,7 +89,7 @@ export function ShareDeckDialog({
         void refetchActiveQueries(client)
       },
     })
-  }, [client, deck?.id, ensureShareToken, isOpen])
+  }, [client, deck?.id, ensureShareToken, externalUrl, isOpen])
 
   function rotateLink() {
     if (!deck?.id) return
@@ -150,10 +154,17 @@ export function ShareDeckDialog({
           <div className="space-y-4 p-5">
             <label className="block space-y-2">
               <span className="text-xs font-black uppercase tracking-[0.18em] text-accent">
-                Public link
+                {externalUrl ? "External deck link" : "Public link"}
               </span>
               <Input readOnly value={shareUrl || "Generating link..."} />
             </label>
+
+            {externalUrl ? (
+              <p className="text-sm text-base-content/65">
+                This deck is linked to an external deck builder, so share its page there instead of
+                a ManaVault link.
+              </p>
+            ) : null}
 
             {error ? (
               <p className="rounded-box border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">
@@ -165,24 +176,28 @@ export function ShareDeckDialog({
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 border-t border-base-300 pt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!shareUrl || changingShare}
-                onClick={() => setConfirmAction("disable")}
-              >
-                <ShieldOff className="h-4 w-4" />
-                Disable sharing
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!shareUrl || changingShare}
-                onClick={() => setConfirmAction("rotate")}
-              >
-                <RotateCw className="h-4 w-4" />
-                Rotate link
-              </Button>
+              {externalUrl ? null : (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={!shareUrl || changingShare}
+                    onClick={() => setConfirmAction("disable")}
+                  >
+                    <ShieldOff className="h-4 w-4" />
+                    Disable sharing
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={!shareUrl || changingShare}
+                    onClick={() => setConfirmAction("rotate")}
+                  >
+                    <RotateCw className="h-4 w-4" />
+                    Rotate link
+                  </Button>
+                </>
+              )}
               <span className="flex-1" />
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Close

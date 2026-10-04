@@ -23,6 +23,7 @@ defmodule Manavault.Catalog.Decks do
     DeckPicker,
     DefaultTags,
     Disassembly,
+    ExternalSource,
     FetchDeckRecords,
     ProxyAllocation,
     PullListAllocation,
@@ -175,6 +176,30 @@ defmodule Manavault.Catalog.Decks do
     deck
     |> Records.delete_deck()
     |> invalidate_decks_on_ok()
+  end
+
+  def link_deck_external_source(deck, url) do
+    deck
+    |> ExternalSource.link(url)
+    |> invalidate_decks_on_ok()
+  end
+
+  def unlink_deck_external_source(deck) do
+    deck
+    |> ExternalSource.unlink()
+    |> invalidate_decks_on_ok()
+  end
+
+  def sync_deck_external_source(deck) do
+    deck
+    |> ExternalSource.sync()
+    |> invalidate_decks_on_ok()
+  end
+
+  def sync_all_deck_external_sources do
+    results = ExternalSource.sync_all()
+    Cache.invalidate_decks()
+    results
   end
 
   def preview_deck_disassembly(deck) do

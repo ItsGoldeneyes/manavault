@@ -35,6 +35,10 @@ defmodule ManavaultWeb.Schema.Catalog.Errors do
 
   def deck_edit_error(:not_found), do: not_found_error(:deck_card)
   def deck_edit_error(:deck_archived), do: "Unarchive this deck before editing its decklist."
+
+  def deck_edit_error(:deck_linked),
+    do: "This deck is linked to an external deck; edit it there and sync."
+
   def deck_edit_error(reason) when is_binary(reason), do: reason
   def deck_edit_error(reason) when is_atom(reason), do: Atom.to_string(reason)
   def deck_edit_error(_reason), do: "Could not edit decklist."
@@ -56,6 +60,8 @@ defmodule ManavaultWeb.Schema.Catalog.Errors do
 
   def deck_allocation_error(:deck_archived),
     do: "Unarchive this deck before changing allocations."
+
+  def deck_allocation_error(:deck_linked), do: deck_edit_error(:deck_linked)
 
   def deck_allocation_error(:collection_item_mismatch),
     do: "Collection item does not match that deck card."
@@ -88,9 +94,32 @@ defmodule ManavaultWeb.Schema.Catalog.Errors do
   def deck_allocation_error(_reason), do: "Could not add collection item to deck."
 
   def deck_import_error(:deck_archived), do: "Unarchive this deck before importing a decklist."
+  def deck_import_error(:deck_linked), do: deck_edit_error(:deck_linked)
   def deck_import_error(:card_not_found), do: "One or more decklist cards were not found."
   def deck_import_error(reason) when is_binary(reason), do: reason
   def deck_import_error(_reason), do: "Could not import decklist."
+
+  def external_source_error(:deck_archived),
+    do: "Unarchive this deck before linking an external deck."
+
+  def external_source_error(:invalid_external_url),
+    do: "Enter a Moxfield or Archidekt deck link."
+
+  def external_source_error(:deck_not_linked), do: "This deck is not linked to an external deck."
+
+  def external_source_error(:forbidden),
+    do: "The deck site refused the request (HTTP 403). Try again later."
+
+  def external_source_error(:timeout), do: "Timed out reaching the deck site."
+  def external_source_error(:request_failed), do: "Could not reach the deck site."
+
+  def external_source_error({:http_error, 404}),
+    do: "That deck was not found; it may be private or deleted."
+
+  def external_source_error({:http_error, status}), do: "The deck site returned HTTP #{status}."
+  def external_source_error(%Ecto.Changeset{} = changeset), do: changeset_error_message(changeset)
+  def external_source_error(reason) when is_binary(reason), do: reason
+  def external_source_error(_reason), do: "Could not sync the external deck."
 
   def edhrec_error(:edhrec_missing_commander), do: "EDHREC requires a commander."
   def edhrec_error(:edhrec_empty_deck), do: "EDHREC requires cards in the deck."

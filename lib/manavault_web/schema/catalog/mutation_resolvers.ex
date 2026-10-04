@@ -40,6 +40,9 @@ defmodule ManavaultWeb.Schema.Catalog.MutationResolvers do
   defdelegate ensure_deck_share_token(parent, args, resolution), to: DeckMutations
   defdelegate disable_deck_sharing(parent, args, resolution), to: DeckMutations
   defdelegate rotate_deck_share_token(parent, args, resolution), to: DeckMutations
+  defdelegate link_deck_external_source(parent, args, resolution), to: DeckMutations
+  defdelegate unlink_deck_external_source(parent, args, resolution), to: DeckMutations
+  defdelegate sync_deck_external_source(parent, args, resolution), to: DeckMutations
   defdelegate add_deck_card(parent, args, resolution), to: DeckMutations
   defdelegate import_decklist(parent, args, resolution), to: DeckMutations
   defdelegate delete_deck(parent, args, resolution), to: DeckMutations

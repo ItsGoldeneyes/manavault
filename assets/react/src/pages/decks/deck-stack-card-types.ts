@@ -26,6 +26,8 @@ export type DeckStackCardProps = {
   }
   card: DeckCardEntry
   context: {
+    /** False while the decklist mirrors an external deck: allocation only. */
+    canEditDecklist: boolean
     deckId: string
     deckTags: DeckCustomTag[]
     shareMode: boolean

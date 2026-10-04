@@ -59,6 +59,7 @@ config :manavault, Oban,
        {"0 */6 * * *", Manavault.Scanner.BundleUpdateWorker},
        {"@reboot", Manavault.Pricing.VendorSyncWorker},
        {"*/30 * * * *", Manavault.Pricing.VendorSyncWorker},
+       {"0 * * * *", Manavault.Catalog.Decks.ExternalDeckSyncWorker},
        {"* * * * *", Manavault.Backup.CloudBackupWorker}
      ]}
   ],

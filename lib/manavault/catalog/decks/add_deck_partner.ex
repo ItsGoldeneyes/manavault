@@ -8,7 +8,7 @@ defmodule Manavault.Catalog.Decks.AddDeckPartner do
   alias Manavault.Repo
 
   def run(%DeckCard{} = deck_card) do
-    with :ok <- EditGuard.ensure_deck_card_editable(deck_card) do
+    with :ok <- EditGuard.ensure_deck_card_decklist_editable(deck_card) do
       Repo.transact(fn ->
         deck_card = Repo.preload(deck_card, [:card, :preferred_printing])
 

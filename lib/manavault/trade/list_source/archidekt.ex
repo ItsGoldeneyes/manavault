@@ -11,6 +11,8 @@ defmodule Manavault.Trade.ListSource.Archidekt do
   @hosts ~w(archidekt.com www.archidekt.com)
   @id_pattern ~r/^\d{1,12}$/
   @api_base "https://archidekt.com/api/decks/"
+  @public_base "https://archidekt.com/decks/"
+  @finishes %{"Normal" => "nonfoil", "Foil" => "foil", "Etched" => "etched"}
   @friendly_error "Couldn't fetch that Archidekt deck (it may be private). Paste the deck export text instead."
 
   def host?(host) when is_binary(host), do: String.downcase(host) in @hosts
@@ -26,11 +28,27 @@ defmodule Manavault.Trade.ListSource.Archidekt do
 
   def deck_id(_path), do: :error
 
-  @doc "Fetches and normalizes the deck for a validated `id`."
+  @doc "Canonical public URL for a validated deck id."
+  def public_url(id) when is_binary(id), do: @public_base <> id
+
+  @doc "Fetches and normalizes the deck for a validated `id` with a user-facing error."
   def fetch(id) when is_binary(id) do
+    case fetch_deck(id) do
+      {:ok, deck} -> {:ok, deck}
+      {:error, _reason} -> {:error, @friendly_error}
+    end
+  end
+
+  @doc """
+  Fetches and normalizes the deck for a validated `id`, returning the raw
+  `Manavault.Trade.ListSource.Http` error reason on failure. Each entry
+  carries `name`, `quantity`, `zone`, `set_code`, `collector_number`,
+  `scryfall_id`, and `finish`.
+  """
+  def fetch_deck(id) when is_binary(id) do
     case Http.get_json(@api_base <> id <> "/", req_options: req_options()) do
       {:ok, payload} -> {:ok, entries_from_payload(payload)}
-      {:error, _reason} -> {:error, @friendly_error}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -55,7 +73,9 @@ defmodule Manavault.Trade.ListSource.Archidekt do
       quantity: entry |> Map.get("quantity", 1) |> Util.positive_quantity(),
       zone: zone_from_categories(Map.get(entry, "categories", [])),
       set_code: nil,
-      collector_number: nil
+      collector_number: nil,
+      scryfall_id: get_in(entry, ["card", "uid"]),
+      finish: finish(Map.get(entry, "modifier"))
     }
   end
 
@@ -71,6 +91,9 @@ defmodule Manavault.Trade.ListSource.Archidekt do
   end
 
   defp zone_from_categories(_categories), do: "mainboard"
+
+  defp finish(modifier) when is_map_key(@finishes, modifier), do: Map.fetch!(@finishes, modifier)
+  defp finish(_modifier), do: "nonfoil"
 
   defp req_options, do: Application.get_env(:manavault, :trade_archidekt_req_options, [])
 end

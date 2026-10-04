@@ -25,6 +25,10 @@ export const DecksDocument = graphql(`
           commanderBracketEstimate
           commanderBracketRating
           shareToken
+          externalSource
+          externalUrl
+          externalSyncedAt
+          externalSyncError
           coverDeckCardId
           coverImageUrl
           commanderColorIdentity
@@ -90,6 +94,10 @@ export const CreateDeckDocument = graphql(`
         commanderBracketEstimate
         commanderBracketRating
         shareToken
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
         coverDeckCardId
         coverImageUrl
         commanderColorIdentity
@@ -128,6 +136,10 @@ export const UpdateDeckDocument = graphql(`
         commanderBracketEstimate
         commanderBracketRating
         shareToken
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
         coverDeckCardId
         coverImageUrl
         commanderColorIdentity
