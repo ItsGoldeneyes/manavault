@@ -29,15 +29,23 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
     Enum.flat_map(cards, &printing_row(with_oracle_id(&1), now))
   end
 
-  # Reversible cards (e.g. "Temple Garden // Temple Garden")
-  # carry `oracle_id` on each face instead of the card itself, so fall back to
-  # the first face's value rather than dropping the printing.
+  # Reversible cards (e.g. "Temple Garden // Temple Garden") carry `oracle_id`
+  # on each face instead of the card itself. Resolve the card from its first
+  # face so the row matches the canonical card sharing that oracle_id: the
+  # top-level name is "A // B" and the type/cost fields are absent, so keeping
+  # them would overwrite the real card on upsert.
   defp with_oracle_id(%{"oracle_id" => oracle_id} = card) when is_binary(oracle_id), do: card
 
   defp with_oracle_id(%{"card_faces" => faces} = card) when is_list(faces) do
-    case Enum.find_value(faces, &Map.get(&1, "oracle_id")) do
-      oracle_id when is_binary(oracle_id) -> Map.put(card, "oracle_id", oracle_id)
-      _missing -> card
+    case Enum.find(faces, &is_binary(Map.get(&1, "oracle_id"))) do
+      nil ->
+        card
+
+      face ->
+        Map.merge(
+          card,
+          Map.take(face, ["oracle_id", "name", "type_line", "mana_cost", "cmc", "oracle_text"])
+        )
     end
   end
 
