@@ -139,6 +139,7 @@ defmodule Manavault.Catalog.Collection do
   end
 
   defdelegate collection_bulk_clean(opts \\ []), to: BulkClean, as: :preview
+  defdelegate remove_bulk_clean_pulls(pulls), to: BulkClean, as: :remove
 
   def delete_location(%Location{} = location) do
     Locations.delete(location)

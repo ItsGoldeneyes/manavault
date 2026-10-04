@@ -282,6 +282,12 @@ defmodule Manavault.Catalog.Cached do
     |> invalidate_on_ok(&Cache.invalidate_collection/0)
   end
 
+  def remove_bulk_clean_pulls(pulls) do
+    pulls
+    |> Collection.remove_bulk_clean_pulls()
+    |> invalidate_on_ok(&Cache.invalidate_collection/0)
+  end
+
   def delete_location(location) do
     location
     |> Collection.delete_location()

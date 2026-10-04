@@ -71,6 +71,7 @@ defmodule Manavault.Catalog do
   defdelegate update_collection_auto_sort_rules(inputs), to: Cached
   defdelegate auto_sort_collection(opts \\ []), to: Cached
   defdelegate collection_bulk_clean(opts \\ []), to: Collection
+  defdelegate remove_bulk_clean_pulls(pulls), to: Cached
   defdelegate delete_location(location), to: Cached
   defdelegate add_printing_to_collection(scryfall_id, attrs \\ %{}), to: Cached
   defdelegate preview_collection_import(text, opts \\ []), to: Collection

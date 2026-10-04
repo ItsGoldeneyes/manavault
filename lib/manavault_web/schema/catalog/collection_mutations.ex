@@ -73,6 +73,35 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionMutations do
     end
   end
 
+  def remove_bulk_clean_pulls(_parent, %{pulls: pulls}, _resolution) do
+    with {:ok, pulls} <- parse_bulk_clean_pulls(pulls) do
+      case Catalog.remove_bulk_clean_pulls(pulls) do
+        {:ok, count} ->
+          {:ok, count}
+
+        {:error, :stale_pull} ->
+          {:error, "Your collection changed since this list was made. Refresh and try again."}
+
+        {:error, _reason} ->
+          {:error, "Could not remove pulled cards"}
+      end
+    end
+  end
+
+  def parse_bulk_clean_pulls(pulls) do
+    pulls
+    |> Enum.reduce_while({:ok, []}, fn %{collection_item_id: id} = pull, {:ok, parsed} ->
+      case Integer.parse(to_string(id)) do
+        {id, ""} -> {:cont, {:ok, [%{pull | collection_item_id: id} | parsed]}}
+        _invalid -> {:halt, {:error, "Invalid collection item id"}}
+      end
+    end)
+    |> case do
+      {:ok, parsed} -> {:ok, Enum.reverse(parsed)}
+      error -> error
+    end
+  end
+
   def delete_collection_item(_parent, %{id: id}, resolution) do
     with {:ok, id} <- RelayHelpers.node_id(id, :collection_item, resolution) do
       item = Catalog.get_collection_item!(id)

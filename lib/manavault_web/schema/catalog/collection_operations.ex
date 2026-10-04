@@ -65,6 +65,8 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionOperations do
       arg(:max_price_cents, :integer)
       arg(:min_copies, :integer)
       arg(:keep_copies, :integer)
+      arg(:prefer_keep_foils, :boolean)
+      arg(:kept, list_of(non_null(:bulk_clean_pull_input)))
       resolve(&QueryResolvers.collection_bulk_clean/3)
     end
   end
@@ -143,6 +145,24 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionOperations do
           resolution,
           &MutationResolvers.set_collection_items_for_trade_quantity/3,
           :quantity
+        )
+      end)
+    end
+
+    payload field :remove_bulk_clean_pulls do
+      arg(:pulls, non_null(list_of(non_null(:bulk_clean_pull_input))))
+
+      output do
+        field :removed_count, non_null(:integer)
+      end
+
+      resolve(fn parent, args, resolution ->
+        payload(
+          parent,
+          args,
+          resolution,
+          &MutationResolvers.remove_bulk_clean_pulls/3,
+          :removed_count
         )
       end)
     end

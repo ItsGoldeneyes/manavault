@@ -1,6 +1,8 @@
-import { useQuery } from "@apollo/client/react"
+import { useMutation, useQuery } from "@apollo/client/react"
+import { Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Button } from "../../components/ui/button"
+import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import {
   Dialog,
   DialogClose,
@@ -9,15 +11,29 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog"
 import { Input } from "../../components/ui/input"
-import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group"
-import { pluralize } from "../../lib/utils"
+import { Switch } from "../../components/ui/switch"
+import { useToast } from "../../components/ui/toast"
+import { useLocalStorageState } from "../../lib/use-local-storage"
+import { cn, pluralize } from "../../lib/utils"
 import { CardNamePreview, FinishBadge } from "./auto-sort-summary-dialog"
-import { CollectionBulkCleanDocument } from "./bulk-clean/documents"
+import { CollectionBulkCleanDocument, RemoveBulkCleanPullsDocument } from "./bulk-clean/documents"
 import { formatCents } from "./sell-cards-list"
+import {
+  COLLECTION_BULK_CLEAN_KEPT_STORAGE_KEY,
+  COLLECTION_BULK_CLEAN_PULLED_STORAGE_KEY,
+  COLLECTION_BULK_CLEAN_SETTINGS_STORAGE_KEY,
+} from "./storage-keys"
 
 const SETTINGS_DEBOUNCE_MS = 300
+const DEFAULT_INPUTS = { maxPrice: "0.20", minCopies: "10", keepCopies: "4", preferKeepFoils: true }
 
-type BulkCleanSettings = { maxPriceCents: number; minCopies: number; keepCopies: number }
+type BulkCleanSettings = {
+  maxPriceCents: number
+  minCopies: number
+  keepCopies: number
+  preferKeepFoils: boolean
+  kept: { collectionItemId: string; quantity: number }[]
+}
 type BulkCleanPull = {
   cardId: string
   cardName: string
@@ -32,22 +48,59 @@ type BulkCleanPull = {
   quantity: number
   setCode: string
 }
-type PullGroup = { key: string; title: string; subtitle: string; pulls: BulkCleanPull[] }
+type BulkCleanCard = {
+  cardId: string
+  cardName: string
+  pullQuantity: number
+  pulls: BulkCleanPull[]
+  swappableCopies: number
+  totalCopies: number
+}
+type LocationGroup = { key: string; locationName: string; cards: BulkCleanCard[] }
 
 export function BulkCleanDialog({
+  onDone,
   onOpenChange,
   open,
 }: {
+  onDone: () => void
   onOpenChange: (open: boolean) => void
   open: boolean
 }) {
-  const [maxPrice, setMaxPrice] = useState("0.20")
-  const [minCopies, setMinCopies] = useState("10")
-  const [keepCopies, setKeepCopies] = useState("4")
-  const [groupBy, setGroupBy] = useState<"location" | "card">("location")
-  const settings = parseSettings(maxPrice, minCopies, keepCopies)
+  const { showToast } = useToast()
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [removePulls, removeStatus] = useMutation(RemoveBulkCleanPullsDocument)
+  const [inputs, setInputs] = useLocalStorageState(
+    COLLECTION_BULK_CLEAN_SETTINGS_STORAGE_KEY,
+    DEFAULT_INPUTS,
+  )
+  const { maxPrice, minCopies, keepCopies, preferKeepFoils } = { ...DEFAULT_INPUTS, ...inputs }
+  const setInput =
+    <Field extends keyof typeof DEFAULT_INPUTS>(field: Field) =>
+    (value: (typeof DEFAULT_INPUTS)[Field]) =>
+      setInputs((current) => ({ ...DEFAULT_INPUTS, ...current, [field]: value }))
+  // Collection item id -> copies of that stack to keep; the server pulls the
+  // card's other stacks instead.
+  const [kept, setKept] = useLocalStorageState<Record<string, number>>(
+    COLLECTION_BULK_CLEAN_KEPT_STORAGE_KEY,
+    {},
+  )
+  const keptEntries = Object.entries(kept).map(([collectionItemId, quantity]) => ({
+    collectionItemId,
+    quantity,
+  }))
+  const keptCount = keptEntries.reduce((total, entry) => total + entry.quantity, 0)
+  const parsedSettings = parseSettings(maxPrice, minCopies, keepCopies, preferKeepFoils)
+  const settings = parsedSettings ? { ...parsedSettings, kept: keptEntries } : null
   const [variables, setVariables] = useState<BulkCleanSettings>(
-    settings ?? { maxPriceCents: 20, minCopies: 10, keepCopies: 4 },
+    settings ?? {
+      maxPriceCents: 20,
+      minCopies: 10,
+      keepCopies: 4,
+      preferKeepFoils: true,
+      kept: keptEntries,
+    },
   )
   const settingsKey = settings ? JSON.stringify(settings) : null
 
@@ -60,13 +113,62 @@ export function BulkCleanDialog({
     return () => window.clearTimeout(timeout)
   }, [settingsKey])
 
-  const { data, error, loading, previousData } = useQuery(CollectionBulkCleanDocument, {
+  const { data, error, loading, previousData, refetch } = useQuery(CollectionBulkCleanDocument, {
     variables,
     skip: !open,
     fetchPolicy: "network-only",
   })
   const result = (data ?? previousData)?.collectionBulkClean
-  const groups = result ? groupPulls(result.cards, groupBy) : []
+  const groups = result ? groupPulls(result.cards) : []
+  // Collection item id -> quantity checked off. A check only counts while the
+  // suggested quantity is unchanged, so a different plan starts unchecked.
+  const [pulled, setPulled] = useLocalStorageState<Record<string, number>>(
+    COLLECTION_BULK_CLEAN_PULLED_STORAGE_KEY,
+    {},
+  )
+  const isPulled = (pull: BulkCleanPull) => pulled[pull.collectionItemId] === pull.quantity
+  const pulledPulls = (result?.cards ?? []).flatMap((card) => card.pulls).filter(isPulled)
+  const pulledCount = pulledCopies(pulledPulls)
+
+  async function removePulled() {
+    setRemoveError(null)
+    try {
+      const response = await removePulls({
+        variables: {
+          pulls: pulledPulls.map(({ collectionItemId, quantity }) => ({
+            collectionItemId,
+            quantity,
+          })),
+        },
+      })
+      const removedCount = response.data?.removeBulkCleanPulls?.removedCount ?? 0
+      const removedIds = new Set(pulledPulls.map((pull) => pull.collectionItemId))
+      setPulled((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => !removedIds.has(id))),
+      )
+      showToast(`${pluralize(removedCount, "card")} removed from your collection`)
+      await refetch()
+      onDone()
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : "Could not remove pulled cards")
+    }
+  }
+
+  function keepOne(pull: BulkCleanPull) {
+    setKept((current) => ({
+      ...current,
+      [pull.collectionItemId]: (current[pull.collectionItemId] ?? 0) + 1,
+    }))
+  }
+
+  function togglePulled(pull: BulkCleanPull, checked: boolean) {
+    setPulled((current) => {
+      const next = { ...current }
+      if (checked) next[pull.collectionItemId] = pull.quantity
+      else delete next[pull.collectionItemId]
+      return next
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,7 +195,7 @@ export function BulkCleanDialog({
               min={0}
               step={0.01}
               value={maxPrice}
-              onChange={setMaxPrice}
+              onChange={setInput("maxPrice")}
             />
             <SettingField
               id="bulk-clean-min-copies"
@@ -103,7 +205,7 @@ export function BulkCleanDialog({
               min={1}
               step={1}
               value={minCopies}
-              onChange={setMinCopies}
+              onChange={setInput("minCopies")}
             />
             <SettingField
               id="bulk-clean-keep-copies"
@@ -113,9 +215,26 @@ export function BulkCleanDialog({
               min={0}
               step={1}
               value={keepCopies}
-              onChange={setKeepCopies}
+              onChange={setInput("keepCopies")}
             />
           </fieldset>
+
+          <label className="flex cursor-pointer items-center gap-3">
+            <Switch
+              checked={preferKeepFoils}
+              aria-describedby="bulk-clean-prefer-foils-hint"
+              onCheckedChange={setInput("preferKeepFoils")}
+            />
+            <span>
+              <span className="block text-sm font-bold">Prefer to keep foils</span>
+              <span
+                id="bulk-clean-prefer-foils-hint"
+                className="block text-xs text-base-content/60"
+              >
+                Pull nonfoil copies first
+              </span>
+            </span>
+          </label>
 
           {!settings ? (
             <p role="alert" className="text-sm text-error">
@@ -132,6 +251,50 @@ export function BulkCleanDialog({
             />
           </dl>
 
+          {result?.pullQuantity ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-base-content/70" aria-live="polite">
+                <span className="font-bold text-base-content">
+                  {pulledCount} of {result.pullQuantity}
+                </span>{" "}
+                copies pulled · saved in this browser
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {keptCount ? (
+                  <Button type="button" variant="ghost" onClick={() => setKept({})}>
+                    Reset kept ({keptCount})
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={!Object.keys(pulled).length}
+                  onClick={() => setPulled({})}
+                >
+                  Clear checks
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={!pulledCount || removeStatus.loading}
+                  onClick={() => setConfirmRemoveOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {removeStatus.loading ? "Removing..." : "Remove pulled"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {removeError ? (
+            <p
+              role="alert"
+              className="rounded-box border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
+            >
+              {removeError}
+            </p>
+          ) : null}
+
           {error ? (
             <p
               role="alert"
@@ -143,35 +306,12 @@ export function BulkCleanDialog({
             <p className="text-sm text-base-content/70">Finding bulk to pull...</p>
           ) : groups.length ? (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-sm font-bold">Group by</span>
-                <ToggleGroup
-                  type="single"
-                  aria-label="Group pulls by"
-                  value={groupBy}
-                  onValueChange={(value) => {
-                    if (value === "location" || value === "card") setGroupBy(value)
-                  }}
-                  className="flex gap-1 rounded-btn border border-base-300 bg-base-100 p-1"
-                >
-                  {(["location", "card"] as const).map((value) => (
-                    <ToggleGroupItem
-                      key={value}
-                      value={value}
-                      className="min-h-11 rounded-btn px-4 text-sm font-bold transition-colors hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary data-[state=on]:bg-primary data-[state=on]:text-primary-content"
-                    >
-                      {value === "location" ? "Location" : "Card"}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </div>
-
               {groups.map((group, index) => {
-                const headingId = `bulk-clean-${groupBy}-${index}`
+                const headingId = `bulk-clean-location-${index}`
 
                 return (
                   <details
-                    key={`${groupBy}:${group.key}`}
+                    key={group.key}
                     open
                     className="rounded-box border border-base-300 bg-base-100/70"
                     aria-labelledby={headingId}
@@ -180,38 +320,104 @@ export function BulkCleanDialog({
                       <div className="inline-flex w-[calc(100%-1.5rem)] flex-wrap items-start justify-between gap-3 align-top">
                         <div>
                           <h3 id={headingId} className="font-black tracking-normal">
-                            {group.title}
+                            {group.locationName}
                           </h3>
-                          <p className="text-xs text-base-content/60">{group.subtitle}</p>
+                          <p className="text-xs text-base-content/60">
+                            {pluralize(group.cards.length, "card")}
+                          </p>
                         </div>
                         <span className="badge badge-outline shrink-0">
-                          Pull {pulledCopies(group.pulls)}
+                          {locationProgress(group, isPulled)}
                         </span>
                       </div>
                     </summary>
                     <ul className="divide-y divide-base-300 border-t border-base-300">
-                      {group.pulls.map((pull) => (
-                        <li key={pull.collectionItemId} className="space-y-1 px-4 py-3">
+                      {group.cards.map((card) => (
+                        <li key={card.cardId} className="space-y-2 px-4 py-3">
                           <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <CardNamePreview move={pull} />
-                            <div className="flex flex-wrap items-center gap-2 text-sm text-base-content/70">
-                              <span className="font-bold text-base-content">
-                                Pull {pull.quantity}
-                                {pull.quantity < pull.ownedQuantity
-                                  ? ` of ${pull.ownedQuantity}`
-                                  : ""}
-                              </span>
-                              <FinishBadge finish={pull.finish} />
-                            </div>
-                          </div>
-                          <p className="text-sm text-base-content/70">
-                            {groupBy === "card" ? `From ${pull.fromLocationName} · ` : ""}
-                            <span className="font-mono text-xs">
-                              {pull.setCode.toUpperCase()} #{pull.collectorNumber}
+                            <CardNamePreview move={card.pulls[0]} />
+                            <span className="text-sm font-bold">
+                              Pull {pulledCopies(card.pulls)}
                             </span>
-                            {" · "}
-                            {formatCents(pull.priceCents)} each
+                          </div>
+                          <p className="text-xs text-base-content/60">
+                            {pluralize(card.totalCopies, "loose copy", "loose copies")} owned ·
+                            pulling {card.pullQuantity} across your collection
                           </p>
+                          <ul className="space-y-1 border-l-2 border-base-300 pl-3">
+                            {card.pulls.map((pull) => {
+                              const checked = isPulled(pull)
+                              const printing = `${pull.setCode.toUpperCase()} #${pull.collectorNumber}`
+                              // Copies of this stack already left in place absorb a keep
+                              // without changing anything; only other stacks can swap in.
+                              const unpulledHere =
+                                pull.ownedQuantity -
+                                (kept[pull.collectionItemId] ?? 0) -
+                                pull.quantity
+                              const canKeep = card.swappableCopies - unpulledHere > 0
+
+                              return (
+                                <li
+                                  key={pull.collectionItemId}
+                                  className="flex flex-wrap items-center justify-between gap-2 text-sm text-base-content/70"
+                                >
+                                  <label
+                                    className={cn(
+                                      "flex min-h-11 cursor-pointer items-center gap-3 transition-opacity",
+                                      checked && "opacity-60",
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="checkbox checkbox-sm checkbox-primary"
+                                      checked={checked}
+                                      aria-label={`Pulled ${pull.quantity} ${card.cardName} ${printing} from ${group.locationName}`}
+                                      onChange={(event) => togglePulled(pull, event.target.checked)}
+                                    />
+                                    <span className={cn(checked && "line-through")}>
+                                      <span className="font-mono text-xs">{printing}</span>
+                                      {" · "}
+                                      {formatCents(pull.priceCents)} each
+                                      {kept[pull.collectionItemId] ? (
+                                        <span className="text-base-content/60">
+                                          {" · "}keeping {kept[pull.collectionItemId]}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </label>
+                                  <span className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      className={cn(
+                                        "font-bold text-base-content",
+                                        checked && "opacity-60",
+                                      )}
+                                    >
+                                      Pull {pull.quantity}
+                                      {pull.quantity < pull.ownedQuantity
+                                        ? ` of ${pull.ownedQuantity}`
+                                        : ""}
+                                    </span>
+                                    <FinishBadge finish={pull.finish} />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={!canKeep}
+                                      title={
+                                        canKeep
+                                          ? "Keep one copy of this printing and pull one from another stack"
+                                          : "No other stack of this card has copies left to pull instead"
+                                      }
+                                      aria-label={`Keep one ${card.cardName} ${printing} from ${group.locationName}`}
+                                      onClick={() => keepOne(pull)}
+                                    >
+                                      Keep 1
+                                    </Button>
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
                         </li>
                       ))}
                     </ul>
@@ -236,6 +442,17 @@ export function BulkCleanDialog({
           </div>
         </div>
       </DialogContent>
+      <ConfirmDialog
+        destructive
+        open={confirmRemoveOpen}
+        title={`Remove ${pluralize(pulledCount, "pulled card")}?`}
+        confirmLabel="Remove from collection"
+        onConfirm={() => void removePulled()}
+        onOpenChange={setConfirmRemoveOpen}
+      >
+        Checked copies are deleted from your collection. Stacks you pulled completely are removed;
+        partly pulled stacks keep their remaining copies.
+      </ConfirmDialog>
     </Dialog>
   )
 }
@@ -300,48 +517,43 @@ function parseSettings(
   maxPrice: string,
   minCopies: string,
   keepCopies: string,
-): BulkCleanSettings | null {
+  preferKeepFoils: boolean,
+): Omit<BulkCleanSettings, "kept"> | null {
   const maxPriceCents = Math.round(Number(maxPrice) * 100)
   const min = Number(minCopies)
   const keep = Number(keepCopies)
   if (maxPrice.trim() === "" || !Number.isFinite(maxPriceCents) || maxPriceCents < 0) return null
   if (minCopies.trim() === "" || !Number.isInteger(min) || min < 1) return null
   if (keepCopies.trim() === "" || !Number.isInteger(keep) || keep < 0) return null
-  return { maxPriceCents, minCopies: min, keepCopies: keep }
+  return { maxPriceCents, minCopies: min, keepCopies: keep, preferKeepFoils }
 }
 
-function groupPulls(
-  cards: readonly {
-    cardId: string
-    cardName: string
-    totalCopies: number
-    pulls: BulkCleanPull[]
-  }[],
-  groupBy: "location" | "card",
-): PullGroup[] {
-  if (groupBy === "card") {
-    return cards.map((card) => ({
-      key: card.cardId,
-      title: card.cardName,
-      subtitle: `${pluralize(card.totalCopies, "loose copy", "loose copies")} owned`,
-      pulls: card.pulls,
-    }))
+function groupPulls(cards: readonly BulkCleanCard[]): LocationGroup[] {
+  const groups = new Map<string, LocationGroup>()
+
+  for (const card of cards) {
+    for (const pull of card.pulls) {
+      const key = pull.fromLocationId ?? "unfiled"
+      const group = groups.get(key) ?? { key, locationName: pull.fromLocationName, cards: [] }
+      groups.set(key, group)
+
+      const locationCard = group.cards.find((entry) => entry.cardId === card.cardId)
+      if (locationCard) locationCard.pulls.push(pull)
+      else group.cards.push({ ...card, pulls: [pull] })
+    }
   }
 
-  const groups = new Map<string, PullGroup>()
-  for (const pull of cards.flatMap((card) => card.pulls)) {
-    const key = pull.fromLocationId ?? "unfiled"
-    const group = groups.get(key)
-    if (group) group.pulls.push(pull)
-    else groups.set(key, { key, title: pull.fromLocationName, subtitle: "", pulls: [pull] })
-  }
+  return Array.from(groups.values()).sort((left, right) =>
+    left.locationName.localeCompare(right.locationName),
+  )
+}
 
-  return Array.from(groups.values())
-    .map((group) => ({
-      ...group,
-      subtitle: pluralize(new Set(group.pulls.map((pull) => pull.cardId)).size, "card"),
-    }))
-    .sort((left, right) => left.title.localeCompare(right.title))
+function locationProgress(group: LocationGroup, isPulled: (pull: BulkCleanPull) => boolean) {
+  const pulls = group.cards.flatMap((card) => card.pulls)
+  const total = pulledCopies(pulls)
+  const done = pulledCopies(pulls.filter(isPulled))
+  if (done === total) return `Pulled ${total}`
+  return done ? `Pulled ${done} of ${total}` : `Pull ${total}`
 }
 
 function pulledCopies(pulls: readonly BulkCleanPull[]) {

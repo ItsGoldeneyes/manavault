@@ -61,7 +61,11 @@ export function CollectionDialogs({
         onDone={finishBulkAction}
         onOpenChange={closeWhenClosed(close)}
       />
-      <BulkCleanDialog open={overlay.type === "bulk-clean"} onOpenChange={closeWhenClosed(close)} />
+      <BulkCleanDialog
+        open={overlay.type === "bulk-clean"}
+        onDone={finishBulkAction}
+        onOpenChange={closeWhenClosed(close)}
+      />
       <ExportCollectionDialog
         filters={overlay.type === "export-location" ? { locationId: overlay.location.id } : {}}
         format={overlay.type === "export-location" ? overlay.format : "csv"}

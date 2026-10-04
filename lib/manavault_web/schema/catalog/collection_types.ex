@@ -268,6 +268,7 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionTypes do
     field :image_url, :string
     field :total_copies, non_null(:integer)
     field :pull_quantity, non_null(:integer)
+    field :swappable_copies, non_null(:integer)
     field :pull_value_cents, non_null(:integer)
     field :pulls, non_null(list_of(non_null(:collection_bulk_clean_pull)))
   end
@@ -276,6 +277,7 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionTypes do
     field :max_price_cents, non_null(:integer)
     field :min_copies, non_null(:integer)
     field :keep_copies, non_null(:integer)
+    field :prefer_keep_foils, non_null(:boolean)
     field :card_count, non_null(:integer)
     field :pull_quantity, non_null(:integer)
     field :pull_value_cents, non_null(:integer)
@@ -357,6 +359,11 @@ defmodule ManavaultWeb.Schema.Catalog.CollectionTypes do
     field :unallocated_only, :boolean
     field :added_within_days, :integer
     field :for_trade, :boolean
+  end
+
+  input_object :bulk_clean_pull_input do
+    field :collection_item_id, non_null(:id)
+    field :quantity, non_null(:integer)
   end
 
   input_object :collection_item_sort do

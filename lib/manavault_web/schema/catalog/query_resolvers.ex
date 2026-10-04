@@ -3,7 +3,7 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
 
   alias Manavault.AI
   alias Manavault.Catalog
-  alias ManavaultWeb.Schema.Catalog.{CollectionFields, Errors}
+  alias ManavaultWeb.Schema.Catalog.{CollectionFields, CollectionMutations, Errors}
   alias ManavaultWeb.Schema.RelayHelpers
 
   def home_summary(_parent, _args, _resolution) do
@@ -169,10 +169,13 @@ defmodule ManavaultWeb.Schema.Catalog.QueryResolvers do
   end
 
   def collection_bulk_clean(_parent, args, _resolution) do
-    args
-    |> Map.take([:max_price_cents, :min_copies, :keep_copies])
-    |> Enum.into([])
-    |> Catalog.collection_bulk_clean()
+    with {:ok, kept} <- CollectionMutations.parse_bulk_clean_pulls(Map.get(args, :kept) || []) do
+      args
+      |> Map.take([:max_price_cents, :min_copies, :keep_copies, :prefer_keep_foils])
+      |> Map.put(:kept, Map.new(kept, &{&1.collection_item_id, &1.quantity}))
+      |> Enum.into([])
+      |> Catalog.collection_bulk_clean()
+    end
   end
 
   def default_deck_tags(_parent, _args, _resolution) do

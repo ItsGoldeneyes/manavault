@@ -5,7 +5,14 @@ defmodule Manavault.Catalog.Collection.BulkClean do
   A card qualifies when its loose copies (not allocated to a deck and not on a
   list) priced under `max_price_cents` add up to at least `min_copies`.
   Everything above `keep_copies` is suggested, pulling the cheapest printings
-  first and then the largest stacks so fewer piles need to be visited.
+  first and then the largest stacks so fewer piles need to be visited. With
+  `prefer_keep_foils`, nonfoil copies are pulled before any foil or etched copy.
+  `kept` maps collection item ids to copies the user wants to keep from that
+  stack; those copies are never pulled and the card's other stacks make up the
+  difference. `swappable_copies` on each card says how many more copies could
+  still be kept that way.
+
+  `remove/1` deletes pulled copies from the collection once they are out.
   """
 
   import Ecto.Query
@@ -16,20 +23,30 @@ defmodule Manavault.Catalog.Collection.BulkClean do
   alias Manavault.Catalog.{CollectionItem, DeckAllocation, Location, Util}
   alias Manavault.Repo
 
-  @defaults [max_price_cents: 20, min_copies: 10, keep_copies: 4]
+  @defaults [
+    max_price_cents: 20,
+    min_copies: 10,
+    keep_copies: 4,
+    prefer_keep_foils: true,
+    kept: %{}
+  ]
 
   def preview(opts \\ []) do
     opts = Keyword.merge(@defaults, Enum.reject(opts, fn {_key, value} -> is_nil(value) end))
     max_price_cents = max(Keyword.fetch!(opts, :max_price_cents), 0)
     min_copies = max(Keyword.fetch!(opts, :min_copies), 1)
     keep_copies = max(Keyword.fetch!(opts, :keep_copies), 0)
+    prefer_keep_foils = Keyword.fetch!(opts, :prefer_keep_foils) == true
+    kept = Keyword.fetch!(opts, :kept)
 
     cards =
       max_price_cents
       |> candidate_items(min_copies)
       |> Repo.all()
       |> Enum.group_by(fn {item, _price_cents} -> item.printing.card.oracle_id end)
-      |> Enum.map(fn {_oracle_id, rows} -> card_pulls(rows, keep_copies) end)
+      |> Enum.map(fn {_oracle_id, rows} ->
+        card_pulls(rows, keep_copies, prefer_keep_foils, kept)
+      end)
       |> Enum.reject(&(&1.pull_quantity == 0))
       |> Enum.sort_by(&{-&1.total_copies, &1.card_name})
 
@@ -38,6 +55,7 @@ defmodule Manavault.Catalog.Collection.BulkClean do
        max_price_cents: max_price_cents,
        min_copies: min_copies,
        keep_copies: keep_copies,
+       prefer_keep_foils: prefer_keep_foils,
        card_count: length(cards),
        pull_quantity: Enum.sum_by(cards, & &1.pull_quantity),
        pull_value_cents: Enum.sum_by(cards, & &1.pull_value_cents),
@@ -79,21 +97,59 @@ defmodule Manavault.Catalog.Collection.BulkClean do
     )
   end
 
-  defp card_pulls(rows, keep_copies) do
+  def remove(pulls) when is_list(pulls) do
+    Repo.transaction(fn ->
+      Enum.reduce(pulls, 0, fn %{collection_item_id: id, quantity: quantity}, removed ->
+        case remove_copies(id, quantity) do
+          {:ok, _item} -> removed + quantity
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end)
+  end
+
+  defp remove_copies(id, quantity) do
+    item = Repo.get(CollectionItem, id)
+    allocated? = Repo.exists?(from(a in DeckAllocation, where: a.collection_item_id == ^id))
+
+    cond do
+      is_nil(item) or allocated? or quantity < 1 or quantity > item.quantity ->
+        {:error, :stale_pull}
+
+      quantity == item.quantity ->
+        Repo.delete(item)
+
+      true ->
+        item
+        |> CollectionItem.update_changeset(%{quantity: item.quantity - quantity})
+        |> Repo.update()
+    end
+  end
+
+  defp card_pulls(rows, keep_copies, prefer_keep_foils, kept) do
     rows =
-      Enum.sort_by(rows, fn {item, price_cents} -> {price_cents, -item.quantity, item.id} end)
+      Enum.sort_by(rows, fn {item, price_cents} ->
+        foil_rank = if prefer_keep_foils and item.finish != "nonfoil", do: 1, else: 0
+        {foil_rank, price_cents, -item.quantity, item.id}
+      end)
 
     total_copies = Enum.sum_by(rows, fn {item, _price_cents} -> item.quantity end)
+    pullable = fn item -> max(item.quantity - Map.get(kept, item.id, 0), 0) end
+    pullable_copies = Enum.sum_by(rows, fn {item, _price_cents} -> pullable.(item) end)
 
     {pulls, _remaining} =
-      Enum.flat_map_reduce(rows, max(total_copies - keep_copies, 0), fn
+      Enum.flat_map_reduce(rows, min(max(total_copies - keep_copies, 0), pullable_copies), fn
         _row, 0 ->
           {[], 0}
 
         {item, price_cents}, remaining ->
-          quantity = min(item.quantity, remaining)
-          {[pull(item, price_cents, quantity)], remaining - quantity}
+          case min(pullable.(item), remaining) do
+            0 -> {[], remaining}
+            quantity -> {[pull(item, price_cents, quantity)], remaining - quantity}
+          end
       end)
+
+    pull_quantity = Enum.sum_by(pulls, & &1.quantity)
 
     {item, _price_cents} = hd(rows)
 
@@ -102,7 +158,8 @@ defmodule Manavault.Catalog.Collection.BulkClean do
       card_name: item.printing.card.name,
       image_url: image_url(item),
       total_copies: total_copies,
-      pull_quantity: Enum.sum_by(pulls, & &1.quantity),
+      pull_quantity: pull_quantity,
+      swappable_copies: pullable_copies - pull_quantity,
       pull_value_cents: Enum.sum_by(pulls, &(&1.quantity * &1.price_cents)),
       pulls: pulls
     }

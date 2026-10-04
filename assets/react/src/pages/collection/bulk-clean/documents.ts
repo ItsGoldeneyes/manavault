@@ -1,11 +1,19 @@
 import { graphql } from "../../../gql"
 
 export const CollectionBulkCleanDocument = graphql(`
-  query CollectionBulkClean($maxPriceCents: Int, $minCopies: Int, $keepCopies: Int) {
+  query CollectionBulkClean(
+    $maxPriceCents: Int
+    $minCopies: Int
+    $keepCopies: Int
+    $preferKeepFoils: Boolean
+    $kept: [BulkCleanPullInput!]
+  ) {
     collectionBulkClean(
       maxPriceCents: $maxPriceCents
       minCopies: $minCopies
       keepCopies: $keepCopies
+      preferKeepFoils: $preferKeepFoils
+      kept: $kept
     ) {
       cardCount
       pullQuantity
@@ -15,6 +23,7 @@ export const CollectionBulkCleanDocument = graphql(`
         cardName
         totalCopies
         pullQuantity
+        swappableCopies
         pulls {
           collectionItemId
           cardId
@@ -30,6 +39,14 @@ export const CollectionBulkCleanDocument = graphql(`
           fromLocationName
         }
       }
+    }
+  }
+`)
+
+export const RemoveBulkCleanPullsDocument = graphql(`
+  mutation RemoveBulkCleanPulls($pulls: [BulkCleanPullInput!]!) {
+    removeBulkCleanPulls(pulls: $pulls) {
+      removedCount
     }
   }
 `)

@@ -16,7 +16,8 @@ defmodule Manavault.Catalog.CollectionBulkCleanTest do
                Map.merge(elves, %{
                  "id" => "elves-b",
                  "collector_number" => "b",
-                 "prices" => %{"usd" => "0.05"}
+                 "finishes" => ["nonfoil", "foil"],
+                 "prices" => %{"usd" => "0.05", "usd_foil" => "0.01"}
                }),
                Map.merge(elves, %{
                  "id" => "elves-c",
@@ -89,12 +90,74 @@ defmodule Manavault.Catalog.CollectionBulkCleanTest do
            ]
   end
 
-  defp create_item!(scryfall_id, quantity, location_id) do
+  test "foils are pulled last unless the preference is turned off", context do
+    foil = create_item!("elves-b", 2, nil, "foil")
+
+    assert {:ok, %{prefer_keep_foils: true, cards: [%{total_copies: 14, pulls: pulls}]}} =
+             Catalog.collection_bulk_clean()
+
+    assert Enum.map(pulls, &{&1.collection_item_id, &1.quantity}) == [
+             {context.binder_item.id, 4},
+             {context.unfiled.id, 3},
+             {context.box_item.id, 3}
+           ]
+
+    assert {:ok, %{cards: [%{pulls: pulls}]}} =
+             Catalog.collection_bulk_clean(prefer_keep_foils: false)
+
+    assert [{foil_id, 2} | _rest] = Enum.map(pulls, &{&1.collection_item_id, &1.quantity})
+    assert foil_id == foil.id
+  end
+
+  test "removes pulled copies, deleting emptied stacks", context do
+    assert {:ok, 7} =
+             Catalog.remove_bulk_clean_pulls([
+               %{collection_item_id: context.binder_item.id, quantity: 4},
+               %{collection_item_id: context.box_item.id, quantity: 3}
+             ])
+
+    assert_raise Ecto.NoResultsError, fn ->
+      Catalog.get_collection_item!(context.binder_item.id)
+    end
+
+    assert Catalog.get_collection_item!(context.box_item.id).quantity == 2
+
+    assert {:error, :stale_pull} =
+             Catalog.remove_bulk_clean_pulls([
+               %{collection_item_id: context.unfiled.id, quantity: 1},
+               %{collection_item_id: context.box_item.id, quantity: 3}
+             ])
+
+    assert Catalog.get_collection_item!(context.unfiled.id).quantity == 3
+  end
+
+  test "kept copies are swapped for copies from the card's other stacks", context do
+    assert {:ok, %{cards: [%{swappable_copies: 4}]}} = Catalog.collection_bulk_clean()
+
+    kept = %{context.binder_item.id => 3}
+
+    assert {:ok, %{cards: [%{pull_quantity: 8, swappable_copies: 1, pulls: pulls}]}} =
+             Catalog.collection_bulk_clean(kept: kept)
+
+    assert Enum.map(pulls, &{&1.collection_item_id, &1.quantity}) == [
+             {context.binder_item.id, 1},
+             {context.unfiled.id, 3},
+             {context.box_item.id, 4}
+           ]
+
+    kept = Map.put(kept, context.unfiled.id, 3)
+
+    assert {:ok, %{cards: [%{pull_quantity: 6, swappable_copies: 0}]}} =
+             Catalog.collection_bulk_clean(kept: kept)
+  end
+
+  defp create_item!(scryfall_id, quantity, location_id, finish \\ "nonfoil") do
     {:ok, item} =
       Catalog.create_collection_item(%{
         scryfall_id: scryfall_id,
         quantity: quantity,
-        location_id: location_id
+        location_id: location_id,
+        finish: finish
       })
 
     item

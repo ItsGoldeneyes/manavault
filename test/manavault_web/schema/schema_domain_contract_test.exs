@@ -120,6 +120,7 @@ defmodule ManavaultWeb.Schema.SchemaDomainContractTest do
                "recordDeckPlay",
                "reloadScryfallAssets",
                "reloadScryfallCatalog",
+               "removeBulkCleanPulls",
                "reorderDeckTags",
                "replaceDefaultDeckTags",
                "revokeApiKey",
