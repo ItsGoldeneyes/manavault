@@ -1,14 +1,4 @@
-import {
-  Boxes,
-  BrushCleaning,
-  ChevronDown,
-  DatabaseArrowDown,
-  FileInput,
-  HandCoins,
-  ListChecks,
-  Plus,
-  WandSparkles,
-} from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { PageHeader } from "../../components/app-shell"
 import { Button } from "../../components/ui/button"
 import {
@@ -17,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
+import { CollectionHeaderActions } from "./collection-header-actions"
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs"
 import type { CollectionTab } from "./types"
 
@@ -67,62 +58,19 @@ export function CollectionPageHeader({
         eyebrow="ManaVault Inventory"
         description="Your boxes, binders, lists, and owned printings."
         bottomActions={
-          <div className="flex w-full flex-wrap items-center gap-2 sm:justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button">
-                  <Plus className="h-4 w-4" />
-                  Add
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onSelect={onAddItem}>
-                  <Plus className="h-4 w-4" />
-                  Add card
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onAddLocation}>
-                  <Boxes className="h-4 w-4" />
-                  Add location
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              type="button"
-              variant={quickCheckOpen ? "secondary" : "outline"}
-              aria-expanded={quickCheckOpen}
-              aria-controls="collection-quick-check"
-              onClick={onQuickCheck}
-            >
-              <ListChecks className="h-4 w-4" />
-              Check a list
-            </Button>
-            <Button type="button" variant="outline" onClick={onImport}>
-              <DatabaseArrowDown className="h-4 w-4" />
-              Import
-            </Button>
-            <Button type="button" variant="outline" onClick={onExportCsv}>
-              <FileInput className="h-4 w-4" />
-              Export
-            </Button>
-            <Button type="button" variant="outline" onClick={onSellCards}>
-              <HandCoins className="h-4 w-4" />
-              Sell
-            </Button>
-            <Button type="button" variant="outline" onClick={onBulkClean}>
-              <BrushCleaning className="h-4 w-4" />
-              Bulk clean
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              title="Preview auto-sort"
-              disabled={autoSortDisabled || autoSortPending}
-              onClick={onAutoSort}
-            >
-              <WandSparkles className="h-4 w-4" />
-              {autoSortPending ? "Previewing..." : "Auto-sort"}
-            </Button>
-          </div>
+          <CollectionHeaderActions
+            quickCheckOpen={quickCheckOpen}
+            autoSortDisabled={autoSortDisabled}
+            autoSortPending={autoSortPending}
+            onAddItem={onAddItem}
+            onAddLocation={onAddLocation}
+            onQuickCheck={onQuickCheck}
+            onImport={onImport}
+            onExportCsv={onExportCsv}
+            onSellCards={onSellCards}
+            onBulkClean={onBulkClean}
+            onAutoSort={onAutoSort}
+          />
         }
       />
 
