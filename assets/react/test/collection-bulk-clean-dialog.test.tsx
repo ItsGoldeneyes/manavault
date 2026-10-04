@@ -115,7 +115,14 @@ test("shows where to pull surplus bulk and refetches when thresholds change", as
     screen.getByRole("checkbox", { name: "Pulled 6 Llanowar Elves M19 #314 from Commons box" }),
   )
   expect(screen.getByText("6 of 8")).toBeTruthy()
-  expect(within(boxGroup).getByText("Pulled 6")).toBeTruthy()
+  expect(within(boxGroup).getAllByText("Pulled 6")).toHaveLength(2)
+
+  const pullAll = screen.getByRole("button", { name: "Pull all Llanowar Elves from Unfiled" })
+  await user.click(pullAll)
+  expect(screen.getByText("8 of 8")).toBeTruthy()
+  expect(pullAll.closest("details")?.open).toBe(true)
+  await user.click(screen.getByRole("button", { name: "Unmark all Llanowar Elves from Unfiled" }))
+  expect(screen.getByText("6 of 8")).toBeTruthy()
 
   view.unmount()
   render(dialog)

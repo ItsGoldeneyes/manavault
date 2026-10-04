@@ -161,11 +161,13 @@ export function BulkCleanDialog({
     }))
   }
 
-  function togglePulled(pull: BulkCleanPull, checked: boolean) {
+  function setPulledFor(pulls: readonly BulkCleanPull[], checked: boolean) {
     setPulled((current) => {
       const next = { ...current }
-      if (checked) next[pull.collectionItemId] = pull.quantity
-      else delete next[pull.collectionItemId]
+      for (const pull of pulls) {
+        if (checked) next[pull.collectionItemId] = pull.quantity
+        else delete next[pull.collectionItemId]
+      }
       return next
     })
   }
@@ -327,99 +329,129 @@ export function BulkCleanDialog({
                           </p>
                         </div>
                         <span className="badge badge-outline shrink-0">
-                          {locationProgress(group, isPulled)}
+                          {progressLabel(
+                            group.cards.flatMap((card) => card.pulls),
+                            isPulled,
+                          )}
                         </span>
                       </div>
                     </summary>
                     <ul className="divide-y divide-base-300 border-t border-base-300">
-                      {group.cards.map((card) => (
-                        <li key={card.cardId} className="space-y-2 px-4 py-3">
-                          <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <CardNamePreview move={card.pulls[0]} />
-                            <span className="text-sm font-bold">
-                              Pull {pulledCopies(card.pulls)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-base-content/60">
-                            {pluralize(card.totalCopies, "loose copy", "loose copies")} owned ·
-                            pulling {card.pullQuantity} across your collection
-                          </p>
-                          <ul className="space-y-1 border-l-2 border-base-300 pl-3">
-                            {card.pulls.map((pull) => {
-                              const checked = isPulled(pull)
-                              const printing = `${pull.setCode.toUpperCase()} #${pull.collectorNumber}`
-                              // Copies of this stack already left in place absorb a keep
-                              // without changing anything; only other stacks can swap in.
-                              const unpulledHere =
-                                pull.ownedQuantity -
-                                (kept[pull.collectionItemId] ?? 0) -
-                                pull.quantity
-                              const canKeep = card.swappableCopies - unpulledHere > 0
+                      {group.cards.map((card) => {
+                        const allPulled = card.pulls.every(isPulled)
 
-                              return (
-                                <li
-                                  key={pull.collectionItemId}
-                                  className="flex flex-wrap items-center justify-between gap-2 text-sm text-base-content/70"
-                                >
-                                  <label
-                                    className={cn(
-                                      "flex min-h-11 cursor-pointer items-center gap-3 transition-opacity",
-                                      checked && "opacity-60",
-                                    )}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="checkbox checkbox-sm checkbox-primary"
-                                      checked={checked}
-                                      aria-label={`Pulled ${pull.quantity} ${card.cardName} ${printing} from ${group.locationName}`}
-                                      onChange={(event) => togglePulled(pull, event.target.checked)}
-                                    />
-                                    <span className={cn(checked && "line-through")}>
-                                      <span className="font-mono text-xs">{printing}</span>
-                                      {" · "}
-                                      {formatCents(pull.priceCents)} each
-                                      {kept[pull.collectionItemId] ? (
-                                        <span className="text-base-content/60">
-                                          {" · "}keeping {kept[pull.collectionItemId]}
-                                        </span>
-                                      ) : null}
+                        return (
+                          <li key={card.cardId}>
+                            <details open>
+                              <summary className="cursor-pointer px-4 py-3 marker:text-base-content/60">
+                                <div className="inline-flex w-[calc(100%-1.5rem)] flex-wrap items-center justify-between gap-2 align-top">
+                                  <div>
+                                    <CardNamePreview move={card.pulls[0]} />
+                                    <p className="text-xs text-base-content/60">
+                                      {pluralize(card.totalCopies, "loose copy", "loose copies")}{" "}
+                                      owned · pulling {card.pullQuantity} across your collection
+                                    </p>
+                                  </div>
+                                  <span className="flex items-center gap-2">
+                                    <span className="text-sm font-bold">
+                                      {progressLabel(card.pulls, isPulled)}
                                     </span>
-                                  </label>
-                                  <span className="flex flex-wrap items-center gap-2">
-                                    <span
-                                      className={cn(
-                                        "font-bold text-base-content",
-                                        checked && "opacity-60",
-                                      )}
-                                    >
-                                      Pull {pull.quantity}
-                                      {pull.quantity < pull.ownedQuantity
-                                        ? ` of ${pull.ownedQuantity}`
-                                        : ""}
-                                    </span>
-                                    <FinishBadge finish={pull.finish} />
                                     <Button
                                       type="button"
-                                      variant="ghost"
+                                      variant="outline"
                                       size="sm"
-                                      disabled={!canKeep}
-                                      title={
-                                        canKeep
-                                          ? "Keep one copy of this printing and pull one from another stack"
-                                          : "No other stack of this card has copies left to pull instead"
-                                      }
-                                      aria-label={`Keep one ${card.cardName} ${printing} from ${group.locationName}`}
-                                      onClick={() => keepOne(pull)}
+                                      aria-label={`${allPulled ? "Unmark" : "Pull"} all ${card.cardName} from ${group.locationName}`}
+                                      onClick={(event) => {
+                                        // Keep the click from toggling the surrounding <details>.
+                                        event.preventDefault()
+                                        setPulledFor(card.pulls, !allPulled)
+                                      }}
                                     >
-                                      Keep 1
+                                      {allPulled ? "Unmark all" : "Pull all"}
                                     </Button>
                                   </span>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </li>
-                      ))}
+                                </div>
+                              </summary>
+                              <ul className="mx-4 mb-3 space-y-1 border-l-2 border-base-300 pl-3">
+                                {card.pulls.map((pull) => {
+                                  const checked = isPulled(pull)
+                                  const printing = `${pull.setCode.toUpperCase()} #${pull.collectorNumber}`
+                                  // Copies of this stack already left in place absorb a keep
+                                  // without changing anything; only other stacks can swap in.
+                                  const unpulledHere =
+                                    pull.ownedQuantity -
+                                    (kept[pull.collectionItemId] ?? 0) -
+                                    pull.quantity
+                                  const canKeep = card.swappableCopies - unpulledHere > 0
+
+                                  return (
+                                    <li
+                                      key={pull.collectionItemId}
+                                      className="flex flex-wrap items-center justify-between gap-2 text-sm text-base-content/70"
+                                    >
+                                      <label
+                                        className={cn(
+                                          "flex min-h-11 cursor-pointer items-center gap-3 transition-opacity",
+                                          checked && "opacity-60",
+                                        )}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          className="checkbox checkbox-sm checkbox-primary"
+                                          checked={checked}
+                                          aria-label={`Pulled ${pull.quantity} ${card.cardName} ${printing} from ${group.locationName}`}
+                                          onChange={(event) =>
+                                            setPulledFor([pull], event.target.checked)
+                                          }
+                                        />
+                                        <span className={cn(checked && "line-through")}>
+                                          <span className="font-mono text-xs">{printing}</span>
+                                          {" · "}
+                                          {formatCents(pull.priceCents)} each
+                                          {kept[pull.collectionItemId] ? (
+                                            <span className="text-base-content/60">
+                                              {" · "}keeping {kept[pull.collectionItemId]}
+                                            </span>
+                                          ) : null}
+                                        </span>
+                                      </label>
+                                      <span className="flex flex-wrap items-center gap-2">
+                                        <span
+                                          className={cn(
+                                            "font-bold text-base-content",
+                                            checked && "opacity-60",
+                                          )}
+                                        >
+                                          Pull {pull.quantity}
+                                          {pull.quantity < pull.ownedQuantity
+                                            ? ` of ${pull.ownedQuantity}`
+                                            : ""}
+                                        </span>
+                                        <FinishBadge finish={pull.finish} />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          disabled={!canKeep}
+                                          title={
+                                            canKeep
+                                              ? "Keep one copy of this printing and pull one from another stack"
+                                              : "No other stack of this card has copies left to pull instead"
+                                          }
+                                          aria-label={`Keep one ${card.cardName} ${printing} from ${group.locationName}`}
+                                          onClick={() => keepOne(pull)}
+                                        >
+                                          Keep 1
+                                        </Button>
+                                      </span>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </details>
+                          </li>
+                        )
+                      })}
                     </ul>
                   </details>
                 )
@@ -548,8 +580,10 @@ function groupPulls(cards: readonly BulkCleanCard[]): LocationGroup[] {
   )
 }
 
-function locationProgress(group: LocationGroup, isPulled: (pull: BulkCleanPull) => boolean) {
-  const pulls = group.cards.flatMap((card) => card.pulls)
+function progressLabel(
+  pulls: readonly BulkCleanPull[],
+  isPulled: (pull: BulkCleanPull) => boolean,
+) {
   const total = pulledCopies(pulls)
   const done = pulledCopies(pulls.filter(isPulled))
   if (done === total) return `Pulled ${total}`
