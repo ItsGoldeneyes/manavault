@@ -2,11 +2,11 @@ import {
   Boxes,
   BrushCleaning,
   ChevronDown,
-  ClipboardCheck,
-  Download,
+  DatabaseArrowDown,
+  FileInput,
+  HandCoins,
+  ListChecks,
   Plus,
-  Tags,
-  Upload,
   WandSparkles,
 } from "lucide-react"
 import { PageHeader } from "../../components/app-shell"
@@ -89,65 +89,38 @@ export function CollectionPageHeader({
             <Button
               type="button"
               variant={quickCheckOpen ? "secondary" : "outline"}
-              size="icon"
-              title="Check a list"
-              aria-label="Check a list"
               aria-expanded={quickCheckOpen}
               aria-controls="collection-quick-check"
               onClick={onQuickCheck}
             >
-              <ClipboardCheck className="h-4 w-4" />
+              <ListChecks className="h-4 w-4" />
+              Check a list
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title="Import"
-              aria-label="Import"
-              onClick={onImport}
-            >
-              <Upload className="h-4 w-4" />
+            <Button type="button" variant="outline" onClick={onImport}>
+              <DatabaseArrowDown className="h-4 w-4" />
+              Import
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title="Export"
-              aria-label="Export"
-              onClick={onExportCsv}
-            >
-              <Download className="h-4 w-4" />
+            <Button type="button" variant="outline" onClick={onExportCsv}>
+              <FileInput className="h-4 w-4" />
+              Export
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title="Sell"
-              aria-label="Sell"
-              onClick={onSellCards}
-            >
-              <Tags className="h-4 w-4" />
+            <Button type="button" variant="outline" onClick={onSellCards}>
+              <HandCoins className="h-4 w-4" />
+              Sell
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              title="Bulk clean"
-              aria-label="Bulk clean"
-              onClick={onBulkClean}
-            >
+            <Button type="button" variant="outline" onClick={onBulkClean}>
               <BrushCleaning className="h-4 w-4" />
+              Bulk clean
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="icon"
-              title={autoSortPending ? "Previewing..." : "Preview auto-sort"}
-              aria-label={autoSortPending ? "Previewing..." : "Preview auto-sort"}
+              title="Preview auto-sort"
               disabled={autoSortDisabled || autoSortPending}
               onClick={onAutoSort}
             >
               <WandSparkles className="h-4 w-4" />
+              {autoSortPending ? "Previewing..." : "Auto-sort"}
             </Button>
           </div>
         }
