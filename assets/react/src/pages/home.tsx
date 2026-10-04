@@ -8,11 +8,13 @@ import { ActionCard } from "../components/app-shell"
 import { CardNameSearchField } from "../components/card-name-search-field"
 import { Button } from "../components/ui/button"
 import { graphql } from "../gql"
+import { useHomeAnimation } from "../lib/home-animation"
 import { compactNumber } from "../lib/utils"
 
 // Prism pulls in the full ogl WebGL library. Load it lazily so the home chunk
-// stays small — it only renders on wide viewports without reduced-motion, so
-// mobile / reduced-motion users never download the WebGL renderer.
+// stays small — it only renders on wide viewports without reduced-motion when
+// the home animation setting is on, so other users never download the WebGL
+// renderer.
 const Prism = lazy(() => import("../components/prism/Prism"))
 
 const HomeDocument = graphql(`
@@ -34,13 +36,15 @@ export function HomePage() {
   const isLoading = loading && !data
   const isError = Boolean(error) && !data
   const summary = data?.homeSummary
-  const [renderPrism, setRenderPrism] = useState(false)
+  const [homeAnimation] = useHomeAnimation()
+  const [wideMotionViewport, setWideMotionViewport] = useState(false)
+  const renderPrism = homeAnimation && wideMotionViewport
 
   useEffect(() => {
     const query = window.matchMedia(
       "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
     )
-    const update = () => setRenderPrism(query.matches)
+    const update = () => setWideMotionViewport(query.matches)
 
     update()
     query.addEventListener("change", update)
@@ -89,7 +93,7 @@ export function HomePage() {
 
       <motion.section
         className="relative z-20 space-y-6 pb-8 pt-3 sm:pb-12 sm:pt-6"
-        initial={{ opacity: 0, y: 12 }}
+        initial={homeAnimation ? { opacity: 0, y: 12 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
       >

@@ -1,6 +1,8 @@
 import { Check, Droplets, Vault } from "lucide-react"
 import { PageSection } from "../../components/app-shell"
+import { Switch } from "../../components/ui/switch"
 import { useToast } from "../../components/ui/toast"
+import { useHomeAnimation } from "../../lib/home-animation"
 import { PALETTES, useTheme, type ThemeStyle } from "../../lib/theme"
 import { cn } from "../../lib/utils"
 import { errorMessage } from "./data"
@@ -37,13 +39,14 @@ const optionClassName = (selected: boolean) =>
 export function AppearanceSection() {
   const { palette, setPalette, resolvedTheme, themeStyle, setThemeStyle } = useTheme()
   const { showToast } = useToast()
+  const [homeAnimation, setHomeAnimation] = useHomeAnimation()
 
   function save(change: Promise<void>) {
     change.catch((err: unknown) => showToast(`Appearance not saved: ${errorMessage(err)}`))
   }
 
   return (
-    <PageSection title="Appearance" count="Palette and surface style">
+    <PageSection title="Appearance" count="Palette, surface style, and motion">
       <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-6 p-6">
           <div className="space-y-4">
@@ -126,6 +129,19 @@ export function AppearanceSection() {
                 )
               })}
             </div>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <label htmlFor="home-animation" className="min-w-0 cursor-pointer">
+              <span className="block text-lg font-black tracking-normal">Home animation</span>
+              <span className="mt-1 block text-sm text-base-content/60">
+                Show the animated prism backdrop on the home screen. Saved on this device.
+              </span>
+            </label>
+            <Switch
+              id="home-animation"
+              checked={homeAnimation}
+              onCheckedChange={setHomeAnimation}
+            />
           </div>
         </div>
       </div>

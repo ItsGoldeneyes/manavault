@@ -159,3 +159,20 @@ test("a failed account save rolls the palette back and explains why", async () =
   expect(pressed(/Catppuccin/)).toBe("false")
   expect(html.dataset.palette).toBe("kanagawa")
 })
+
+test("the home animation toggle is stored on this device", async () => {
+  renderAppearance()
+  const toggle = screen.getByRole("switch", { name: /Home animation/ })
+
+  expect(toggle.getAttribute("aria-checked")).toBe("true")
+  expect(localStorage.getItem("manavault:home-animation")).toBeNull()
+
+  await userEvent.click(toggle)
+
+  expect(toggle.getAttribute("aria-checked")).toBe("false")
+  expect(localStorage.getItem("manavault:home-animation")).toBe("false")
+
+  await userEvent.click(toggle)
+
+  expect(localStorage.getItem("manavault:home-animation")).toBeNull()
+})
