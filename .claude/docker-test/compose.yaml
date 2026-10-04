@@ -1,0 +1,19 @@
+# Isolated test workspace. Run from the repo root:
+#   docker compose -f .claude/docker-test/compose.yaml run --rm test            # mix test
+#   docker compose -f .claude/docker-test/compose.yaml run --rm test mix test test/manavault/foo_test.exs
+#   docker compose -f .claude/docker-test/compose.yaml run --rm test aube run test:react
+services:
+  test:
+    build:
+      context: ../..
+      dockerfile: .claude/docker-test/Dockerfile
+    volumes:
+      - ../..:/src:ro
+      - workspace:/workspace
+      - mix-build:/opt/mix/_build
+    environment:
+      MIX_ENV: test
+
+volumes:
+  workspace:
+  mix-build:

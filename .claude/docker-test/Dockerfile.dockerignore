@@ -1,0 +1,7 @@
+# Keep the build context small: only mix.exs, mix.lock and config are COPYed.
+*
+!mix.exs
+!mix.lock
+!config/config.exs
+!config/test.exs
+!.claude/docker-test/entrypoint.sh
