@@ -7,6 +7,8 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
   def rows(cards, now, oracle_tag_index) when is_list(cards) do
     {card_rows, printing_rows} =
       Enum.reduce(cards, {[], []}, fn card, {card_rows, printing_rows} ->
+        card = with_oracle_id(card)
+
         {
           prepend_rows(card_row(card, now, oracle_tag_index), card_rows),
           prepend_rows(printing_row(card, now), printing_rows)
@@ -20,12 +22,26 @@ defmodule Manavault.Catalog.Scryfall.ImportRows do
   end
 
   def card_rows(cards, now, oracle_tag_index) when is_list(cards) do
-    Enum.flat_map(cards, &card_row(&1, now, oracle_tag_index))
+    Enum.flat_map(cards, &card_row(with_oracle_id(&1), now, oracle_tag_index))
   end
 
   def printing_rows(cards, now) when is_list(cards) do
-    Enum.flat_map(cards, &printing_row(&1, now))
+    Enum.flat_map(cards, &printing_row(with_oracle_id(&1), now))
   end
+
+  # Reversible cards (e.g. "Temple Garden // Temple Garden")
+  # carry `oracle_id` on each face instead of the card itself, so fall back to
+  # the first face's value rather than dropping the printing.
+  defp with_oracle_id(%{"oracle_id" => oracle_id} = card) when is_binary(oracle_id), do: card
+
+  defp with_oracle_id(%{"card_faces" => faces} = card) when is_list(faces) do
+    case Enum.find_value(faces, &Map.get(&1, "oracle_id")) do
+      oracle_id when is_binary(oracle_id) -> Map.put(card, "oracle_id", oracle_id)
+      _missing -> card
+    end
+  end
+
+  defp with_oracle_id(card), do: card
 
   defp prepend_rows(rows, acc) do
     Enum.reduce(rows, acc, fn row, rows -> [row | rows] end)
