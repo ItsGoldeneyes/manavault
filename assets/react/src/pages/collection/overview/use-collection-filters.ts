@@ -215,6 +215,8 @@ function collectionFilterChips(
       label: `Year ${filters.yearOperator} ${filters.releasedYear.trim()}`,
     })
   }
+  if (filters.scryfallQuery.trim())
+    chips.push({ key: "scryfall", label: `Query: ${filters.scryfallQuery.trim()}` })
   return chips
 }
 

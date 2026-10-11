@@ -155,3 +155,25 @@ test("purchase price and added date ranges emit bounded predicates", () => {
   openEnded.purchasePriceMax = "5"
   assert.equal(buildCollectionFilterQuery(openEnded), "paid<=5 added>=2026-09-20")
 })
+
+test("free-form scryfall query is parenthesised, counted, and round-trips", () => {
+  const filters = cloneCollectionFilters(EMPTY_COLLECTION_FILTERS)
+  filters.scryfallQuery = "  o:draw or o:scry  "
+  assert.equal(buildCollectionFilterQuery(filters), "(o:draw or o:scry)")
+  assert.equal(countActiveCollectionFilters(filters), 1)
+  assert.deepEqual(decodeCollectionFilters(encodeCollectionFilters(filters)), {
+    ...filters,
+    scryfallQuery: "o:draw or o:scry",
+  })
+
+  filters.name = "bolt"
+  filters.finish = "foil"
+  assert.equal(buildCollectionFilterQuery(filters), "name:bolt is:foil (o:draw or o:scry)")
+  assert.equal(countActiveCollectionFilters(filters), 3)
+
+  assert.equal(buildCollectionFilterQuery(EMPTY_COLLECTION_FILTERS), "")
+  assert.equal(
+    decodeCollectionFilters(JSON.stringify({ scryfallQuery: 5 })).scryfallQuery,
+    "",
+  )
+})
