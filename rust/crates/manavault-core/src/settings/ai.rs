@@ -187,14 +187,21 @@ pub async fn update(state: &AppState, input: AiSettingsInput) -> Result<AiSettin
         match candidate.base_url.as_deref() {
             None => errors.add("base_url", BLANK),
             Some(url) if url.chars().count() > 500 => errors.add("base_url", too_long(500)),
-            Some(url)
-                if !reqwest::Url::parse(url).is_ok_and(|url| {
-                    matches!(url.scheme(), "http" | "https") && url.host().is_some()
-                }) =>
-            {
-                errors.add("base_url", "must be an http:// or https:// URL");
-            }
-            Some(_) => {}
+            Some(url) => match reqwest::Url::parse(url) {
+                Ok(url) if matches!(url.scheme(), "http" | "https") && url.host().is_some() => {
+                    // Paths are appended to the base URL, and it appears in
+                    // error messages, so it holds no query or credentials.
+                    if url.query().is_some() || url.fragment().is_some() {
+                        errors.add("base_url", "must not include a query or fragment");
+                    } else if !url.username().is_empty() || url.password().is_some() {
+                        errors.add(
+                            "base_url",
+                            "must not include credentials; enter the API key instead",
+                        );
+                    }
+                }
+                _ => errors.add("base_url", "must be an http:// or https:// URL"),
+            },
         }
         if candidate.reasoning_effort.is_some() {
             errors.add("reasoning_effort", "is only supported with OpenRouter");
@@ -576,17 +583,19 @@ pub mod openai_compatible {
                 })
             })
             .ok_or_else(|| {
-                (
-                    "base_url",
-                    super::openrouter::labeled_response_error(
-                        LABEL,
-                        status.as_u16(),
-                        &body,
-                        &format!(
-                            "{base_url}/models did not return an OpenAI-compatible model list."
-                        ),
-                    ),
-                )
+                let error = super::openrouter::labeled_response_error(
+                    LABEL,
+                    status.as_u16(),
+                    &body,
+                    &format!("{base_url}/models did not return an OpenAI-compatible model list."),
+                );
+                // The most common mistake is leaving out the /v1 path.
+                let hint = if base_url.ends_with("/v1") {
+                    ""
+                } else {
+                    " OpenAI-compatible base URLs usually end in /v1."
+                };
+                ("base_url", format!("{error}{hint}"))
             })?;
         let model = settings.model.as_deref().unwrap_or_default();
         if ids.iter().any(|id| id == model) {
@@ -1217,6 +1226,21 @@ mod tests {
         assert_eq!(
             invalid(update(&app.state, local_input("ftp://host/v1", "m")).await),
             "base url must be an http:// or https:// URL"
+        );
+        assert_eq!(
+            invalid(update(&app.state, local_input(&format!("{base_url}?x=1"), "m")).await),
+            "base url must not include a query or fragment"
+        );
+        assert_eq!(
+            invalid(update(&app.state, local_input("http://user:secret@host/v1", "m")).await),
+            "base url must not include credentials; enter the API key instead"
+        );
+        assert_eq!(
+            invalid(update(&app.state, local_input(&server.uri(), "m")).await),
+            format!(
+                "base url {}/models did not return an OpenAI-compatible model list. (HTTP 404) OpenAI-compatible base URLs usually end in /v1.",
+                server.uri()
+            )
         );
         assert_eq!(
             invalid(

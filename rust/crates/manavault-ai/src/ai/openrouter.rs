@@ -64,9 +64,14 @@ struct Endpoint<'a> {
 
 impl<'a> Endpoint<'a> {
     fn of(state: &AppState, settings: &'a Configured) -> Self {
-        match (settings.provider(), settings.base_url.as_deref()) {
-            (Ok(Provider::OpenAiCompatible), Some(base_url)) => Self {
-                url: format!("{base_url}/chat/completions"),
+        match settings.provider() {
+            // Never falls back to OpenRouter: that would send this key there.
+            // Without a base URL the request fails to build instead.
+            Ok(Provider::OpenAiCompatible) => Self {
+                url: format!(
+                    "{}/chat/completions",
+                    settings.base_url.as_deref().unwrap_or_default()
+                ),
                 api_key: &settings.api_key,
                 openrouter: false,
                 label: manavault_core::settings::ai::openai_compatible::LABEL,
