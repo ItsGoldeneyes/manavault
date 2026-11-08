@@ -230,6 +230,25 @@ export function CollectionFilterModal({
               </>
             ) : null}
 
+            <FilterSection label="Scryfall query" syntax="t:creature mv<=2 -is:foil">
+              <div className="grid gap-2">
+                <Input
+                  value={draft.scryfallQuery}
+                  onChange={(event) => update("scryfallQuery", event.target.value)}
+                  placeholder="e.g. o:draw (c:u or c:g) mv<=3"
+                  aria-label="Scryfall query"
+                />
+                <a
+                  href="https://scryfall.com/docs/syntax"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-bold text-primary hover:underline"
+                >
+                  Scryfall syntax reference
+                </a>
+              </div>
+            </FilterSection>
+
             <details className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-base-200/40 px-5 py-4 marker:hidden">
                 <span>

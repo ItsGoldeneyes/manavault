@@ -34,6 +34,7 @@ export type CollectionFilterState = {
   releasedDate: string
   yearOperator: ComparisonOperator
   releasedYear: string
+  scryfallQuery: string
 }
 
 const COMPARISON_OPERATORS: readonly ComparisonOperator[] = ["=", "!=", ">", ">=", "<", "<="]
@@ -73,6 +74,7 @@ export const EMPTY_COLLECTION_FILTERS: CollectionFilterState = {
   releasedDate: "",
   yearOperator: ">=",
   releasedYear: "",
+  scryfallQuery: "",
 }
 
 export function buildCollectionFilterQuery(filters: CollectionFilterState) {
@@ -97,6 +99,7 @@ export function buildCollectionFilterQuery(filters: CollectionFilterState) {
     comparisonPredicate("usd", filters.priceOperator, filters.priceUsd),
     comparisonPredicate("date", filters.dateOperator, filters.releasedDate),
     comparisonPredicate("year", filters.yearOperator, filters.releasedYear),
+    rawQueryPredicate(filters.scryfallQuery),
   ].filter(Boolean)
 
   return terms.join(" ")
@@ -130,6 +133,7 @@ export function countActiveCollectionFilters(filters: CollectionFilterState) {
     filters.priceUsd.trim(),
     filters.releasedDate.trim(),
     filters.releasedYear.trim(),
+    filters.scryfallQuery.trim(),
   ].filter(Boolean).length
 }
 
@@ -199,6 +203,7 @@ export function encodeCollectionFilters(filters: CollectionFilterState) {
       filters.releasedYear.trim() && filters.yearOperator !== EMPTY_COLLECTION_FILTERS.yearOperator
         ? filters.yearOperator
         : undefined,
+    scryfallQuery: trimmedValue(filters.scryfallQuery),
   })
 }
 
@@ -279,6 +284,8 @@ export function decodeCollectionFilters(value: unknown): CollectionFilterState {
     filters.yearOperator,
   )
 
+  filters.scryfallQuery = stringValue(decoded.scryfallQuery)
+
   return filters
 }
 
@@ -325,6 +332,13 @@ function isAllowedValue<T extends string>(value: unknown, allowed: readonly T[])
 function textPredicate(field: string, value: string) {
   const trimmed = value.trim()
   return trimmed ? `${field}:${quoteScryfallValue(trimmed)}` : ""
+}
+
+// Free-form Scryfall syntax; parenthesised so an `or` inside it cannot leak
+// across the other structured terms.
+function rawQueryPredicate(value: string) {
+  const trimmed = value.trim()
+  return trimmed ? `(${trimmed})` : ""
 }
 
 function comparisonPredicate(field: string, operator: ComparisonOperator, value: string) {
