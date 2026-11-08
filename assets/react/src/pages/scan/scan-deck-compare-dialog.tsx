@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@apollo/client/react"
 import { ArrowLeft, Check, Copy, Search } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "../../components/ui/button"
 import {
   Dialog,
@@ -13,15 +13,32 @@ import { Input } from "../../components/ui/input"
 import type { DeckDiffMutation } from "../../gql/graphql"
 import { copyTextToClipboard } from "../../lib/clipboard"
 import { cn, pluralize, present, titleize } from "../../lib/utils"
-import { CardDeckOptionsDocument } from "../cards/data"
+import { graphql } from "../../gql"
 import { DeckDiffDocument } from "../decks/deck-compare-documents"
 import { scanListText, totalQuantity, type ScanEntry } from "./scan-list"
 
 type DeckDiff = NonNullable<DeckDiffMutation["deckDiff"]>
 
+export const ScanCompareDecksDocument = graphql(`
+  query ScanCompareDecks {
+    decks(first: 100) {
+      edges {
+        node {
+          id
+          name
+          format
+          cardCount
+        }
+      }
+    }
+  }
+`)
+
 interface CompareRow {
   cardName: string
   quantity: number
+  /** The catalog has no card by this name (a misread or mistyped scan). */
+  unrecognized?: true
 }
 
 /** The deck diff read from the scan's side: what the deck still needs, and what it doesn't use. */
@@ -42,7 +59,10 @@ export interface ScanDeckComparison {
  */
 export function summarizeScanDiff(diff: DeckDiff, scannedTotal: number): ScanDeckComparison {
   const missing: CompareRow[] = diff.cuts.map(({ cardName, quantity }) => ({ cardName, quantity }))
-  const extra: CompareRow[] = diff.adds.map(({ cardName, quantity }) => ({ cardName, quantity }))
+  // A name the catalog doesn't know comes back as an add with no oracle id (and in `unrecognized`).
+  const extra: CompareRow[] = diff.adds.map(({ cardName, quantity, oracleId }) =>
+    oracleId ? { cardName, quantity } : { cardName, quantity, unrecognized: true },
+  )
   for (const change of diff.changes) {
     const delta = change.toQuantity - change.fromQuantity
     if (delta < 0) missing.push({ cardName: change.cardName, quantity: -delta })
@@ -54,12 +74,7 @@ export function summarizeScanDiff(diff: DeckDiff, scannedTotal: number): ScanDec
   extra.sort(byName)
 
   const sum = (rows: CompareRow[]) => rows.reduce((total, row) => total + row.quantity, 0)
-  // Unrecognized lines never reach the diff, so their copies can't count as matched.
-  const unrecognized = diff.unrecognized.reduce(
-    (total, line) => total + Number(/^\s*(\d+)x?\s/i.exec(line)?.[1] ?? 1),
-    0,
-  )
-  const matched = Math.max(0, scannedTotal - sum(extra) - unrecognized)
+  const matched = Math.max(0, scannedTotal - sum(extra))
   return { matched, deckTotal: matched + sum(missing), missing, extra }
 }
 
@@ -101,7 +116,7 @@ export function ScanDeckCompareDialog({
             <div className="min-w-0">
               <DialogTitle id="scan-compare-title">Compare to a deck</DialogTitle>
               <p className="mt-1 truncate text-sm text-base-content/70">
-                {deck ? deck.name : "Pick the deck to check the scanned cards against."}
+                {deck ? deck.name : "Pick a deck to check against."}
               </p>
             </div>
           </div>
@@ -120,7 +135,6 @@ export function ScanDeckCompareDialog({
               </p>
             ) : diff.data?.deckDiff ? (
               <ComparisonResult
-                diff={diff.data.deckDiff}
                 comparison={summarizeScanDiff(diff.data.deckDiff, totalQuantity(entries))}
               />
             ) : null
@@ -135,7 +149,7 @@ export function ScanDeckCompareDialog({
 
 function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string }) => void }) {
   const [query, setQuery] = useState("")
-  const { data, loading, error } = useQuery(CardDeckOptionsDocument, {
+  const { data, loading, error } = useQuery(ScanCompareDecksDocument, {
     fetchPolicy: "cache-and-network",
   })
   const decks = (data?.decks.edges ?? []).map((edge) => edge?.node).filter(present)
@@ -182,8 +196,9 @@ function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string
                 className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none"
               >
                 <span className="min-w-0 truncate font-bold">{deck.name}</span>
+                {/* Card count tells apart decks that share a name. */}
                 <span className="shrink-0 text-xs text-base-content/70">
-                  {titleize(deck.format)}
+                  {titleize(deck.format)} · {pluralize(deck.cardCount ?? 0, "card")}
                 </span>
               </button>
             </li>
@@ -194,15 +209,10 @@ function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string
   )
 }
 
-function ComparisonResult({
-  diff,
-  comparison,
-}: {
-  diff: DeckDiff
-  comparison: ScanDeckComparison
-}) {
+function ComparisonResult({ comparison }: { comparison: ScanDeckComparison }) {
   const { matched, deckTotal, missing, extra } = comparison
-  const complete = missing.length === 0
+  // An empty deck has nothing to cover, so it never reads as complete.
+  const complete = deckTotal > 0 && missing.length === 0
 
   return (
     <div className="space-y-5 p-5">
@@ -238,21 +248,6 @@ function ComparisonResult({
         tone="warning"
         rows={extra}
       />
-
-      {diff.unrecognized.length ? (
-        <details>
-          <summary className="cursor-pointer text-sm text-warning">
-            {pluralize(diff.unrecognized.length, "unrecognized card")}
-          </summary>
-          <ul className="mt-2 space-y-0.5 pl-4 text-sm text-base-content/70">
-            {diff.unrecognized.map((line, index) => (
-              <li key={`${line}-${index}`} className="list-disc">
-                {line}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
     </div>
   )
 }
@@ -268,16 +263,20 @@ function CompareGroup({
   tone: "error" | "warning"
   rows: CompareRow[]
 }) {
-  const [copied, setCopied] = useState(false)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
+
+  useEffect(() => {
+    if (copyState === "idle") return
+    const timer = setTimeout(() => setCopyState("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [copyState])
+
   if (!rows.length) return null
   const count = rows.reduce((total, row) => total + row.quantity, 0)
 
   async function copy() {
     const text = rows.map((row) => `${row.quantity}x ${row.cardName}`).join("\n") + "\n"
-    if (await copyTextToClipboard(text)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    setCopyState((await copyTextToClipboard(text)) ? "copied" : "failed")
   }
 
   return (
@@ -302,12 +301,12 @@ function CompareGroup({
           onClick={() => void copy()}
           aria-label={`Copy ${title.toLowerCase()}`}
         >
-          {copied ? (
+          {copyState === "copied" ? (
             <Check className="h-3.5 w-3.5" aria-hidden="true" />
           ) : (
             <Copy className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          {copied ? "Copied" : "Copy"}
+          {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy"}
         </Button>
       </div>
       <ul className="divide-y divide-base-300 rounded-box border border-base-300 bg-base-100 text-sm">
@@ -315,6 +314,11 @@ function CompareGroup({
           <li key={row.cardName} className="flex items-center gap-3 px-3 py-1.5">
             <span className="w-6 shrink-0 text-right font-mono font-bold">{row.quantity}</span>
             <span className="min-w-0 truncate">{row.cardName}</span>
+            {row.unrecognized ? (
+              <span className="badge badge-warning badge-outline badge-sm ml-auto shrink-0 whitespace-nowrap">
+                Unrecognized
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

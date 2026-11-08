@@ -5,9 +5,9 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 
-import { CardDeckOptionsDocument } from "../src/pages/cards/data"
 import { DeckDiffDocument } from "../src/pages/decks/deck-compare-documents"
 import {
+  ScanCompareDecksDocument,
   ScanDeckCompareDialog,
   summarizeScanDiff,
 } from "../src/pages/scan/scan-deck-compare-dialog"
@@ -40,13 +40,20 @@ function scanned(name: string, quantity: number, collectorNumber: string): ScanE
 const diff = {
   __typename: "DeckDiffResult" as const,
   sourceName: null,
-  unrecognized: [],
+  unrecognized: ["Notacard"],
   adds: [
     {
       __typename: "DeckDiffEntry" as const,
       cardName: "Giant Growth",
       quantity: 1,
       oracleId: "gg",
+      imageUrl: null,
+    },
+    {
+      __typename: "DeckDiffEntry" as const,
+      cardName: "Notacard",
+      quantity: 2,
+      oracleId: null,
       imageUrl: null,
     },
   ],
@@ -73,28 +80,35 @@ const diff = {
 }
 
 test("summarizes a diff from the scan's side", () => {
-  // Scanned: 3 Lightning Bolt + 1 Giant Growth; deck: 4 Bolt + 2 Counterspell.
-  expect(summarizeScanDiff(diff, 4)).toEqual({
+  // Scanned: 3 Lightning Bolt, 1 Giant Growth, 2 of an unknown name; deck: 4 Bolt + 2 Counterspell.
+  // The unknown name is an add, so it counts once, as extra, not again as unrecognized.
+  expect(summarizeScanDiff(diff, 6)).toEqual({
     matched: 3,
     deckTotal: 6,
     missing: [
       { cardName: "Counterspell", quantity: 2 },
       { cardName: "Lightning Bolt", quantity: 1 },
     ],
-    extra: [{ cardName: "Giant Growth", quantity: 1 }],
+    extra: [
+      { cardName: "Giant Growth", quantity: 1 },
+      { cardName: "Notacard", quantity: 2, unrecognized: true },
+    ],
   })
 })
 
 test("picking a deck diffs the scan list against it", async () => {
-  const entries = [scanned("Lightning Bolt", 3, "146"), scanned("Giant Growth", 1, "180")]
+  const entries = [
+    scanned("Lightning Bolt", 3, "146"),
+    scanned("Giant Growth", 1, "180"),
+    scanned("Notacard", 2, "1"),
+  ]
   const link = new MockLink([
     {
-      request: { query: CardDeckOptionsDocument },
+      request: { query: ScanCompareDecksDocument },
       result: {
         data: {
           decks: {
             __typename: "DeckConnection",
-            pageInfo: { __typename: "PageInfo", endCursor: null, hasNextPage: false },
             edges: [
               {
                 __typename: "DeckEdge",
@@ -103,7 +117,7 @@ test("picking a deck diffs the scan list against it", async () => {
                   id: "deck-1",
                   name: "Izzet Burn",
                   format: "modern",
-                  status: "active",
+                  cardCount: 60,
                 },
               },
             ],
@@ -126,7 +140,7 @@ test("picking a deck diffs the scan list against it", async () => {
     </ApolloProvider>,
   )
 
-  await userEvent.click(await screen.findByRole("button", { name: /Izzet Burn/ }))
+  await userEvent.click(await screen.findByRole("button", { name: /Izzet Burn.*60 cards/ }))
 
   expect(await screen.findByText("3/6")).toBeTruthy()
   const missing = screen.getByRole("region", { name: "Missing from scan" })
@@ -134,4 +148,5 @@ test("picking a deck diffs the scan list against it", async () => {
   expect(within(missing).getByText("Lightning Bolt")).toBeTruthy()
   const extra = screen.getByRole("region", { name: "Not in deck" })
   expect(within(extra).getByText("Giant Growth")).toBeTruthy()
+  expect(within(extra).getByText("Unrecognized")).toBeTruthy()
 })
