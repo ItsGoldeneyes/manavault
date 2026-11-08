@@ -346,10 +346,11 @@ Deck workflows include:
   1 to 24 hours or a five-field cron expression in UTC (for example
   `0 */6 * * *`); a failed sync waits for the next scheduled time. Turning the
   switch off unlinks the deck and keeps its current cards. Archived decks
-  must be unarchived first. The New deck dialog has the same switch: with it
-  on, the deck is created only after the external deck is fetched, so a
-  failed fetch creates nothing. A typed name is used as is; leave the name
-  blank to use the external deck's name. The
+  must be unarchived first. The New deck dialog has the same switch (its URL
+  box opens once the switch is on, and it is unavailable for the Archived
+  status): with it on, the deck is created only after the external deck is
+  fetched, so a failed fetch creates nothing. A typed name is used as is;
+  leave the name blank to use the external deck's name. The
   header shows the last sync time
   and a **Sync now** button, and failed syncs leave the last good list in
   place with the error shown. While linked, every decklist edit (add, swap,
