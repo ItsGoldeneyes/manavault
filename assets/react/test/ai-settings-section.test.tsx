@@ -36,6 +36,8 @@ test("loads and saves custom deck analysis instructions", async () => {
     decisionModel: "typesafe/jev-1.13",
     reasoningEffort: null,
     hasApiKey: true,
+    baseUrl: null,
+    configured: true,
   }
   const updatedSettings = {
     ...settings,
@@ -96,6 +98,8 @@ test("preserves dirty form values when settings refetch", async () => {
     decisionModel: "typesafe/jev-1.13",
     reasoningEffort: null,
     hasApiKey: true,
+    baseUrl: null,
+    configured: true,
   }
   const refetchedSettings = {
     ...initialSettings,
@@ -143,6 +147,8 @@ test("queues a refresh for every deck analysis", async () => {
     decisionModel: "typesafe/jev-1.13",
     reasoningEffort: null,
     hasApiKey: true,
+    baseUrl: null,
+    configured: true,
   }
   const link = new MockLink([
     {
@@ -181,6 +187,8 @@ test("offers the reasoning efforts the model supports and drops ones the next mo
     decisionModel: "typesafe/jev-1.13",
     reasoningEffort: "xhigh",
     hasApiKey: true,
+    baseUrl: null,
+    configured: true,
   }
   const save = (model: string, reasoningEffort: string | null) => ({
     request: {
@@ -248,4 +256,78 @@ test("offers the reasoning efforts the model supports and drops ones the next mo
   await waitFor(() =>
     expect(screen.getAllByText("AI settings validated and saved.").length).toBeGreaterThan(1),
   )
+})
+
+test("switches to an OpenAI-compatible server with a base URL and no key", async () => {
+  const settings = {
+    provider: "openrouter",
+    model: "anthropic/claude-sonnet-4",
+    deckAnalysisInstructions: "",
+    decisionModel: "typesafe/jev-1.13",
+    reasoningEffort: null,
+    hasApiKey: true,
+    baseUrl: null,
+    configured: true,
+  }
+  const baseUrl = "http://192.168.1.10:1234/v1"
+  const model = "qwen/qwen3-30b-a3b"
+  const link = new MockLink([
+    { request: { query: AISettingsDocument }, result: { data: { aiSettings: settings } } },
+    reasoningMock("anthropic/claude-sonnet-4", null),
+    {
+      request: {
+        query: UpdateAISettingsDocument,
+        variables: {
+          input: {
+            provider: "openai_compatible",
+            model,
+            deckAnalysisInstructions: "",
+            baseUrl,
+            reasoningEffort: null,
+          },
+        },
+      },
+      result: {
+        data: {
+          updateAiSettings: {
+            aiSettings: {
+              ...settings,
+              provider: "openai_compatible",
+              model,
+              hasApiKey: false,
+              baseUrl,
+            },
+          },
+        },
+      },
+    },
+  ])
+  const client = new ApolloClient({ cache: new InMemoryCache(), link })
+  const user = userEvent.setup()
+
+  render(
+    <ApolloProvider client={client}>
+      <ToastProvider>
+        <AISettingsSection />
+      </ToastProvider>
+    </ApolloProvider>,
+  )
+
+  await user.click(await screen.findByRole("combobox", { name: /Provider/ }))
+  await user.click(screen.getByRole("option", { name: /OpenAI-compatible/ }))
+
+  // OpenRouter-only settings disappear, and the saved OpenRouter key is not offered.
+  expect(screen.queryByRole("combobox", { name: /Reasoning effort/ })).toBeNull()
+  expect(screen.queryByRole("textbox", { name: /Decision model ID/ })).toBeNull()
+  const apiKey = screen.getByLabelText(/API key \(optional\)/) as HTMLInputElement
+  expect(apiKey.required).toBe(false)
+  expect(apiKey.placeholder).not.toBe("Saved")
+
+  await user.type(screen.getByRole("textbox", { name: /Base URL/ }), baseUrl)
+  const modelInput = screen.getByRole("textbox", { name: /Model ID/ })
+  await user.clear(modelInput)
+  await user.type(modelInput, model)
+  await user.click(screen.getByRole("button", { name: "Validate and save" }))
+
+  expect(await screen.findByText("AI settings validated and saved.")).toBeTruthy()
 })

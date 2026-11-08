@@ -1,8 +1,11 @@
 //! The `OpenRouter` provider (`AI.Providers.OpenRouter`): deck analysis and
 //! deck questions as structured chat completions, with catalog and
-//! collection tools.
+//! collection tools. OpenAI-compatible servers (LM Studio, Ollama, vLLM) use
+//! the same completions; [`Endpoint`] leaves out what only `OpenRouter`
+//! understands (sessions, plugins, reasoning, cache breakpoints).
 //!
-//! The base URL is `config.platform_urls.openrouter_api`. Each completion
+//! The base URL is `config.platform_urls.openrouter_api`, or the saved
+//! `base_url` for an OpenAI-compatible server. Each completion
 //! logs one diagnostics line (status, finish reasons, token counts including
 //! prompt-cache reads and writes, content sizes) without the prompt, the
 //! answer, reasoning text, or the API key.
@@ -27,11 +30,11 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
-use super::Configured;
 use super::deck_analysis::prompt as analysis_prompt;
 use super::deck_question::{self, SwapContext};
 use super::tools;
-use manavault_core::settings::ai::openrouter::response_error;
+use super::{Configured, Provider};
+use manavault_core::settings::ai::openrouter::labeled_response_error;
 use manavault_core::state::AppState;
 
 /// Rounds in which the model may call tools before it must answer.
@@ -39,11 +42,55 @@ const MAX_TOOL_ROUNDS: usize = 4;
 /// The tool result for calls past [`MAX_TOOL_ROUNDS`].
 const TOOL_LIMIT_REACHED: &str =
     "No more tool calls are allowed. Answer now from the results you already have.";
-const TOOL_LOOP: &str = "OpenRouter kept calling tools instead of answering.";
 /// Asks the model to restate a final message that was not the JSON object.
 const REPAIR_PROMPT: &str = "Return that answer as exactly one JSON object matching the required schema, with no other text.";
 /// High reasoning efforts can think for several minutes before answering.
 const COMPLETION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+/// Local models on consumer hardware can take far longer to answer.
+const LOCAL_COMPLETION_TIMEOUT: Duration = Duration::from_secs(20 * 60);
+
+/// Where completions go and how the provider is named in messages.
+struct Endpoint<'a> {
+    url: String,
+    api_key: &'a str,
+    /// Whether this is `OpenRouter`, which takes its own request extensions.
+    openrouter: bool,
+    /// The provider at the start of a sentence.
+    label: &'static str,
+    /// The provider inside a sentence.
+    name: &'static str,
+    timeout: Duration,
+}
+
+impl<'a> Endpoint<'a> {
+    fn of(state: &AppState, settings: &'a Configured) -> Self {
+        match (settings.provider(), settings.base_url.as_deref()) {
+            (Ok(Provider::OpenAiCompatible), Some(base_url)) => Self {
+                url: format!("{base_url}/chat/completions"),
+                api_key: &settings.api_key,
+                openrouter: false,
+                label: manavault_core::settings::ai::openai_compatible::LABEL,
+                name: "the model server",
+                timeout: LOCAL_COMPLETION_TIMEOUT,
+            },
+            _ => Self {
+                url: format!(
+                    "{}/chat/completions",
+                    state.config.platform_urls.openrouter_api
+                ),
+                api_key: &settings.api_key,
+                openrouter: true,
+                label: "OpenRouter",
+                name: "OpenRouter",
+                timeout: COMPLETION_TIMEOUT,
+            },
+        }
+    }
+
+    fn response_error(&self, status: u16, body: &str, fallback: &str) -> String {
+        labeled_response_error(self.label, status, body, fallback)
+    }
+}
 
 /// One question turn (`Provider.question_turn`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,39 +120,38 @@ impl Operation {
         }
     }
 
-    fn http_error(self) -> &'static str {
+    /// `label` names the provider at the start of the sentence.
+    fn http_error(self, label: &str) -> String {
         match self {
-            Self::DeckAnalysis => "OpenRouter could not analyze this deck.",
-            Self::DeckQuestion => "OpenRouter could not answer this question.",
+            Self::DeckAnalysis => format!("{label} could not analyze this deck."),
+            Self::DeckQuestion => format!("{label} could not answer this question."),
         }
     }
 
-    fn request_error(self) -> &'static str {
+    /// `name` names the provider inside the sentence.
+    fn request_error(self, name: &str) -> String {
         match self {
-            Self::DeckAnalysis => "Could not reach OpenRouter to analyze this deck.",
-            Self::DeckQuestion => "Could not reach OpenRouter to answer this question.",
+            Self::DeckAnalysis => format!("Could not reach {name} to analyze this deck."),
+            Self::DeckQuestion => format!("Could not reach {name} to answer this question."),
         }
     }
 
-    fn decode_error(self, error: DecodeError) -> &'static str {
-        match (self, error) {
+    fn decode_error(self, error: DecodeError, label: &str) -> String {
+        let what = match (self, error) {
             (Self::DeckAnalysis, DecodeError::TokenLimit) => {
-                "OpenRouter ran out of output tokens before finishing the deck analysis."
+                "ran out of output tokens before finishing the deck analysis."
             }
             (Self::DeckAnalysis, DecodeError::Incomplete) => {
-                "OpenRouter returned an incomplete deck analysis."
+                "returned an incomplete deck analysis."
             }
-            (Self::DeckAnalysis, DecodeError::Invalid) => {
-                "OpenRouter returned an invalid deck analysis."
-            }
+            (Self::DeckAnalysis, DecodeError::Invalid) => "returned an invalid deck analysis.",
             (Self::DeckQuestion, DecodeError::TokenLimit) => {
-                "OpenRouter ran out of output tokens before finishing the answer."
+                "ran out of output tokens before finishing the answer."
             }
-            (Self::DeckQuestion, DecodeError::Incomplete) => {
-                "OpenRouter returned an incomplete answer."
-            }
-            (Self::DeckQuestion, DecodeError::Invalid) => "OpenRouter returned an invalid answer.",
-        }
+            (Self::DeckQuestion, DecodeError::Incomplete) => "returned an incomplete answer.",
+            (Self::DeckQuestion, DecodeError::Invalid) => "returned an invalid answer.",
+        };
+        format!("{label} {what}")
     }
 }
 
@@ -249,21 +295,22 @@ enum Response {
     Failed(reqwest::Error),
 }
 
-async fn post_completion(state: &AppState, api_key: &str, request: &Value) -> Response {
-    let sent = state
+async fn post_completion(state: &AppState, endpoint: &Endpoint<'_>, request: &Value) -> Response {
+    let mut builder = state
         .http
-        .post(format!(
-            "{}/chat/completions",
-            state.config.platform_urls.openrouter_api
-        ))
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("accept", "application/json")
-        .header("http-referer", "https://github.com/cfbender/manavault")
-        .header("x-openrouter-title", "ManaVault")
-        .timeout(COMPLETION_TIMEOUT)
-        .json(request)
-        .send()
-        .await;
+        .timeout(endpoint.timeout)
+        .json(request);
+    if !endpoint.api_key.is_empty() {
+        builder = builder.bearer_auth(endpoint.api_key);
+    }
+    if endpoint.openrouter {
+        builder = builder
+            .header("http-referer", "https://github.com/cfbender/manavault")
+            .header("x-openrouter-title", "ManaVault");
+    }
+    let sent = builder.send().await;
     let response = match sent {
         Ok(response) => response,
         Err(error) => return Response::Failed(error),
@@ -298,11 +345,18 @@ async fn complete(
     request: Value,
     operation: Operation,
 ) -> Result<Value, String> {
+    let endpoint = Endpoint::of(state, settings);
     let Value::Object(mut request) = request else {
-        return Err(operation.http_error().to_owned());
+        return Err(operation.http_error(endpoint.label));
     };
-    if let Some(effort) = &settings.reasoning_effort {
-        request.insert("reasoning".into(), json!({"effort": effort}));
+    if endpoint.openrouter {
+        if let Some(effort) = &settings.reasoning_effort {
+            request.insert("reasoning".into(), json!({"effort": effort}));
+        }
+    } else {
+        for key in ["session_id", "plugins"] {
+            request.remove(key);
+        }
     }
     describe_response_format(&mut request);
     let mut round = 0;
@@ -313,15 +367,18 @@ async fn complete(
         if tools_offered {
             sent.remove("response_format");
         }
-        mark_cache_breakpoints(&mut sent);
+        if endpoint.openrouter {
+            mark_cache_breakpoints(&mut sent);
+        }
         let started = Instant::now();
-        match post_completion(state, &settings.api_key, &Value::Object(sent)).await {
+        match post_completion(state, &endpoint, &Value::Object(sent)).await {
             Response::Http { status, body, .. } if (200..300).contains(&status) => {
                 let calls = tool_calls(&body);
                 if calls.is_empty() {
                     let result = decode(&body);
                     if matches!(result, Err(DecodeError::Invalid)) && tools_offered && !repaired {
                         log_completion(
+                            &endpoint,
                             &LogResult::Unstructured,
                             operation,
                             &settings.model,
@@ -341,10 +398,19 @@ async fn complete(
                         Ok(_) => LogResult::Ok,
                         Err(error) => LogResult::Decode(error),
                     };
-                    log_completion(&outcome, operation, &settings.model, started, status, &body);
-                    return result.map_err(|error| operation.decode_error(error).to_owned());
+                    log_completion(
+                        &endpoint,
+                        &outcome,
+                        operation,
+                        &settings.model,
+                        started,
+                        status,
+                        &body,
+                    );
+                    return result.map_err(|error| operation.decode_error(error, endpoint.label));
                 }
                 log_completion(
+                    &endpoint,
                     &LogResult::ToolCalls,
                     operation,
                     &settings.model,
@@ -353,7 +419,10 @@ async fn complete(
                     &body,
                 );
                 if round > MAX_TOOL_ROUNDS {
-                    return Err(TOOL_LOOP.to_owned());
+                    return Err(format!(
+                        "{} kept calling tools instead of answering.",
+                        endpoint.label
+                    ));
                 }
                 let mut follow_up = vec![assistant_message(&body)];
                 for call in &calls {
@@ -371,13 +440,15 @@ async fn complete(
             } if round == 0 && request.contains_key("tools") => {
                 if tool_use_unsupported(&body) {
                     tracing::warn!(
-                        "OpenRouter model {} does not support tool use; retrying operation={} without tools",
+                        "{} model {} does not support tool use; retrying operation={} without tools",
+                        endpoint.label,
                         inspect_str(&settings.model),
                         operation.name()
                     );
                     request.remove("tools");
                 } else {
                     log_completion(
+                        &endpoint,
                         &LogResult::HttpError(&text),
                         operation,
                         &settings.model,
@@ -385,11 +456,16 @@ async fn complete(
                         404,
                         &body,
                     );
-                    return Err(response_error(404, &text, operation.http_error()));
+                    return Err(endpoint.response_error(
+                        404,
+                        &text,
+                        &operation.http_error(endpoint.label),
+                    ));
                 }
             }
             Response::Http { status, body, text } => {
                 log_completion(
+                    &endpoint,
                     &LogResult::HttpError(&text),
                     operation,
                     &settings.model,
@@ -397,20 +473,30 @@ async fn complete(
                     status,
                     &body,
                 );
-                return Err(response_error(status, &text, operation.http_error()));
+                return Err(endpoint.response_error(
+                    status,
+                    &text,
+                    &operation.http_error(endpoint.label),
+                ));
             }
             Response::Failed(error) => {
                 tracing::warn!(
-                    "OpenRouter completion operation={} model={} duration_ms={} result=request_error reason={}",
+                    "{} completion operation={} model={} duration_ms={} result=request_error reason={}",
+                    endpoint.label,
                     operation.name(),
                     inspect_str(&settings.model),
                     started.elapsed().as_millis(),
                     request_error_reason(&error)
                 );
+                let reached = operation.request_error(endpoint.name);
                 return Err(if error.is_timeout() {
-                    format!("{} The request timed out.", operation.request_error())
+                    format!("{reached} The request timed out.")
+                } else if endpoint.openrouter {
+                    reached
                 } else {
-                    operation.request_error().to_owned()
+                    format!(
+                        "{reached} Check that its local API server is running and that a firewall allows the connection."
+                    )
                 });
             }
         }
@@ -557,13 +643,19 @@ fn decode(body: &Value) -> Result<Value, DecodeError> {
     }
 }
 
-/// The JSON object in `content`, bare or inside a Markdown code fence.
+/// The JSON object in `content`, bare or inside a Markdown code fence. A
+/// leading `<think>…</think>` block, which some local reasoning models put
+/// in the content instead of a separate field, is skipped.
 fn json_object(content: &str) -> Option<Map<String, Value>> {
     let object = |text: &str| match serde_json::from_str(text) {
         Ok(Value::Object(map)) => Some(map),
         _ => None,
     };
     let content = content.trim();
+    let content = content
+        .strip_prefix("<think>")
+        .and_then(|rest| rest.split_once("</think>"))
+        .map_or(content, |(_, answer)| answer.trim());
     object(content).or_else(|| {
         let fenced = content.strip_prefix("```")?.strip_suffix("```")?;
         // The first fence line is a language tag unless the JSON starts there.
@@ -645,6 +737,7 @@ fn value<'a>(map: Option<&'a Value>, key: &str) -> Option<&'a Value> {
 }
 
 fn log_completion(
+    endpoint: &Endpoint<'_>,
     result: &LogResult<'_>,
     operation: Operation,
     model: &str,
@@ -669,7 +762,8 @@ fn log_completion(
     let reasoning_bytes = reasoning.and_then(Value::as_str).map(str::len);
     let bytes = |count: Option<usize>| count.map_or_else(|| "nil".to_owned(), |n| n.to_string());
     let mut line = format!(
-        "OpenRouter completion operation={} model={} status={status} duration_ms={} provider={} finish_reason={} native_finish_reason={} prompt_tokens={} cached_tokens={} cache_write_tokens={} completion_tokens={} reasoning_tokens={} content_bytes={} reasoning_bytes={} result={}",
+        "{} completion operation={} model={} status={status} duration_ms={} provider={} finish_reason={} native_finish_reason={} prompt_tokens={} cached_tokens={} cache_write_tokens={} completion_tokens={} reasoning_tokens={} content_bytes={} reasoning_bytes={} result={}",
+        endpoint.label,
         operation.name(),
         inspect_str(model),
         started.elapsed().as_millis(),
@@ -691,7 +785,11 @@ fn log_completion(
             line,
             " error={} error_type={} provider_error_code={} error_provider={}",
             inspect_limited(
-                &response_error(status, text, "OpenRouter request failed."),
+                &endpoint.response_error(
+                    status,
+                    text,
+                    &format!("{} request failed.", endpoint.label)
+                ),
                 2_000
             ),
             inspect(value(metadata, "error_type")),
@@ -761,12 +859,12 @@ mod tests {
         );
         assert_eq!(decode(&json!("text")), Err(DecodeError::Incomplete));
         assert_eq!(
-            Operation::DeckAnalysis.decode_error(DecodeError::Invalid),
+            Operation::DeckAnalysis.decode_error(DecodeError::Invalid, "OpenRouter"),
             "OpenRouter returned an invalid deck analysis."
         );
         assert_eq!(
-            Operation::DeckQuestion.decode_error(DecodeError::TokenLimit),
-            "OpenRouter ran out of output tokens before finishing the answer."
+            Operation::DeckQuestion.decode_error(DecodeError::TokenLimit, "The model server"),
+            "The model server ran out of output tokens before finishing the answer."
         );
     }
 
@@ -780,6 +878,15 @@ mod tests {
         assert_eq!(json_object("```{\"answer\":\"ok\"}```"), map);
         assert_eq!(json_object("Here you go:\n```json\n{}\n```"), None);
         assert_eq!(json_object("```json\n[1]\n```"), None);
+        assert_eq!(
+            json_object("<think>\nWeigh the ramp.\n</think>\n\n{\"answer\":\"ok\"}"),
+            map
+        );
+        assert_eq!(
+            json_object("<think>Plan.</think>```json\n{\"answer\":\"ok\"}\n```"),
+            map
+        );
+        assert_eq!(json_object("<think>never closed {\"answer\":\"ok\"}"), None);
         assert_eq!(json_object("## Markdown answer"), None);
     }
 

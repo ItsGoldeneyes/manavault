@@ -141,7 +141,7 @@ export function DeckSwapChat({
   const pending = turns.some((turn) => turn.status === "pending")
   const { startPolling, stopPolling } = threadQuery
   const aiSettings = settingsQuery.data?.aiSettings
-  const configured = Boolean(aiSettings?.hasApiKey && aiSettings.model)
+  const configured = Boolean(aiSettings?.configured)
 
   useEffect(() => {
     if (pending) startPolling(POLL_INTERVAL_MS)

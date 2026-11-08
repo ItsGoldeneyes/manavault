@@ -170,7 +170,7 @@ async fn generate(
     let mut corrections_left = 1;
     loop {
         let raw = match provider {
-            Provider::OpenRouter => {
+            Provider::OpenRouter | Provider::OpenAiCompatible => {
                 openrouter::ask_deck_question(state, settings, &payload.value, &turn).await
             }
         }

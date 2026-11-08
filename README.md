@@ -44,7 +44,7 @@ Each area links to the [feature reference](docs/features.md) for details.
   EDHREC recommendations, cuts, themes, and commander pages, plus Recommander
   suggestions.
 - **[AI deck insights](docs/features.md#ai-deck-insights)** (optional,
-  OpenRouter) - saved deck analysis with granular Commander bracket ratings,
+  OpenRouter or a local OpenAI-compatible server such as LM Studio) - saved deck analysis with granular Commander bracket ratings,
   analysis of pasted lists, and saved Ask AI conversations that can check your
   collection for free copies.
 - **[Random deck picker](docs/features.md#random-deck-picker-and-play-history)** -
