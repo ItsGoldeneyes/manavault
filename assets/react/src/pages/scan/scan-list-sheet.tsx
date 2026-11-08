@@ -1,4 +1,4 @@
-import { Minus, Plus, Search, Share, Trash2 } from "lucide-react"
+import { ArrowLeftRight, Minus, Plus, Search, Share, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { SetIcon } from "../../components/card-tile"
 import { Button } from "../../components/ui/button"
@@ -14,6 +14,7 @@ import { Input } from "../../components/ui/input"
 import { cn } from "../../lib/utils"
 import { centsToCurrencyInput, parseCurrencyInputCents } from "../collection/form-helpers"
 import type { Finish } from "./printing-choice"
+import { ScanDeckCompareDialog } from "./scan-deck-compare-dialog"
 import { ScanEntryChips } from "./scan-entry-chips"
 import { ScanExportDialog } from "./scan-export-dialog"
 import {
@@ -60,6 +61,7 @@ export function ScanListSheet({
   const [editing, setEditing] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [comparing, setComparing] = useState(false)
   const visible = filterEntries(entries, query)
   const count = totalQuantity(entries)
 
@@ -154,6 +156,16 @@ export function ScanListSheet({
                 <Share className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Export</span>
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={entries.length === 0}
+                onClick={() => setComparing(true)}
+                aria-label="Compare to deck"
+              >
+                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Compare</span>
+              </Button>
               <Button type="button" disabled={entries.length === 0} onClick={onAddToCollection}>
                 Add to collection
               </Button>
@@ -163,6 +175,10 @@ export function ScanListSheet({
       </Dialog>
 
       <ScanExportDialog open={exporting} entries={entries} onClose={() => setExporting(false)} />
+      {/* Mounted only while open: it queries decks, and the sheet renders without Apollo in tests. */}
+      {comparing ? (
+        <ScanDeckCompareDialog open entries={entries} onClose={() => setComparing(false)} />
+      ) : null}
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={setConfirmClear}
