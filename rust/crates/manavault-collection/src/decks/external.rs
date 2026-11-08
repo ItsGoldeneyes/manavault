@@ -28,6 +28,7 @@ use crate::decks::records::{DeckChanges, create_deck_in, get_deck};
 use crate::decks::{DeckError, ensure_deck_editable};
 use manavault_catalog::catalog::search::cards_by_name;
 use manavault_core::db;
+use manavault_core::jobs::cron::Cron;
 use manavault_core::jobs::{Job, Outcome, Unique, Worker};
 use manavault_core::state::AppState;
 use manavault_core::timestamp::Timestamp;
@@ -286,6 +287,14 @@ pub async fn sync(state: &AppState, deck_id: DeckId) -> Result<Synced, SyncError
     let (Some(source), Some(id)) = (deck.external_source, deck.external_id.clone()) else {
         return Err(DeckError::Code("deck_not_linked").into());
     };
+    let now = Timestamp::now();
+    sqlx::query!(
+        "UPDATE decks SET external_sync_attempted_at = ?2 WHERE id = ?1",
+        deck_id,
+        now
+    )
+    .execute(&state.db)
+    .await?;
     let result = match fetch(state, source, &id).await {
         Ok(entries) => apply_and_record(&state.db, deck_id, &entries).await,
         Err(error) => Err(SyncError::Fetch(error)),
@@ -344,6 +353,85 @@ pub async fn sync_all(
         results.push((id, sync(state, id).await));
     }
     Ok(results)
+}
+
+/// Syncs the linked, non-archived decks whose schedule is due at `now`
+/// ([`is_due`]); the cron worker calls this every minute.
+pub async fn sync_due(
+    state: &AppState,
+    now: Timestamp,
+) -> Result<Vec<(DeckId, Result<Synced, SyncError>)>, sqlx::Error> {
+    let decks = sqlx::query!(
+        r#"SELECT id AS "id!: DeckId",
+                  external_sync_interval_hours AS "interval_hours!",
+                  external_sync_cron,
+                  COALESCE(external_sync_attempted_at, external_synced_at)
+                    AS "last_attempt: Timestamp"
+           FROM decks
+           WHERE external_source IS NOT NULL AND status != 'archived' ORDER BY id"#
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let mut results = Vec::new();
+    for deck in decks {
+        let schedule = Schedule::new(deck.interval_hours, deck.external_sync_cron.as_deref());
+        if is_due(&schedule, deck.last_attempt, now) {
+            results.push((deck.id, sync(state, deck.id).await));
+        }
+    }
+    Ok(results)
+}
+
+/// When a linked deck re-syncs.
+#[derive(Debug, Clone)]
+pub enum Schedule {
+    /// Every this many hours after the last attempt.
+    Interval(i64),
+    /// Whenever the UTC cron expression fires.
+    Cron(Cron),
+}
+
+impl Schedule {
+    /// The deck's schedule: its cron expression when set and valid, else its
+    /// interval clamped to 1-24 hours.
+    #[must_use]
+    pub fn new(interval_hours: i64, cron: Option<&str>) -> Self {
+        match cron.and_then(Cron::parse) {
+            Some(cron) => Self::Cron(cron),
+            None => Self::Interval(interval_hours.clamp(1, 24)),
+        }
+    }
+}
+
+/// How far back a cron schedule looks for a firing it has not run yet, so a
+/// busy or restarted server still catches up on a recent one.
+const CRON_CATCH_UP_MINUTES: i64 = 60;
+
+/// Whether a deck last attempted at `last_attempt` is due at `now`.
+///
+/// An interval is due once that many hours have passed (less half a minute,
+/// since the worker runs on the minute). A cron schedule is due when it fired
+/// during a minute after the last attempt, looking back at most
+/// [`CRON_CATCH_UP_MINUTES`]. A deck never attempted is due at once on an
+/// interval.
+#[must_use]
+pub fn is_due(schedule: &Schedule, last_attempt: Option<Timestamp>, now: Timestamp) -> bool {
+    let now = now.as_datetime();
+    match schedule {
+        Schedule::Interval(hours) => last_attempt.is_none_or(|last| {
+            now - last.as_datetime() >= time::Duration::hours(*hours) - time::Duration::seconds(30)
+        }),
+        Schedule::Cron(cron) => {
+            let minute = now
+                .replace_second(0)
+                .and_then(|at| at.replace_nanosecond(0))
+                .unwrap_or(now);
+            (0..CRON_CATCH_UP_MINUTES)
+                .map(|back| minute - time::Duration::minutes(back))
+                .take_while(|at| last_attempt.is_none_or(|last| *at > last.as_datetime()))
+                .any(|at| cron.matches(at))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -566,8 +654,9 @@ pub(crate) async fn write_entries(
 /// The worker name stored in `jobs`.
 pub const WORKER: &str = "external_deck_sync";
 
-/// Hourly cron job that re-syncs every linked deck. Failures are recorded
-/// on each deck, so the job only logs.
+/// Cron job (every minute) that re-syncs the linked decks whose schedule is
+/// due ([`sync_due`]). Failures are recorded on each deck, so the job only
+/// logs.
 pub struct ExternalDeckSyncWorker;
 
 impl Worker for ExternalDeckSyncWorker {
@@ -592,7 +681,7 @@ impl Worker for ExternalDeckSyncWorker {
     }
 
     async fn perform(&self, state: &AppState, _job: &Job) -> Outcome {
-        let results = match sync_all(state).await {
+        let results = match sync_due(state, Timestamp::now()).await {
             Ok(results) => results,
             Err(error) => return Outcome::Retry(error.to_string()),
         };

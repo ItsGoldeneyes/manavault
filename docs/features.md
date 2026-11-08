@@ -341,7 +341,10 @@ Deck workflows include:
 - **Link external deck** - paste a public Moxfield or Archidekt deck URL into
   the External deck section of the Edit deck dialog and turn on its switch;
   pasting alone links nothing. After a confirmation, linking imports that list
-  (replacing the current cards) and keeps it in sync every hour. Turning the
+  (replacing the current cards) and keeps it in sync, every hour by default.
+  While linked, the Edit deck dialog's **Sync** setting picks an interval of
+  1 to 24 hours or a five-field cron expression in UTC (for example
+  `0 */6 * * *`); a failed sync waits for the next scheduled time. Turning the
   switch off unlinks the deck and keeps its current cards. Archived decks
   must be unarchived first. The New deck dialog has the same switch: with it
   on, the deck is created only after the external deck is fetched, so a

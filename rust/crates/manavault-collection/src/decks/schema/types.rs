@@ -153,6 +153,18 @@ impl Deck {
         self.row.external_synced_at.map(|at| at.to_string())
     }
 
+    /// Hours between scheduled syncs (1-24) while linked; ignored when
+    /// `externalSyncCron` is set.
+    async fn external_sync_interval_hours(&self) -> i64 {
+        self.row.external_sync_interval_hours
+    }
+
+    /// A UTC five-field cron expression that schedules syncs instead of the
+    /// interval.
+    async fn external_sync_cron(&self) -> Option<&str> {
+        self.row.external_sync_cron.as_deref()
+    }
+
     async fn ai_analyzed_at(&self) -> Option<String> {
         self.row.ai_analyzed_at.map(|at| at.to_string())
     }

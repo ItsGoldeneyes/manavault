@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE decks SET name = ?2, format = ?3, status = ?4, included_for_play = ?5,\n                 play_count = ?6, skip_count = ?7, last_played_at = ?8, primer = ?9,\n                 cover_deck_card_id = ?10, updated_at = ?11,\n                 external_sync_interval_hours = ?12, external_sync_cron = ?13\n           WHERE id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "6c1c5337ee58c7e2f6a6680f9a0e9c7441c3fbbb7c1977da2fba0bb9e5460b30"
+}

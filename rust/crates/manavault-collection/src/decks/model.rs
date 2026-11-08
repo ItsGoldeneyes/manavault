@@ -166,6 +166,12 @@ pub struct DeckRow {
     pub external_url: Option<String>,
     pub external_synced_at: Option<Timestamp>,
     pub external_sync_error: Option<String>,
+    /// Hours between scheduled syncs (1-24); ignored when `external_sync_cron` is set.
+    pub external_sync_interval_hours: i64,
+    /// A UTC five-field cron expression that schedules syncs instead of the interval.
+    pub external_sync_cron: Option<String>,
+    /// The last sync attempt, successful or not.
+    pub external_sync_attempted_at: Option<Timestamp>,
     pub cover_deck_card_id: Option<DeckCardId>,
     pub inserted_at: Timestamp,
     pub updated_at: Timestamp,
@@ -202,6 +208,9 @@ macro_rules! deck_row_query {
                  d.external_id, d.external_url,
                  d.external_synced_at AS "external_synced_at: manavault_core::timestamp::Timestamp",
                  d.external_sync_error,
+                 d.external_sync_interval_hours AS "external_sync_interval_hours!",
+                 d.external_sync_cron,
+                 d.external_sync_attempted_at AS "external_sync_attempted_at: manavault_core::timestamp::Timestamp",
                  d.cover_deck_card_id AS "cover_deck_card_id?: crate::decks::model::DeckCardId",
                  d.inserted_at AS "inserted_at!: manavault_core::timestamp::Timestamp",
                  d.updated_at AS "updated_at!: manavault_core::timestamp::Timestamp"

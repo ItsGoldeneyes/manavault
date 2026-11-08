@@ -18,7 +18,7 @@ CREATE TABLE "locations" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NO
 CREATE UNIQUE INDEX "locations_name_index" ON "locations" ("name");
 CREATE INDEX "collection_items_location_id_index" ON "collection_items" ("location_id");
 CREATE INDEX "locations_cover_scryfall_id_index" ON "locations" ("cover_scryfall_id");
-CREATE TABLE "decks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL, "format" TEXT DEFAULT 'commander' NOT NULL, "status" TEXT DEFAULT 'brewing' NOT NULL, "inserted_at" TEXT NOT NULL, "updated_at" TEXT NOT NULL, "share_token" TEXT, "cover_deck_card_id" INTEGER CONSTRAINT "decks_cover_deck_card_id_fkey" REFERENCES "deck_cards"("id") ON DELETE SET NULL, "primer" TEXT, "ai_analysis" TEXT, "ai_analysis_model" TEXT, "ai_analyzed_at" TEXT, "commander_bracket" INTEGER, "commander_bracket_estimate" INTEGER, "play_count" INTEGER DEFAULT 0 NOT NULL, "skip_count" INTEGER DEFAULT 0 NOT NULL, "last_played_at" TEXT, "included_for_play" INTEGER DEFAULT true NOT NULL, "commander_bracket_rating" TEXT, "external_source" TEXT, "external_id" TEXT, "external_url" TEXT, "external_synced_at" TEXT, "external_sync_error" TEXT, "ai_card_categories" TEXT NOT NULL DEFAULT '[]');
+CREATE TABLE "decks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL, "format" TEXT DEFAULT 'commander' NOT NULL, "status" TEXT DEFAULT 'brewing' NOT NULL, "inserted_at" TEXT NOT NULL, "updated_at" TEXT NOT NULL, "share_token" TEXT, "cover_deck_card_id" INTEGER CONSTRAINT "decks_cover_deck_card_id_fkey" REFERENCES "deck_cards"("id") ON DELETE SET NULL, "primer" TEXT, "ai_analysis" TEXT, "ai_analysis_model" TEXT, "ai_analyzed_at" TEXT, "commander_bracket" INTEGER, "commander_bracket_estimate" INTEGER, "play_count" INTEGER DEFAULT 0 NOT NULL, "skip_count" INTEGER DEFAULT 0 NOT NULL, "last_played_at" TEXT, "included_for_play" INTEGER DEFAULT true NOT NULL, "commander_bracket_rating" TEXT, "external_source" TEXT, "external_id" TEXT, "external_url" TEXT, "external_synced_at" TEXT, "external_sync_error" TEXT, "ai_card_categories" TEXT NOT NULL DEFAULT '[]', "external_sync_interval_hours" INTEGER DEFAULT 1 NOT NULL, "external_sync_cron" TEXT, "external_sync_attempted_at" TEXT);
 CREATE INDEX "decks_name_index" ON "decks" ("name");
 CREATE INDEX "decks_format_index" ON "decks" ("format");
 CREATE INDEX "decks_status_index" ON "decks" ("status");
@@ -244,3 +244,4 @@ INSERT INTO schema_migrations VALUES(20261021201543,NULL);
 INSERT INTO schema_migrations VALUES(20261023210150,NULL);
 INSERT INTO schema_migrations VALUES(20261029213201,NULL);
 INSERT INTO schema_migrations VALUES(20261106193503,NULL);
+INSERT INTO schema_migrations VALUES(20261108040429,NULL);

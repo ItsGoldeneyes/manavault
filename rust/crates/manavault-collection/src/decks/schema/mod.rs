@@ -152,6 +152,11 @@ pub struct DeckUpdateInput {
     pub last_played_at: MaybeUndefined<String>,
     pub primer: MaybeUndefined<String>,
     pub cover_deck_card_id: MaybeUndefined<ID>,
+    /// Hours between scheduled syncs of a linked deck, 1-24.
+    pub external_sync_interval_hours: MaybeUndefined<i64>,
+    /// A UTC five-field cron expression that schedules syncs instead of the
+    /// interval; null or blank uses the interval.
+    pub external_sync_cron: MaybeUndefined<String>,
 }
 
 /// `DeckCardInput`.
@@ -642,6 +647,8 @@ impl DeckMutations {
             last_played_at: change(input.last_played_at),
             primer: change(input.primer),
             cover_deck_card_id: cover,
+            external_sync_interval_hours: change(input.external_sync_interval_hours),
+            external_sync_cron: change(input.external_sync_cron),
         };
         let deck = records::update_deck(&state(ctx).db, id, &changes)
             .await

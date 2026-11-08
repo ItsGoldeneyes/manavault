@@ -511,3 +511,68 @@ test("deck editor disables linking for archived decks", () => {
   ).toBe(true)
   expect(screen.getByText("Unarchive this deck before linking an external deck.")).toBeTruthy()
 })
+
+const linkedDeck = {
+  ...unlinkedDeck,
+  externalSource: "archidekt",
+  externalUrl: "https://archidekt.com/decks/1",
+  externalSyncIntervalHours: 1,
+  externalSyncCron: null,
+}
+
+test("deck editor saves a sync interval for a linked deck", async () => {
+  const user = userEvent.setup()
+  render(<EditDeckDialog deck={linkedDeck as never} open onOpenChange={vi.fn()} />)
+
+  expect(screen.getByText(/syncs every hour/)).toBeTruthy()
+  const schedule = screen.getByRole("combobox", { name: "Sync schedule" })
+  expect(schedule.textContent).toContain("Every hour")
+
+  await user.click(schedule)
+  await user.click(screen.getByRole("option", { name: "Every 12 hours" }))
+  await user.click(screen.getByRole("button", { name: "Save deck" }))
+
+  expect(apolloMocks.mutationVariables).toMatchObject({
+    id: "deck-1",
+    input: { externalSyncIntervalHours: 12, externalSyncCron: null },
+  })
+})
+
+test("deck editor saves a cron sync schedule and requires an expression", async () => {
+  const user = userEvent.setup()
+  render(<EditDeckDialog deck={linkedDeck as never} open onOpenChange={vi.fn()} />)
+
+  await user.click(screen.getByRole("combobox", { name: "Sync schedule" }))
+  await user.click(screen.getByRole("option", { name: "Cron schedule" }))
+  await user.click(screen.getByRole("button", { name: "Save deck" }))
+  expect(screen.getByText("Enter a cron expression or choose a sync interval")).toBeTruthy()
+  expect(apolloMocks.mutationVariables).toBeUndefined()
+
+  await user.type(screen.getByRole("textbox", { name: "Cron expression" }), " 0 */6 * * * ")
+  await user.click(screen.getByRole("button", { name: "Save deck" }))
+
+  expect(apolloMocks.mutationVariables).toMatchObject({
+    input: { externalSyncIntervalHours: 1, externalSyncCron: "0 */6 * * *" },
+  })
+})
+
+test("deck editor shows a saved cron schedule", () => {
+  render(
+    <EditDeckDialog
+      deck={{ ...linkedDeck, externalSyncCron: "0 3 * * *" } as never}
+      open
+      onOpenChange={vi.fn()}
+    />,
+  )
+
+  expect(screen.getByText(/syncs on the cron schedule 0 3 \* \* \* \(UTC\)/)).toBeTruthy()
+  expect((screen.getByRole("textbox", { name: "Cron expression" }) as HTMLInputElement).value).toBe(
+    "0 3 * * *",
+  )
+})
+
+test("deck editor hides the sync setting until the deck is linked", () => {
+  render(<EditDeckDialog deck={unlinkedDeck as never} open onOpenChange={vi.fn()} />)
+
+  expect(screen.queryByRole("combobox", { name: "Sync schedule" })).toBeNull()
+})
