@@ -278,6 +278,12 @@ camera; the browser or OS asks for camera access once.
   quantity edits, per-card chips, delete, and clear. **Add to collection**
   opens the collection import preview with the list as CSV (exact Scryfall IDs,
   finish, and language); nothing is added until the import is confirmed.
+- **Compare** in the scanned list checks the list against one of your decks:
+  it shows how many of the deck's cards were scanned, which deck cards are
+  missing from the scan (or short on copies), and which scanned cards the deck
+  doesn't run (or extra copies). Cards match by name, not printing, and the
+  deck's considering zone is left out, as in the deck's **Compare decklist**.
+  Each list can be copied as decklist text.
 - The recognition model (about 50 MB) downloads on first use and is cached on
   the device per version. See [scanner.md](scanner.md) for model storage and
   updates.
