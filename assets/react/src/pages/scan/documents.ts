@@ -104,6 +104,8 @@ export const ScanCompareDecksDocument = graphql(`
           name
           format
           cardCount
+          coverImageUrl
+          commanderColorIdentity
         }
       }
     }

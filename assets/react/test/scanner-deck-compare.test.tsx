@@ -99,6 +99,8 @@ test("picking a deck diffs the scan list against it", async () => {
                   name: "Izzet Burn",
                   format: "modern",
                   cardCount: 60,
+                  coverImageUrl: "https://example.test/izzet-burn.jpg",
+                  commanderColorIdentity: ["U", "R"],
                 },
               },
             ],
@@ -142,7 +144,15 @@ function deckPage(id: string, name: string, endCursor: string | null, hasNextPag
         edges: [
           {
             __typename: "DeckEdge",
-            node: { __typename: "Deck", id, name, format: "modern", cardCount: 60 },
+            node: {
+              __typename: "Deck",
+              id,
+              name,
+              format: "modern",
+              cardCount: 60,
+              coverImageUrl: null,
+              commanderColorIdentity: null,
+            },
           },
         ],
       },

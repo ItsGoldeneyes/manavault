@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@apollo/client/react"
-import { ArrowLeft, Check, Copy, Search } from "lucide-react"
+import { ArrowLeft, Check, Copy, Layers, Search } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "../../components/ui/button"
 import {
@@ -13,6 +13,7 @@ import { Input } from "../../components/ui/input"
 import { copyTextToClipboard } from "../../lib/clipboard"
 import { cn, pluralize, present, titleize } from "../../lib/utils"
 import { DeckDiffDocument } from "../decks/deck-compare-documents"
+import { DeckNameWithCommanderIdentity } from "../decks/deck-list-model"
 import { ScanCompareDecksDocument } from "./documents"
 import {
   copies,
@@ -168,12 +169,31 @@ function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string
               <button
                 type="button"
                 onClick={() => onChoose({ id: deck.id, name: deck.name })}
-                className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none"
+                className="flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-base-200 focus-visible:bg-base-200 focus-visible:outline-none"
               >
-                <span className="min-w-0 truncate font-bold">{deck.name}</span>
-                {/* Card count tells apart decks that share a name. */}
-                <span className="shrink-0 text-xs text-base-content/70">
-                  {titleize(deck.format)} · {pluralize(deck.cardCount ?? 0, "card")}
+                <span className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-field bg-base-200 text-base-content/40">
+                  {deck.coverImageUrl ? (
+                    <img
+                      src={deck.coverImageUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Layers className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold">
+                    <DeckNameWithCommanderIdentity
+                      colors={deck.commanderColorIdentity}
+                      name={deck.name}
+                    />
+                  </span>
+                  <span className="block text-xs text-base-content/70">
+                    {titleize(deck.format)} · {pluralize(deck.cardCount ?? 0, "card")}
+                  </span>
                 </span>
               </button>
             </li>
