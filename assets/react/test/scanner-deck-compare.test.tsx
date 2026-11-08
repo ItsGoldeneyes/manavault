@@ -9,9 +9,10 @@ import { DeckDiffDocument } from "../src/pages/decks/deck-compare-documents"
 import {
   ScanCompareDecksDocument,
   ScanDeckCompareDialog,
+  scanCompareList,
   summarizeScanDiff,
 } from "../src/pages/scan/scan-deck-compare-dialog"
-import { scanListText, type ScanEntry } from "../src/pages/scan/scan-list"
+import type { ScanEntry } from "../src/pages/scan/scan-list"
 
 afterEach(cleanup)
 
@@ -79,6 +80,21 @@ const diff = {
   ],
 }
 
+test("sums copies per card name and leaves tokens out", () => {
+  // Newest first, as the scan list stores them; the same printing scanned twice is two entries.
+  const entries = [
+    scanned("Lightning Bolt", 1, "146"),
+    { ...scanned("Goblin", 2, "5"), id: "token", layout: "token" },
+    scanned("Counterspell", 1, "50"),
+    { ...scanned("Lightning Bolt", 2, "146"), id: "bolt-again" },
+  ]
+  expect(scanCompareList(entries)).toEqual({
+    text: "3 Lightning Bolt\n1 Counterspell",
+    total: 4,
+    tokens: 2,
+  })
+})
+
 test("summarizes a diff from the scan's side", () => {
   // Scanned: 3 Lightning Bolt, 1 Giant Growth, 2 of an unknown name; deck: 4 Bolt + 2 Counterspell.
   // The unknown name is an add, so it counts once, as extra, not again as unrecognized.
@@ -109,6 +125,7 @@ test("picking a deck diffs the scan list against it", async () => {
         data: {
           decks: {
             __typename: "DeckConnection",
+            pageInfo: { __typename: "PageInfo", endCursor: null, hasNextPage: false },
             edges: [
               {
                 __typename: "DeckEdge",
@@ -128,7 +145,8 @@ test("picking a deck diffs the scan list against it", async () => {
     {
       request: {
         query: DeckDiffDocument,
-        variables: { deckId: "deck-1", text: scanListText(entries) },
+        // Oldest scan first, one line per card name.
+        variables: { deckId: "deck-1", text: "2 Notacard\n1 Giant Growth\n3 Lightning Bolt" },
       },
       result: { data: { deckDiff: diff } },
     },
@@ -149,4 +167,63 @@ test("picking a deck diffs the scan list against it", async () => {
   const extra = screen.getByRole("region", { name: "Not in deck" })
   expect(within(extra).getByText("Giant Growth")).toBeTruthy()
   expect(within(extra).getByText("Unrecognized")).toBeTruthy()
+})
+
+function deckPage(id: string, name: string, endCursor: string | null, hasNextPage: boolean) {
+  return {
+    data: {
+      decks: {
+        __typename: "DeckConnection",
+        pageInfo: { __typename: "PageInfo", endCursor, hasNextPage },
+        edges: [
+          {
+            __typename: "DeckEdge",
+            node: { __typename: "Deck", id, name, format: "modern", cardCount: 60 },
+          },
+        ],
+      },
+    },
+  }
+}
+
+test("the deck picker loads decks past the first page", async () => {
+  const link = new MockLink([
+    {
+      request: { query: ScanCompareDecksDocument },
+      result: deckPage("deck-1", "First Page Deck", "cursor-1", true),
+    },
+    {
+      request: { query: ScanCompareDecksDocument, variables: { after: "cursor-1" } },
+      result: deckPage("deck-2", "Second Page Deck", null, false),
+    },
+  ])
+  const client = new ApolloClient({ cache: new InMemoryCache(), link })
+  render(
+    <ApolloProvider client={client}>
+      <ScanDeckCompareDialog
+        open
+        entries={[scanned("Lightning Bolt", 1, "146")]}
+        onClose={vi.fn()}
+      />
+    </ApolloProvider>,
+  )
+
+  expect(await screen.findByRole("button", { name: /Second Page Deck/ })).toBeTruthy()
+  expect(screen.getByRole("button", { name: /First Page Deck/ })).toBeTruthy()
+})
+
+test("a list of only tokens has nothing to compare", () => {
+  const client = new ApolloClient({ cache: new InMemoryCache(), link: new MockLink([]) })
+  render(
+    <ApolloProvider client={client}>
+      <ScanDeckCompareDialog
+        open
+        entries={[{ ...scanned("Goblin", 2, "5"), layout: "token" }]}
+        onClose={vi.fn()}
+      />
+    </ApolloProvider>,
+  )
+
+  expect(screen.getByText(/Only tokens are scanned/)).toBeTruthy()
+  expect(screen.queryByRole("textbox", { name: "Search decks" })).toBeNull()
 })

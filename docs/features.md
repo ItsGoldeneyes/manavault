@@ -283,7 +283,9 @@ camera; the browser or OS asks for camera access once.
   missing from the scan (or short on copies), and which scanned cards the deck
   doesn't run (or extra copies). Cards match by name, not printing, and the
   deck's considering zone is left out, as in the deck's **Compare decklist**.
-  Each list can be copied as decklist text.
+  Scanned tokens and emblems are left out, and a scanned name the catalog
+  doesn't know is marked **Unrecognized**. Each list can be copied as
+  decklist text.
 - The recognition model (about 50 MB) downloads on first use and is cached on
   the device per version. See [scanner.md](scanner.md) for model storage and
   updates.

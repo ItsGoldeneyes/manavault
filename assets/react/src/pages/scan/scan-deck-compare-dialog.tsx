@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@apollo/client/react"
 import { ArrowLeft, Check, Copy, Search } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "../../components/ui/button"
 import {
   Dialog,
@@ -15,13 +15,17 @@ import { copyTextToClipboard } from "../../lib/clipboard"
 import { cn, pluralize, present, titleize } from "../../lib/utils"
 import { graphql } from "../../gql"
 import { DeckDiffDocument } from "../decks/deck-compare-documents"
-import { scanListText, totalQuantity, type ScanEntry } from "./scan-list"
+import type { ScanEntry } from "./scan-list"
 
 type DeckDiff = NonNullable<DeckDiffMutation["deckDiff"]>
 
 export const ScanCompareDecksDocument = graphql(`
-  query ScanCompareDecks {
-    decks(first: 100) {
+  query ScanCompareDecks($after: String) {
+    decks(first: 100, after: $after) {
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
       edges {
         node {
           id
@@ -51,6 +55,43 @@ export interface ScanDeckComparison {
   missing: CompareRow[]
   /** Scanned cards the deck doesn't use, or extra copies beyond what it runs. */
   extra: CompareRow[]
+}
+
+/** Layouts the deck diff's name lookup never resolves; a deck can't run them either. */
+const TOKEN_LAYOUTS = new Set(["token", "double_faced_token", "emblem"])
+
+/** What the deck diff is given: one `N Name` line per card, and what was left out. */
+export interface ScanCompareList {
+  text: string
+  /** Copies in `text`. */
+  total: number
+  /** Token and emblem copies left out of the comparison. */
+  tokens: number
+}
+
+/**
+ * The scanned cards as decklist text for the deck diff. Copies are summed per card name, which
+ * is all the diff matches on: the text parser keeps the larger quantity of two identical lines,
+ * so one line per scan entry would lose copies scanned at different times.
+ */
+export function scanCompareList(entries: ScanEntry[]): ScanCompareList {
+  const quantities = new Map<string, number>()
+  let tokens = 0
+  // Oldest scan first, like the Export text.
+  for (const entry of [...entries].reverse()) {
+    if (entry.layout && TOKEN_LAYOUTS.has(entry.layout)) {
+      tokens += entry.quantity
+      continue
+    }
+    quantities.set(entry.name, (quantities.get(entry.name) ?? 0) + entry.quantity)
+  }
+  let total = 0
+  const lines: string[] = []
+  for (const [name, quantity] of quantities) {
+    total += quantity
+    lines.push(`${quantity} ${name}`)
+  }
+  return { text: lines.join("\n"), total, tokens }
 }
 
 /**
@@ -89,12 +130,12 @@ export function ScanDeckCompareDialog({
 }) {
   const [deck, setDeck] = useState<{ id: string; name: string } | null>(null)
   const [runDiff, diff] = useMutation(DeckDiffDocument)
+  // Taken once: the dialog mounts per opening, and the counts must match the list that was sent.
+  const [list] = useState(() => scanCompareList(entries))
 
   function choose(next: { id: string; name: string }) {
     setDeck(next)
-    void runDiff({ variables: { deckId: next.id, text: scanListText(entries) } }).catch(
-      () => undefined,
-    )
+    void runDiff({ variables: { deckId: next.id, text: list.text } }).catch(() => undefined)
   }
 
   return (
@@ -124,7 +165,11 @@ export function ScanDeckCompareDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {deck ? (
+          {list.total === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-base-content/70">
+              Only tokens are scanned, and decks don’t hold tokens.
+            </p>
+          ) : deck ? (
             diff.loading ? (
               <p className="px-5 py-10 text-center text-sm text-base-content/70" role="status">
                 Comparing…
@@ -135,7 +180,8 @@ export function ScanDeckCompareDialog({
               </p>
             ) : diff.data?.deckDiff ? (
               <ComparisonResult
-                comparison={summarizeScanDiff(diff.data.deckDiff, totalQuantity(entries))}
+                comparison={summarizeScanDiff(diff.data.deckDiff, list.total)}
+                tokens={list.tokens}
               />
             ) : null
           ) : (
@@ -149,9 +195,33 @@ export function ScanDeckCompareDialog({
 
 function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string }) => void }) {
   const [query, setQuery] = useState("")
-  const { data, loading, error } = useQuery(ScanCompareDecksDocument, {
+  const { data, loading, error, fetchMore } = useQuery(ScanCompareDecksDocument, {
     fetchPolicy: "cache-and-network",
   })
+
+  // Walk every page, as the Decks page does, so decks past the first 100 can be picked.
+  const pageInfo = data?.decks.pageInfo
+  const fetchingMore = useRef(false)
+  useEffect(() => {
+    if (!pageInfo?.hasNextPage || !pageInfo.endCursor || fetchingMore.current) return
+    fetchingMore.current = true
+    void fetchMore({
+      variables: { after: pageInfo.endCursor },
+      updateQuery: (previous, { fetchMoreResult }) => {
+        const next = fetchMoreResult?.decks
+        if (!next || !previous?.decks) return fetchMoreResult ?? previous
+        return {
+          ...previous,
+          decks: { ...next, edges: [...(previous.decks.edges ?? []), ...(next.edges ?? [])] },
+        }
+      },
+    })
+      .catch(() => undefined)
+      .finally(() => {
+        fetchingMore.current = false
+      })
+  }, [pageInfo?.hasNextPage, pageInfo?.endCursor, fetchMore])
+
   const decks = (data?.decks.edges ?? []).map((edge) => edge?.node).filter(present)
   const needle = query.trim().toLowerCase()
   const visible = needle ? decks.filter((deck) => deck.name.toLowerCase().includes(needle)) : decks
@@ -209,7 +279,13 @@ function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string
   )
 }
 
-function ComparisonResult({ comparison }: { comparison: ScanDeckComparison }) {
+function ComparisonResult({
+  comparison,
+  tokens,
+}: {
+  comparison: ScanDeckComparison
+  tokens: number
+}) {
   const { matched, deckTotal, missing, extra } = comparison
   // An empty deck has nothing to cover, so it never reads as complete.
   const complete = deckTotal > 0 && missing.length === 0
@@ -232,6 +308,11 @@ function ComparisonResult({ comparison }: { comparison: ScanDeckComparison }) {
           <p className="mt-1 flex items-center gap-1 font-bold text-success">
             <Check className="h-4 w-4" aria-hidden="true" />
             Every card in the deck is in the scan.
+          </p>
+        ) : null}
+        {tokens ? (
+          <p className="mt-1 text-xs text-base-content/70">
+            {pluralize(tokens, "scanned token")} left out.
           </p>
         ) : null}
       </div>
