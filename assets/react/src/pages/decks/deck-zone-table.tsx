@@ -119,6 +119,7 @@ function DeckZoneCardName({
 }
 
 export function DeckZoneTable({
+  canEdit = true,
   cards,
   deckId,
   isSelecting,
@@ -134,6 +135,8 @@ export function DeckZoneTable({
   shareMode = false,
   title,
 }: {
+  /** When false the Select, Tag, and Actions columns are hidden (Collection stays). */
+  canEdit?: boolean
   cards: DeckCardEntry[]
   deckId: string
   highlightedCardIds: Set<string> | null
@@ -172,14 +175,14 @@ export function DeckZoneTable({
         <table className="table table-sm">
           <thead>
             <tr>
-              {isSelecting && !shareMode ? <th className="w-10">Select</th> : null}
+              {isSelecting && canEdit && !shareMode ? <th className="w-10">Select</th> : null}
               <th className="w-14">Qty</th>
               <th>Name</th>
               <th>Type</th>
               <th>Printing</th>
               {shareMode ? null : <th className="w-48">Collection</th>}
-              {shareMode ? null : <th className="w-32">Tag</th>}
-              {shareMode ? null : <th className="w-36 text-right">Actions</th>}
+              {shareMode || !canEdit ? null : <th className="w-32">Tag</th>}
+              {shareMode || !canEdit ? null : <th className="w-36 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -198,7 +201,7 @@ export function DeckZoneTable({
                       "opacity-30",
                   )}
                 >
-                  {isSelecting && !shareMode ? (
+                  {isSelecting && canEdit && !shareMode ? (
                     <td>
                       <button
                         type="button"
@@ -237,7 +240,7 @@ export function DeckZoneTable({
                       <CollectionStatusBadge status={deckCard.allocationStatus} />
                     </td>
                   )}
-                  {shareMode ? null : (
+                  {shareMode || !canEdit ? null : (
                     <td>
                       <DeckCardTagButton
                         className="opacity-100"
@@ -247,7 +250,7 @@ export function DeckZoneTable({
                       />
                     </td>
                   )}
-                  {shareMode ? null : (
+                  {shareMode || !canEdit ? null : (
                     <td>
                       <div className="flex justify-end gap-1">
                         <Button

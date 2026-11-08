@@ -114,7 +114,8 @@ The product should feel collector-grade and confident: dense enough for expert c
 - Surfaces are layered like storage trays: base, panel, line, content.
 - Type is one disciplined system sans, with mono reserved for values and inventory numbers.
 - Components are tactile but disciplined: 4px fields, 8px cards, clear borders, modest lift.
-- Motion is product-state feedback, not page choreography.
+- Storage is drawn as material: each location is the binder page, bulk box, deck box, folder, or pile it stands for, filled with the user's own cards.
+- Motion keeps objects continuous: a location or card moves to where it opens and back to where it came from, while text and chrome only fade. Motion never decorates.
 
 ## 2. Colors
 
@@ -153,6 +154,8 @@ The palette is a claret-centered vault system: warm neutral storage layers, a co
 
 **The No Game-Store Chaos Rule.** Brass, grove, foil shimmer, and card art must support state or card identity. They are forbidden as generic excitement.
 
+**The Material Means Storage Rule.** Cardboard, sleeves, binder rings, and printed deck boxes depict a real storage location and its real cards. They never appear as generic texture or page decoration.
+
 ## 3. Typography
 
 **Display Font:** System sans (`ui-sans-serif, system-ui, sans-serif`)  
@@ -184,10 +187,11 @@ ManaVault is tactile and lightly lifted. Resting depth comes from tonal layers a
 - **Action Depth** (`inset 0 0.5px 0 0.5px rgb(255 255 255 / 0.06), 0 3px 2px -2px color-mix(in oklch, var(--color-primary), transparent 70%), 0 4px 3px -2px color-mix(in oklch, var(--color-primary), transparent 70%)`): Primary buttons and active claret controls.
 - **Dialog Lift** (`shadow-2xl` equivalent): Modal surfaces only; paired with the black 65% overlay and safe-area-aware full-height mobile behavior.
 - **Foil Moment** (`0 0 0 1px color-mix(in oklch, var(--color-primary) 44%, transparent), 0 12px 30px rgb(0 0 0 / 0.28), 0 0 26px color-mix(in oklch, var(--color-primary) 28%, transparent)`): Reserved for foil card imagery, never generic cards.
+- **Object Contact** (a soft elliptical shadow under the object, plus small directional shadows on its parts): Location objects only, so they sit on their stage like things on a desk.
 
 ### Named Rules
 
-**The Lift Means Affordance Rule.** If a shadow is not explaining hover, modal focus, primary action, or foil material, remove it and use a tonal layer instead.
+**The Lift Means Affordance Rule.** If a shadow is not explaining hover, modal focus, primary action, foil material, or a physical location object, remove it and use a tonal layer instead.
 
 ## 5. Components
 
@@ -231,9 +235,41 @@ Components should feel tactile but disciplined: small-radius controls, visible b
 
 ### Signature Component: Card Tile Foil
 
-Foil treatment belongs only to Magic card imagery. The animated shimmer pauses by default, runs on hover-capable pointer hover, and disables under reduced motion.
+Foil treatment belongs only to Magic card imagery, including cards shown inside location objects. The animated shimmer pauses by default, runs on hover-capable pointer hover, and disables under reduced motion.
 
-## 6. Do's and Don'ts
+### Signature Component: Location Objects
+
+- **Shape:** Each location kind has its own object: binder → a sleeved nine-pocket page over the page beneath it; box → a cardboard bulk box with cards standing front to back, their name bars showing; deck box → a box printed with the cover art, its top card rising out; list and other → a fanned hand; folder → a card folder; unfiled → a loose pile.
+- **Content:** Objects hold the location's cover card and its most valuable cards, never placeholder art. Empty locations show blank card backs.
+- **Stage:** The object stands directly on the page with only a contact shadow, never inside a card, with its name and count/value centered beneath it. In the list, each tile is as wide as its object's shape (a deck box is narrow, a box or fanned list wide) and tiles wrap together on one shelf, ordered by kind, with no per-kind headings; stages are about 10-15.5rem tall. The location page header shows the object at 16-20rem with the text beside it. The same component renders both.
+- **Stickers:** Users can stick up to six symbols on a location: card symbols, set symbols (resolved to Scryfall's shared icon for promo and token sets), or rarity gems. Stickers are white die-cut vinyl with a soft gloss, stuck in a loose, slightly overlapping row on the object's surface (the binder page, the box's front wall, the deck box, the folder, or the front of a fan) so they move with it. Each sticker is nudged and tilted a little off the line, seeded per location, so rows look hand-placed but stay consistent. They identify the location; they never carry status or replace the location's name.
+- **Decks:** Decks are wide deck boxes standing on their long side: the front printed edge to edge with the cover art, the cover card rising out of the open top beside the deck's most valuable cards (up to four, priciest first; plain sleeves for an empty deck), and the commander's colors stuck on as mana stickers. The gallery shows them large (two or three across, up to five on ultrawide screens, grouped by format) with the name beneath, and the deck page header shows the same box beside the deck's name.
+- **Hover:** The object answers the pointer the way the real thing would (the binder page tilts and catches light, box cards lift, the fan spreads). Hover-capable pointers only; no motion under reduced motion.
+
+### Signature Component: Set Browser
+
+- **Sets shelf:** Each set is a tile with its three most valuable cards fanned above its symbol, its name, release date, and an owned-of-total meter. Tiles shelve by release year, newest first; hover spreads the fan.
+- **Flip stack:** A set's cards stand in a row on a dark stage like cards in a box. The front card faces the viewer at full size and the cards behind it show only their name bars; flipping tips the front card forward onto the floor and raises the next one. Wheel, drag, swipe, the arrow, Page, Home, and End keys, and the scrubber beneath the stage all flip; Enter or a click opens the front card full screen.
+- **Dividers:** When cards are grouped by treatment, an index divider with a tab stands in front of each section (Main set, Borderless, Extended Art, Fracture Foil Japan Showcase, ...). Section names are derived from the printing's promo types, frame effects, border, and full-art flag, and the scrubber marks each section start.
+- **Material:** The front card takes the tilt, glare, and foil of a card in hand, and the stage glows with its art colors.
+
+## 6. Motion
+
+Motion keeps objects continuous across navigation instead of decorating pages.
+
+- **Shared objects:** Opening a location carries its object into the page header; returning carries it back into its tile. Opening a card lifts it out of its grid tile into the full-screen view and drops it back into the tile on close, when that tile is on screen. These use the View Transitions API with a slight spring settle (about 420ms).
+- **Text and chrome:** Names, counts, values, and the rest of the page cross-fade (about 180ms). Text never slides or flies between positions.
+- **Cards in hand:** Under a mouse, card images (grid tiles, deck stacks, the card page) lean toward the pointer by a few degrees and catch a soft glare, then settle flat. Touch and reduced-motion users get the flat card.
+- **Opening a card:** A search result lifts into its card on the card page, which shows the card itself beside its rules text, and drops back into its slot on Back to search. Opening a deck carries its box into the deck page the same way, drawn from the gallery's copy while the deck loads.
+- **Sifting:** In the full-screen card view, arrow keys and swipes slide the next card in from that side while the old one slides out; picking from the filmstrip of neighboring cards deals that card up from the strip. The backdrop takes the current card's art colors (at the theme's lightness, with a minimum of chroma) and eases between cards over about 700ms.
+- **Putting a card away:** The add-card dialog shows locations as small objects to pick from; the chosen one holds its open pose. When the card is added it arcs from the dialog into that location, which gives as it lands, and then the dialog closes.
+- **No waiting room:** A destination that is already cached renders immediately while it refreshes, so a transition never lands on a loading state.
+- **Placeholders hold the layout:** When nothing is cached, pages load as shaped skeletons (card-shaped tiles in the grid's size, object-sized tiles on the locations shelf, the location and card page layouts) instead of a "Loading..." message.
+- **The header keeps the page named:** Once a page's heading scrolls under the header, the page title slides up into the wordmark's place and slides back out when the heading returns.
+- **Fallback:** Without View Transitions support, or under reduced motion, the change happens instantly.
+- **State feedback:** Buttons, nav, chips, and fields keep fast (150ms) state transitions.
+
+## 7. Do's and Don'ts
 
 ### Do:
 
@@ -242,11 +278,13 @@ Foil treatment belongs only to Magic card imagery. The animated shimmer pauses b
 - **Do** use mono type for exact values, prices, quantities, and counts where auditability matters.
 - **Do** make mobile/PWA flows first-class: safe-area padding, 44px touch targets, full-height mobile dialogs, and persistent navigation clarity.
 - **Do** meet WCAG AA contrast, visible keyboard focus, reduced-motion alternatives, and non-color-only status communication.
+- **Do** keep objects continuous: move the thing the user opened, fade everything else.
 
 ### Don't:
 
 - **Don't** make ManaVault look like generic hosted-SaaS dashboards or growth-product landing-page tropes.
 - **Don't** create loud TCG marketplace clutter, over-saturated novelty treatment, or game-store chaos.
 - **Don't** turn claret, brass, foil gradients, or card art into generic decoration.
+- **Don't** slide or fly text into place, choreograph whole-page entrances, or show a loading state for data that is already cached.
 - **Don't** use side-stripe borders, gradient text, decorative glassmorphism, hero-metric templates, or identical icon-card grids as default scaffolding.
 - **Don't** over-round product surfaces; cards stop at 8px unless a control is deliberately pill-shaped.

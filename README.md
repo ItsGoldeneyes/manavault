@@ -29,8 +29,9 @@ Each area links to the [feature reference](docs/features.md) for details.
   list into the collection.
 - **[Decks](docs/features.md#decks)** - commander/mainboard/considering zones,
   decklist import/export, preferred printings, custom tags, flexible grouping,
-  primers, keyboard shortcuts, and a Swap cards workbench with a legality
-  preview.
+  primers, keyboard shortcuts, a Swap cards workbench with a legality
+  preview, and read-only decks linked to a Moxfield or Archidekt list that
+  re-sync hourly.
 - **[Allocation](docs/features.md#allocation-pull-lists-and-missing-cards)** -
   reserve physical copies for deck cards so a card is never promised to two
   decks, then turn gaps into pull lists, proxies, and buylists for Mana Pool,
@@ -73,10 +74,10 @@ mkdir -p data
 docker run --rm \
   -p 4000:4000 \
   -v "$PWD/data:/data" \
-  -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
+  -e MANAVAULT_SECRET_KEY="$(openssl rand -base64 48)" \
   -e MANAVAULT_AUTH_DISABLED=true \
-  -e PHX_HOST=localhost \
-  ghcr.io/cfbender/manavault:1.4.3
+  -e MANAVAULT_PUBLIC_HOST=localhost \
+  ghcr.io/cfbender/manavault:2.3.2
 ```
 
 Visit <http://localhost:4000>. The first boot downloads the Scryfall catalog in
@@ -86,11 +87,13 @@ the background; card search and import matching work once that sync finishes
 ## Self-Hosting
 
 For anything reachable beyond localhost, enable built-in auth. Generate a
-Phoenix secret and an owner password hash from a source checkout:
+secret key and an owner password hash (the image's `manavault` binary
+prints the hash):
 
 ```sh
-mise exec -- mix phx.gen.secret
-mise exec -- mix manavault.auth.hash 'your-password'
+openssl rand -base64 48
+docker run --rm --entrypoint /app/bin/manavault ghcr.io/cfbender/manavault:2.3.2 \
+  hash-password 'your-password'
 ```
 
 Then run the published image with Docker Compose:
@@ -98,7 +101,7 @@ Then run the published image with Docker Compose:
 ```yaml
 services:
   manavault:
-    image: ghcr.io/cfbender/manavault:1.4.3
+    image: ghcr.io/cfbender/manavault:2.3.2
     container_name: manavault
     restart: unless-stopped
     ports:
@@ -106,16 +109,18 @@ services:
     volumes:
       - ./data:/data
     environment:
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      MANAVAULT_SECRET_KEY: ${MANAVAULT_SECRET_KEY}
       MANAVAULT_ADMIN_PASSWORD_HASH: ${MANAVAULT_ADMIN_PASSWORD_HASH}
-      PHX_HOST: vault.example.com
+      MANAVAULT_PUBLIC_HOST: vault.example.com
       # Behind an HTTPS reverse proxy you control:
       MANAVAULT_SECURE_COOKIES: "true"
       MANAVAULT_TRUST_PROXY_HEADERS: "true"
+      # The proxy's address or network, so only it can set the client IP:
+      # MANAVAULT_TRUSTED_PROXIES: 172.18.0.0/16
 ```
 
-Keep `SECRET_KEY_BASE` stable and saved somewhere safe: it signs sessions and
-encrypts stored secrets (AI and cloud backup credentials), so changing it means
+Keep `MANAVAULT_SECRET_KEY` stable and saved somewhere safe: it encrypts sessions and
+stored secrets (AI and cloud backup credentials), so changing it means
 re-entering those secrets.
 
 The [self-hosting guide](docs/self-hosting.md) covers the full environment
@@ -128,31 +133,37 @@ same instance is reached under more than one hostname, list the extra origins in
 
 - **Health check** - `GET /health` returns `{"status":"ok"}`; the image ships a
   Docker healthcheck.
-- **Upgrade** - pull a newer tag and recreate the container. Pending migrations
-  run on boot after an automatic pre-migration backup. See
+- **Upgrade** - pull a newer tag and recreate the container. The server backs
+  the database up and applies any pending migrations on boot, so installs from
+  any earlier release upgrade in place. See
   [Upgrading](docs/self-hosting.md#upgrading).
 - **Back up** - schedule cloud backups in **Settings -> Cloud backups**, copy the
   stopped `data/` directory, or create a zip in the running container:
 
   ```sh
-  docker exec manavault /app/bin/manavault rpc 'Manavault.Backup.create!()'
+  docker exec -u app manavault /app/bin/manavault backup
   ```
 
   See [Manual backups](docs/self-hosting.md#manual-backups).
 
-- **Restore** - stop the container and run `mix manavault.restore` from a
-  checkout, or stage a cloud restore in Settings and restart. See
+- **Restore** - stop the container and run the binary's `restore` command
+  against the data volume (`docker compose run --rm -u app --entrypoint
+  /app/bin/manavault manavault restore /data/backups/<file>.zip`), or stage a
+  cloud restore in Settings and restart. See
   [Restore](docs/self-hosting.md#restore).
 - **Card data** - the Scryfall catalog and symbols refresh daily and vendor
   prices every 30 minutes; force a reload from **Settings -> Scryfall data**.
   See [stalled syncs](docs/self-hosting.md#diagnosing-a-stalled-catalog-sync).
+- **Linked decks** - decks linked to Moxfield or Archidekt re-import on the
+  hour (the `external_deck_sync` job); use **Sync now** on the deck page
+  to refresh immediately.
 - **Logs** - **Settings -> Server logs** streams live output, and
   `docker logs manavault` shows the same.
 - **Locked out** - clear permanent login bans in the running container; see
   [login bans](docs/self-hosting.md#recover-from-a-permanent-login-ban):
 
   ```sh
-  docker exec manavault /app/bin/manavault rpc 'Manavault.Auth.AttemptLimiter.reset_all()'
+  docker exec -u app manavault /app/bin/manavault unban --all
   ```
 
 - **Scanner models** - downloaded from GitHub releases at startup and every six
@@ -179,21 +190,31 @@ same instance is reached under more than one hostname, list the extra origins in
 
 ## Development
 
-Tool versions are pinned in `mise.toml`:
+The server is the Rust backend in [`rust/`](rust/README.md); its SQL
+migrations in `rust/migrations` define the database schema and are applied on
+boot. Tool versions are pinned in `mise.toml`:
 
 ```sh
-mise run setup   # toolchain, dependencies, database, assets
-mise run dev     # Phoenix with Vite watcher on http://localhost:4000
-mise run test
+mise run setup        # toolchain, dependencies, assets, Rust build
+mise run dev          # Rust backend on $PORT (4000) + Vite on http://localhost:5173
+mise run test         # Rust and frontend test suites
+mise run precommit    # everything CI checks (rust:check + frontend:check)
+mise run rust:build   # release binary at rust/target/release/manavault
 ```
+
+`mise run dev` runs `scripts/dev-rust.sh`: the server, the Vite dev server
+(which proxies backend routes to `$PORT`), and Tailwind in watch mode; it stops
+all three when one exits. Open the Vite URL (5173) for hot reload, or `$PORT`
+directly. `mise run rust:assets` builds the production frontend into
+`priv/static/assets`.
 
 See [development.md](docs/development.md) for the full workflow.
 
 ## Tech Stack
 
-Phoenix, Absinthe GraphQL, Ecto/SQLite, Oban, Vite, React, TanStack
-Router/Query, Tailwind/DaisyUI styling, onnxruntime-web for the scanner, and
-optional Capacitor native shells.
+Rust (axum, async-graphql, sqlx/SQLite, an in-process job queue), Vite,
+React, TanStack Router/Query, Tailwind/DaisyUI styling, onnxruntime-web for the
+scanner, and optional Capacitor native shells.
 
 ## License
 

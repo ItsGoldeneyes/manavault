@@ -12,6 +12,50 @@ export const ImportDecklistDocument = graphql(`
   }
 `)
 
+export const LinkDeckExternalSourceDocument = graphql(`
+  mutation LinkDeckExternalSource($id: ID!, $url: String!) {
+    linkDeckExternalSource(id: $id, url: $url) {
+      deck {
+        id
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
+      }
+      unresolved
+    }
+  }
+`)
+
+export const SyncDeckExternalSourceDocument = graphql(`
+  mutation SyncDeckExternalSource($id: ID!) {
+    syncDeckExternalSource(id: $id) {
+      deck {
+        id
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
+      }
+      unresolved
+    }
+  }
+`)
+
+export const UnlinkDeckExternalSourceDocument = graphql(`
+  mutation UnlinkDeckExternalSource($id: ID!) {
+    unlinkDeckExternalSource(id: $id) {
+      deck {
+        id
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
+      }
+    }
+  }
+`)
+
 export const DeckBuylistDocument = graphql(`
   query DeckBuylist(
     $id: ID!

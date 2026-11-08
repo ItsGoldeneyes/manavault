@@ -1,36 +1,56 @@
 # Development
 
-ManaVault is a Phoenix application with a Vite/React frontend and optional
+ManaVault's server is the Rust backend in `rust/` (see
+[rust/README.md](../rust/README.md)), with a Vite/React frontend and optional
 Capacitor native shells. Tool versions are pinned in `mise.toml`.
 
 ## Requirements
 
 - `mise`
-- a platform that can run Elixir, Node, and SQLite
+- a platform that can run Rust, Node, and SQLite
 - macOS with Xcode only when building/running the iOS shell
 
 ## Setup
 
-Install the pinned toolchain, JavaScript dependencies, Elixir dependencies,
-database, and assets:
+Install the pinned toolchain and JavaScript dependencies, build the frontend,
+and compile the Rust backend:
 
 ```sh
 mise run setup
 ```
 
-Start Phoenix (the Vite dev server runs as a Phoenix watcher):
+Start the Rust backend with the Vite dev server and Tailwind watcher
+(`scripts/dev-rust.sh`; it stops all three when one exits):
 
 ```sh
 mise run dev
 ```
 
-Visit <http://localhost:4000>. If something is already listening on port 4000
+Visit <http://localhost:5173> (Vite, proxying backend routes to `$PORT`) or
+<http://localhost:4000>. If something is already listening on port 4000
 (`ss -ltnp 'sport = :4000'`), reuse that server instead of starting another.
 
-The development database is `manavault_dev.db` in the repository root. The
-Scryfall catalog sync starts on boot; until it finishes, card search returns
-few or no results. Force a reload from **Settings -> Scryfall data** or run
-`mise exec -- mix manavault.scryfall.sync`.
+The development database is `manavault_dev.db` in the repository root; the
+server creates it and applies pending migrations on boot
+(`rust/target/debug/manavault migrate` does only that). The Scryfall catalog
+sync starts on boot; until it finishes, card search returns few or no results.
+Force a reload from **Settings -> Scryfall data**.
+
+## Database Migrations
+
+`rust/migrations/<version>_<name>.sql` is the schema definition. Each file runs
+once, oldest first, inside a transaction, and its version is recorded in
+`schema_migrations`. To change the schema:
+
+```sh
+mise run rust:new-migration -- add_notes_to_decks   # creates the SQL file
+# write the SQL; if it must compute data, add a data_step in db/migrate.rs
+mise run rust:sqlx-prepare                          # rust/schema.sql + rust/.sqlx
+mise run rust:check
+```
+
+Commit the migration together with the regenerated `rust/schema.sql` and
+`rust/.sqlx`. CI fails when either is stale.
 
 Health check:
 
@@ -41,13 +61,21 @@ curl http://localhost:4000/health
 
 ## Tests and Checks
 
-Run the Elixir test suite:
+Run the Rust checks (format, clippy, tests) or only the tests:
+
+```sh
+mise run rust:check
+mise run rust:test
+```
+
+Run the Rust and frontend test suites:
 
 ```sh
 mise run test
 ```
 
-Run the fuller local precommit suite:
+Run every check CI runs (`rust:check` and `frontend:check`: lint, format check,
+typecheck, React tests, build, and Impeccable's detector):
 
 ```sh
 mise run precommit
@@ -61,14 +89,18 @@ mise exec -- aube run test:react
 mise exec -- aube run build
 ```
 
-Audit dependencies for known advisories:
+The deck playtester is the `@cfbender/playtest` package, shared with The
+Gathering and developed in [cfbender/playtest](https://github.com/cfbender/playtest)
+(see its README for the API). `package.json` pins a release tag; to pick up a
+new release, bump the tag and run `mise exec -- aube install`.
+
+Audit JavaScript dependencies for known advisories:
 
 ```sh
-mise exec -- mix hex.audit
 mise exec -- aube audit
 ```
 
-`mix hex.audit` also runs as part of `precommit`. Transitive JavaScript
+Transitive JavaScript
 packages that upstream has not bumped yet are pinned through the `overrides`
 block in `package.json`; drop an override once `aube why <package>` shows every
 dependant already requires a fixed version. `aube audit` reports vite
@@ -83,8 +115,8 @@ GraphQL TypeScript artifacts are generated from `codegen.ts`:
 mise exec -- aube run codegen
 ```
 
-`aube run codegen` first dumps the Absinthe schema to
-`_build/graphql-schema.graphql` with `mix absinthe.schema.sdl`, then runs
+`aube run codegen` first writes the server's schema to
+`rust/target/graphql-schema.graphql` with `manavault sdl`, then runs
 `graphql-codegen` against that file, so it does not need a running server.
 Introspecting a live server does not work: every `/api/graphql` POST requires a
 CSRF token, including in `MANAVAULT_AUTH_DISABLED=true` mode. Set
@@ -131,6 +163,73 @@ Like Android, the iOS shell loads the saved server URL as the app origin on
 launch and keeps navigation to that origin inside the web view; other hosts open
 in Safari. iOS App Transport Security blocks plain `http://` servers, so point
 the iOS shell at an `https://` URL.
+
+## Token Back Pairings
+
+`priv/data/token_backs.json` lists which single-faced tokens Wizards prints
+back to back (for example M3C Dragon #12 with MH3 Copy #1 and Treasure #34).
+The scanner's **What is on the back?** prompt and the Tokens tab's **Add token**
+dialog show these under **Known backs** before the rest of the set. The file is
+checked in and loaded at compile time by the server's `tokens::known_backs`,
+so updating it means regenerating it and shipping a new build.
+
+The pairings come from the card image galleries on magic.wizards.com, which
+carry a front and back image for every double-sided token from Modern
+Horizons 3 onward (older galleries have no back images, and neither Scryfall
+nor MTGJSON records pairings). The galleries read from a public Contentful
+space, so the script needs that space's read-only bearer token:
+
+1. Open any card image gallery, for example
+   <https://magic.wizards.com/en/products/modern-horizons-3/card-image-gallery>,
+   with the browser's network panel open.
+2. Find a request to `cdn.contentful.com` and copy the value after `Bearer ` in
+   its `Authorization` header. The token is public but rotates occasionally;
+   do not commit it.
+3. Make sure the local Scryfall catalog is current (let the running server's
+   sync finish, or reload it from **Settings -> Scryfall data**), since every
+   gallery face is resolved to a catalog printing by
+   token set code (`t` + set) and collector number, and faces that fail to
+   resolve are dropped.
+4. Regenerate the file:
+
+   ```sh
+   WOTC_CONTENTFUL_TOKEN=... mise exec -- node scripts/token-backs.mjs manavault_dev.db
+   ```
+
+   The script prints each dropped face and finishes with
+   `wrote N pairs (M unresolved faces dropped)`. Dropped faces are normally
+   counter cards Scryfall files with layout `normal` (Poison and Experience
+   counters), which the catalog does not import, plus `Incubator // Phyrexian`,
+   which Scryfall already stores as one double-faced printing. Emblems and
+   token-layout helpers (The Monarch, City's Blessing, Energy Reserve) resolve
+   like tokens, so their pairings are kept. A dropped creature or artifact token means
+   the catalog sync is stale or the set's gallery filed it under a different
+   collector number.
+
+5. Review the diff of `priv/data/token_backs.json` (the file is sorted so
+   additions show up as new lines), run
+   `mise exec -- cargo test --manifest-path rust/Cargo.toml tokens`, and commit
+   the data file together with any script change.
+
+The galleries list one product's pairing per face, so the file is a hint, not
+the full set of combinations; bundles and decks pair the same face differently.
+That is why the UI always keeps the rest of the set visible under **Other
+tokens**.
+
+## Precon Color Identities
+
+The precon import list shows each Commander precon's color identity from
+`priv/data/precon_colors.json`. MTGJSON's `DeckList.json` has no colors and
+each deck file is a few hundred kilobytes, so the server ships this snapshot
+and only fetches the deck files of precons released after it, each time the
+list is rebuilt. Regenerate it when new precons come out:
+
+```sh
+mise exec -- node scripts/precon-colors.mjs
+```
+
+Then run `mise exec -- cargo test --manifest-path rust/Cargo.toml precons` and
+commit the data file.
 
 ## Release Helper
 

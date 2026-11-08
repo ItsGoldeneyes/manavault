@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react"
 import { DeckDetailBulkAllocationOverlay } from "./deck-detail-bulk-allocation-overlay"
 import { DeckDetailCardOverlays } from "./deck-detail-card-overlays"
 import { DeckDetailDisassemblyOverlay } from "./deck-detail-disassembly-overlay"
+import { DeckExternalSourceDialog } from "./deck-external-source-dialog"
 import {
   NO_DECK_DETAIL_OVERLAY,
   type DeckDetailOverlay,
@@ -27,6 +28,7 @@ type Mutations = ReturnType<typeof useDeckMutations>
 type Selection = ReturnType<typeof useDeckDetailSelection>
 
 export function DeckDetailDialogLauncher({
+  canAllocate,
   canEdit,
   deck,
   deckCards,
@@ -43,6 +45,7 @@ export function DeckDetailDialogLauncher({
   shareToken,
   zoneCounts,
 }: {
+  canAllocate: boolean
   canEdit: boolean
   deck: DeckDetail
   deckCards: DeckCardEntry[]
@@ -131,14 +134,14 @@ export function DeckDetailDialogLauncher({
           })
         }
         onOverlayChange={setOverlay}
-        overlay={canEdit ? overlay : NO_DECK_DETAIL_OVERLAY}
+        overlay={canAllocate ? overlay : NO_DECK_DETAIL_OVERLAY}
       />
       <DeckDetailDisassemblyOverlay
         deck={deck}
         isApplying={disassembly.isApplying}
         onApply={() => disassembly.apply(deck.id)}
         onClose={close}
-        overlay={canEdit ? overlay : NO_DECK_DETAIL_OVERLAY}
+        overlay={canAllocate ? overlay : NO_DECK_DETAIL_OVERLAY}
       />
       <DeckDetailShareOverlays
         deck={deck}
@@ -149,6 +152,9 @@ export function DeckDetailDialogLauncher({
         shareToken={shareToken}
       />
       <DeckDetailShortcutsOverlay onClose={close} overlay={overlay} />
+      {!shareMode && overlay.kind === "external-source" ? (
+        <DeckExternalSourceDialog deck={deck} onClose={close} />
+      ) : null}
       {canEdit && !shareMode && overlay.kind === "swap-cards" ? (
         <DeckSwapDialog deck={deck} deckCards={deckCards} onClose={close} />
       ) : null}

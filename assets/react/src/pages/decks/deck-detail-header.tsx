@@ -7,18 +7,27 @@ import {
   Clipboard,
   createLucideIcon,
   Download,
-  Layers,
+  ExternalLink,
+  Link2,
   MessageCircleQuestion,
+  RefreshCw,
   Play,
   Plus,
   ShoppingCart,
+  Tag,
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
 
-import { ImageSummaryCard } from "../../components/image-summary-card"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
-import type { DeckGroupBy } from "../../lib/deck-grouping"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog"
+import type { DeckGroupBy, DeckGroupOption } from "../../lib/deck-grouping"
 import { compactNumber, cn, titleize } from "../../lib/utils"
 import { ShareModeHidden, SummaryActionMenu } from "./deck-actions"
 import { DeckAIAnalysis } from "./deck-ai-analysis"
@@ -26,12 +35,15 @@ import { DeckBracketBadge } from "./deck-bracket"
 import type { DeckLegalityIssue, DeckPrice, DetailZoneCounts } from "./deck-detail-types"
 import { DeckGroupMenu } from "./deck-group-menu"
 import { deckLegalityIssueCountLabel, deckLegalityLabel, deckLegalityTone } from "./deck-legality"
-import { DeckNameWithCommanderIdentity } from "./deck-list-model"
+import { DeckBox } from "./deck-box"
 import { DeckPrimer } from "./deck-primer"
 import { DeckQuestionDialog } from "./deck-question-dialog"
-import { DeckTagsSidebar } from "./deck-tags-sidebar"
+import { DeckTagList } from "./deck-tag-list"
 import type { DeckCardEntry, DeckCustomTag, DeckDetail } from "./deck-types"
+import { hasCommander } from "./deck-types"
 import { useDeckAnalysis } from "./use-deck-analysis"
+import { externalSourceLabel, useDeckExternalSource } from "./use-deck-external-source"
+import { formatDate } from "../settings/data"
 
 type DeckTagActions = {
   activeTagId: string | null
@@ -44,12 +56,16 @@ type DeckTagActions = {
 
 type DeckDetailHeaderProps = {
   children: ReactNode
+  /** Collection allocation is allowed (deck is not archived). */
+  canAllocate: boolean
+  /** Decklist edits are allowed (not archived and not linked to an external deck). */
   canEdit: boolean
   deck: DeckDetail
   deckCards: DeckCardEntry[]
   deckPrice: DeckPrice | null
   deckTags: DeckCustomTag[]
   groupBy: DeckGroupBy
+  groupOptions?: DeckGroupOption[]
   hasBuylistWork: boolean
   hasReadinessWork: boolean
   isSelectionActive: boolean
@@ -64,6 +80,7 @@ type DeckDetailHeaderProps = {
   onDownloadSharedDecklist: () => void
   onEditDeck: () => void
   onExportDeck: () => void
+  onExternalSource: () => void
   onGroupByChange: (groupBy: DeckGroupBy) => void
   onImportDeck: () => void
   onMissingCards: () => void
@@ -129,62 +146,113 @@ function DeckPriceChip({ onClick, price }: { onClick: () => void; price: DeckPri
   )
 }
 
-function DeckTagPanels({
+/**
+ * The deck's tags in a dialog opened from the toolbar. Choosing a tag
+ * highlights its cards and closes the dialog so the highlight is visible.
+ */
+function DeckTagsDialog({
   canEdit,
   deckTags,
-  shareMode,
+  onOpenChange,
+  open,
   tagActions,
-}: Pick<DeckDetailHeaderProps, "canEdit" | "deckTags" | "shareMode" | "tagActions">) {
-  if (shareMode) return null
-
-  const sidebar = (
-    <DeckTagsSidebar
-      tags={deckTags}
-      activeTagId={tagActions.activeTagId}
-      disabled={!canEdit}
-      onCreateTag={tagActions.onCreate}
-      onDeleteTag={tagActions.onDelete}
-      onJumpToTag={tagActions.onJumpTo}
-      onReorderTags={tagActions.onReorder}
-      onUpdateTag={tagActions.onUpdate}
-      variant="sidebar"
-    />
-  )
-
+}: Pick<DeckDetailHeaderProps, "canEdit" | "deckTags" | "tagActions"> & {
+  onOpenChange: (open: boolean) => void
+  open: boolean
+}) {
   return (
-    <div className="hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-      {sidebar}
-    </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" labelledBy="deck-tags-dialog-title">
+        <DialogHeader>
+          <div>
+            <DialogTitle id="deck-tags-dialog-title">Tags</DialogTitle>
+            <p className="mt-1 text-sm text-base-content/60">
+              Group cards and track them toward a target. Choose a tag to highlight its cards.
+            </p>
+          </div>
+          <DialogClose onClose={() => onOpenChange(false)} />
+        </DialogHeader>
+        <div className="p-5">
+          <DeckTagList
+            tags={deckTags}
+            activeTagId={tagActions.activeTagId}
+            disabled={!canEdit}
+            onCreateTag={tagActions.onCreate}
+            onDeleteTag={tagActions.onDelete}
+            onJumpToTag={(tagId) => {
+              tagActions.onJumpTo(tagId)
+              onOpenChange(false)
+            }}
+            onReorderTags={tagActions.onReorder}
+            onUpdateTag={tagActions.onUpdate}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-export function DeckMobileTagsPanel({
-  canEdit,
-  deckTags,
-  shareMode,
-  tagActions,
-}: Pick<DeckDetailHeaderProps, "canEdit" | "deckTags" | "shareMode" | "tagActions">) {
-  if (shareMode) return null
+function DeckExternalSourceNotice({ deck, onManage }: { deck: DeckDetail; onManage: () => void }) {
+  const { isSyncing, sync } = useDeckExternalSource(deck.id)
+  const sourceLabel = externalSourceLabel(deck.externalSource)
 
   return (
-    <div className="lg:hidden">
-      <DeckTagsSidebar
-        tags={deckTags}
-        activeTagId={tagActions.activeTagId}
-        disabled={!canEdit}
-        onCreateTag={tagActions.onCreate}
-        onDeleteTag={tagActions.onDelete}
-        onJumpToTag={tagActions.onJumpTo}
-        onReorderTags={tagActions.onReorder}
-        onUpdateTag={tagActions.onUpdate}
-        storageKey="manavault.deckTags.mobilePanelCollapsed"
-        variant="panel"
-      />
+    <div
+      className={cn(
+        "rounded-box border p-4 text-sm text-base-content/75",
+        deck.externalSyncError
+          ? "border-warning/40 bg-warning/5"
+          : "border-base-300 bg-base-200/60",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 font-bold text-base-content">
+            <Link2 className="h-4 w-4" />
+            <span>Linked to {sourceLabel}</span>
+          </div>
+          <p className="mt-1 max-w-3xl">
+            The decklist mirrors {sourceLabel} and syncs hourly, so card edits are disabled here.
+            Allocating copies from your collection still works.
+          </p>
+          <p className="mt-1 text-xs text-base-content/60">
+            {deck.externalSyncError
+              ? `Last sync failed: ${deck.externalSyncError}`
+              : deck.externalSyncedAt
+                ? `Last synced ${formatDate(deck.externalSyncedAt)}`
+                : "Not synced yet"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {deck.externalUrl ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={deck.externalUrl} rel="noreferrer" target="_blank">
+                <ExternalLink className="h-4 w-4" />
+                Open in {sourceLabel}
+              </a>
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSyncing}
+            onClick={() => sync()}
+          >
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            {isSyncing ? "Syncing..." : "Sync now"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onManage}>
+            Manage
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
 
 export function DeckDetailHeader({
+  canAllocate,
   canEdit,
   children,
   deck,
@@ -192,6 +260,7 @@ export function DeckDetailHeader({
   deckPrice,
   deckTags,
   groupBy,
+  groupOptions,
   hasBuylistWork,
   hasReadinessWork,
   isRefreshing,
@@ -206,6 +275,7 @@ export function DeckDetailHeader({
   onDownloadSharedDecklist,
   onEditDeck,
   onExportDeck,
+  onExternalSource,
   onGroupByChange,
   onImportDeck,
   onMissingCards,
@@ -223,17 +293,14 @@ export function DeckDetailHeader({
   zoneCounts,
 }: DeckDetailHeaderProps) {
   const [questionOpen, setQuestionOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const activeTag = deckTags.find((tag) => tag.id === tagActions.activeTagId)
   const analysis = useDeckAnalysis(deck, !shareMode)
   const hasAnalysis = Boolean(deck.aiAnalysis?.trim())
+  const canAnalyze = deck.status !== "archived"
 
   return (
     <>
-      <DeckTagPanels
-        canEdit={canEdit}
-        deckTags={deckTags}
-        shareMode={shareMode}
-        tagActions={tagActions}
-      />
       <div className="min-w-0 space-y-7">
         <ShareModeHidden shareMode={shareMode}>
           <Button asChild variant="outline" size="sm">
@@ -241,13 +308,21 @@ export function DeckDetailHeader({
           </Button>
         </ShareModeHidden>
 
-        <ImageSummaryCard
-          imageUrl={deck.coverImageUrl}
-          fallback={<Layers className="h-12 w-12" />}
-          interactive={false}
-          typeLine={<Badge>{titleize(deck.format)}</Badge>}
-          countLine={`${compactNumber(deck.cardCount || 0)} cards`}
-          detailLine={
+        <div className="relative items-center gap-6 md:grid md:grid-cols-[minmax(0,30rem)_1fr]">
+          <DeckBox deck={deck} className="w-full" />
+          <div className="flex min-w-0 flex-col gap-3 pr-12">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>{titleize(deck.format)}</Badge>
+              <span className="font-mono text-sm font-bold text-base-content/70">
+                {compactNumber(deck.cardCount || 0)} cards
+              </span>
+            </div>
+            <h1
+              data-page-heading
+              className="line-clamp-2 min-w-0 text-4xl font-black tracking-normal sm:text-5xl"
+            >
+              {deck.name}
+            </h1>
             <div className="flex flex-wrap items-center gap-2 text-base leading-none">
               <Badge tone={deck.status === "active" ? "success" : "neutral"}>
                 {titleize(deck.status)}
@@ -263,39 +338,34 @@ export function DeckDetailHeader({
               />
               {isRefreshing ? <Badge tone="neutral">Refreshing…</Badge> : null}
             </div>
-          }
-          nameLine={
-            <DeckNameWithCommanderIdentity colors={deck.commanderColorIdentity} name={deck.name} />
-          }
-          actionSlot={
-            <ShareModeHidden shareMode={shareMode}>
-              <SummaryActionMenu
-                analyzeLabel={
-                  analysis.pending
-                    ? "Analyzing..."
-                    : hasAnalysis
-                      ? "Refresh AI analysis"
-                      : "Analyze deck with AI"
-                }
-                analyzePending={analysis.pending || analysis.checking}
-                label={`${deck.name} actions`}
-                onAnalyze={analysis.analyze}
-                onCombos={onCombos}
-                onCompare={onCompareDeck}
-                onDisassemble={canEdit ? onDisassemble : undefined}
-                onEdhrec={canEdit && deck.format === "commander" ? onOpenEdhrec : undefined}
-                onRecommander={
-                  canEdit && deck.format === "commander" ? onOpenRecommander : undefined
-                }
-                onEdit={onEditDeck}
-                onExport={onExportDeck}
-                onImport={canEdit ? onImportDeck : undefined}
-                onMissing={canEdit && hasBuylistWork ? onMissingCards : undefined}
-                onShare={onShareDeck}
-              />
-            </ShareModeHidden>
-          }
-        />
+          </div>
+          <ShareModeHidden shareMode={shareMode}>
+            <SummaryActionMenu
+              analyzeLabel={
+                analysis.pending
+                  ? "Analyzing..."
+                  : hasAnalysis
+                    ? "Refresh AI analysis"
+                    : "Analyze deck with AI"
+              }
+              analyzePending={analysis.pending || analysis.checking}
+              label={`${deck.name} actions`}
+              onAnalyze={canAnalyze ? analysis.analyze : undefined}
+              onCombos={onCombos}
+              onCompare={onCompareDeck}
+              externalSourceLinked={Boolean(deck.externalSource)}
+              onDisassemble={canAllocate ? onDisassemble : undefined}
+              onEdhrec={canEdit && hasCommander(deck.format) ? onOpenEdhrec : undefined}
+              onRecommander={canEdit && hasCommander(deck.format) ? onOpenRecommander : undefined}
+              onEdit={onEditDeck}
+              onExport={onExportDeck}
+              onExternalSource={canAllocate ? onExternalSource : undefined}
+              onImport={canEdit ? onImportDeck : undefined}
+              onMissing={canAllocate && hasBuylistWork ? onMissingCards : undefined}
+              onShare={onShareDeck}
+            />
+          </ShareModeHidden>
+        </div>
 
         <DeckPrimer primer={deck.primer} />
 
@@ -324,15 +394,17 @@ export function DeckDetailHeader({
             <span>
               AI analysis could not be completed. Your saved analysis has not been changed.
             </span>
-            <Button variant="outline" size="sm" onClick={analysis.analyze}>
-              Retry analysis
-            </Button>
+            {canAnalyze ? (
+              <Button variant="outline" size="sm" onClick={analysis.analyze}>
+                Retry analysis
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
         <DeckAIAnalysis deck={deck} shareMode={shareMode} />
 
-        {!canEdit ? (
+        {!canAllocate ? (
           <div className="rounded-box border border-base-300 bg-base-200/60 p-4 text-sm text-base-content/75">
             <div className="flex flex-wrap items-center gap-2 font-bold text-base-content">
               <Archive className="h-4 w-4" />
@@ -343,6 +415,8 @@ export function DeckDetailHeader({
               printings, or collection allocations.
             </p>
           </div>
+        ) : deck.externalSource && !shareMode ? (
+          <DeckExternalSourceNotice deck={deck} onManage={onExternalSource} />
         ) : null}
 
         {legalityIssues.length ? (
@@ -488,19 +562,40 @@ export function DeckDetailHeader({
                       Select
                     </Button>
                   ) : null}
-                  {hasReadinessWork ? (
-                    <Button type="button" variant="outline" size="sm" onClick={onOpenReadiness}>
-                      Pull list
-                    </Button>
-                  ) : null}
                 </>
               ) : null}
+              <Button
+                type="button"
+                variant={activeTag ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setTagsOpen(true)}
+              >
+                <Tag className="h-4 w-4" aria-hidden="true" />
+                {activeTag ? activeTag.name : "Tags"}
+                {!activeTag && deckTags.length ? (
+                  <span className="font-mono text-xs opacity-70">{deckTags.length}</span>
+                ) : null}
+              </Button>
+              {canAllocate && hasReadinessWork ? (
+                <Button type="button" variant="outline" size="sm" onClick={onOpenReadiness}>
+                  Pull list
+                </Button>
+              ) : null}
             </ShareModeHidden>
-            <DeckGroupMenu value={groupBy} onChange={onGroupByChange} />
+            <DeckGroupMenu options={groupOptions} value={groupBy} onChange={onGroupByChange} />
           </div>
         </div>
         {children}
       </div>
+      {!shareMode ? (
+        <DeckTagsDialog
+          canEdit={canEdit}
+          deckTags={deckTags}
+          open={tagsOpen}
+          tagActions={tagActions}
+          onOpenChange={setTagsOpen}
+        />
+      ) : null}
       {!shareMode && questionOpen ? (
         <DeckQuestionDialog
           deckId={deck.id}

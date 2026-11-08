@@ -37,6 +37,7 @@ import { DECK_CARD_TAGS } from "./deck-types"
 export function DeckStackActionMenu({
   actions,
   canAddPartner,
+  canEdit = true,
   canSetCommander,
   deckCard,
   isInteractive,
@@ -46,6 +47,8 @@ export function DeckStackActionMenu({
 }: {
   actions: DeckStackCardActions
   canAddPartner: boolean
+  /** When false only view and allocation-related items render. */
+  canEdit?: boolean
   canSetCommander: boolean
   deckCard: DeckCardEntry
   isInteractive: boolean
@@ -87,42 +90,46 @@ export function DeckStackActionMenu({
             <XCircle className="h-4 w-4" /> Remove proxy
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem disabled={isUpdating} onSelect={actions.edit}>
-          <Edit3 className="h-4 w-4" /> Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={isUpdating} onSelect={actions.move}>
-          <MoveRight className="h-4 w-4" /> Move
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Tag</DropdownMenuLabel>
-        {DECK_CARD_TAGS.map((tagOption) => (
-          <DropdownMenuItem
-            key={tagOption.value}
-            disabled={isUpdating || deckCard.tag === tagOption.value}
-            onSelect={() => actions.tag(tagOption.value)}
-          >
-            <tagOption.icon className="h-4 w-4" /> {tagOption.label}
-          </DropdownMenuItem>
-        ))}
-        {deckCard.tag ? (
-          <DropdownMenuItem onSelect={() => actions.tag(null)}>
-            <Tag className="h-4 w-4" /> Clear tag
-          </DropdownMenuItem>
+        {canEdit ? (
+          <>
+            <DropdownMenuItem disabled={isUpdating} onSelect={actions.edit}>
+              <Edit3 className="h-4 w-4" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={isUpdating} onSelect={actions.move}>
+              <MoveRight className="h-4 w-4" /> Move
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Tag</DropdownMenuLabel>
+            {DECK_CARD_TAGS.map((tagOption) => (
+              <DropdownMenuItem
+                key={tagOption.value}
+                disabled={isUpdating || deckCard.tag === tagOption.value}
+                onSelect={() => actions.tag(tagOption.value)}
+              >
+                <tagOption.icon className="h-4 w-4" /> {tagOption.label}
+              </DropdownMenuItem>
+            ))}
+            {deckCard.tag ? (
+              <DropdownMenuItem onSelect={() => actions.tag(null)}>
+                <Tag className="h-4 w-4" /> Clear tag
+              </DropdownMenuItem>
+            ) : null}
+            {canSetCommander ? (
+              <DropdownMenuItem disabled={isUpdating} onSelect={actions.setCommander}>
+                <Crown className="h-4 w-4" /> Set as commander
+              </DropdownMenuItem>
+            ) : null}
+            {canAddPartner ? (
+              <DropdownMenuItem disabled={isUpdating} onSelect={actions.addPartner}>
+                <UserPlus className="h-4 w-4" /> Add as partner
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem destructive disabled={isUpdating} onSelect={actions.delete}>
+              <Trash2 className="h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </>
         ) : null}
-        {canSetCommander ? (
-          <DropdownMenuItem disabled={isUpdating} onSelect={actions.setCommander}>
-            <Crown className="h-4 w-4" /> Set as commander
-          </DropdownMenuItem>
-        ) : null}
-        {canAddPartner ? (
-          <DropdownMenuItem disabled={isUpdating} onSelect={actions.addPartner}>
-            <UserPlus className="h-4 w-4" /> Add as partner
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem destructive disabled={isUpdating} onSelect={actions.delete}>
-          <Trash2 className="h-4 w-4" /> Delete
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

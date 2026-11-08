@@ -23,12 +23,17 @@ major | minor | patch) ;;
 	;;
 esac
 
-version_file="mix.exs"
-current=$(perl -ne 'print "$1\n" if /^\s*version:\s*"([0-9]+\.[0-9]+\.[0-9]+)",/' "$version_file")
+version_file="rust/Cargo.toml"
+current=$(perl -ne 'if (/^version = "([0-9]+\.[0-9]+\.[0-9]+)"/) { print "$1\n"; exit }' "$version_file")
 
 if [[ -z "$current" ]]; then
 	printf 'Could not find semver project version in %s\n' "$version_file" >&2
 	exit 1
+fi
+
+# Orb checkouts start shallow, without the tag that marks the previous release.
+if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+	git fetch --quiet --unshallow --tags origin
 fi
 
 previous_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
@@ -84,9 +89,9 @@ if [[ "${MANAVAULT_RELEASE_DRY_RUN:-}" == "1" ]]; then
 	exit 0
 fi
 
-if [[ -f CHANGELOG.md ]] && grep -q "^## \\[$next\\]" CHANGELOG.md; then
-	git-cliff "$range" --tag "$tag" --output CHANGELOG.md
-elif [[ -f CHANGELOG.md ]]; then
+if [[ -f CHANGELOG.md ]]; then
+	# Replace this version's section from an earlier run instead of duplicating it.
+	NEXT="$next" perl -0pi -e 's/^## \[\Q$ENV{NEXT}\E\].*?(?=^## \[|\z)//ms' CHANGELOG.md
 	git-cliff "$range" --tag "$tag" --prepend CHANGELOG.md
 else
 	git-cliff "$range" --tag "$tag" --output CHANGELOG.md

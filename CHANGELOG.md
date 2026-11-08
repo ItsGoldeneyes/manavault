@@ -8,6 +8,261 @@ See [docs/releasing.md](docs/releasing.md) for maintainer instructions.
 
 ---
 
+## [2.3.2] - 2026-11-04
+
+### Bug Fixes
+
+- **android:** Keep plugin settings when a server is saved ([`ad5cb6bc`](../../commit/ad5cb6bca4989a7b0985123c4ee75d0439f421f9))
+- **native:** Keep the shell's zero bottom inset while the keyboard is open ([`1f021dc0`](../../commit/1f021dc0677b30602f27ae6bf961f6396188686d))
+
+### Features
+
+- **decks:** Show color identity in the precon import list ([`4263302b`](../../commit/4263302be98d54d7ea83aa91278206b78eb5a493))
+
+## [2.3.1] - 2026-11-04
+
+### Bug Fixes
+
+- **android:** Stop subtracting the keyboard twice from the WebView ([`e80092e5`](../../commit/e80092e5a4ee79a4b94462fd9248194b0ded8ab5))
+
+## [2.3.0] - 2026-11-04
+
+### Bug Fixes
+
+- **deps:** Bump docker/login-action from 4.6.0 to 4.7.0 (#174) ([`4442bac4`](../../commit/4442bac41a94508ae3e85f549d5896e5f2446336))
+- **deps:** Bump Swatinem/rust-cache from 2.9.2 to 2.9.3 (#175) ([`20c394b4`](../../commit/20c394b41c2ecbc62da0a2e05852103fab724e65))
+- **deps:** Bump jdx/mise-action from 5.2.0 to 5.2.3 (#176) ([`72bd0a79`](../../commit/72bd0a7939b0230712b4cc61e67798ae96903f88))
+- **ai:** Keep tools and response_format out of the same OpenRouter request ([`74e9a18d`](../../commit/74e9a18df6504d7b27bbecd41dfc038462a8a2d2))
+- **deps:** Patch zip, utoipa-swagger-ui, glob, minimatch and seroval ([`75651797`](../../commit/75651797c12893e641c13096cee2eb3778620d90))
+- **scanner:** Log only still cards and ignore the blank Whiteout art ([`b8e8515f`](../../commit/b8e8515f2045daee15a901d3412c72f04e6daf04))
+- **search:** Rank the exact card name first in name searches ([`c445b121`](../../commit/c445b121aad9776ef4b0801efed343b256df897c))
+- **decks:** List Commander precons from MTGJSON ([`1a7e5748`](../../commit/1a7e5748d1dfb9ec9a59cd19f68a80a5f80c8dee))
+
+### CI
+
+- **android:** Build release AABs and upload them to Google Play ([`270b3b6f`](../../commit/270b3b6f69f28f8551419abf4a04f44b142c7966))
+
+### Documentation
+
+- Add privacy policy for the Android app ([`66463385`](../../commit/664633854b34d807ec4c997056a2d6dc3a7adfbd))
+- Describe the public demo server in the privacy policy ([`6c1be2a8`](../../commit/6c1be2a8a32fbf15bf252c583a7a926abad9dead))
+
+### Features
+
+- **decks:** Show full tag group name on hover ([`42a792df`](../../commit/42a792df2342346cac9c2ddbb493e14df958ec88))
+- **layout:** Widen the page shell on ultrawide screens ([`b0cf18fd`](../../commit/b0cf18fd9aa9aa09e4c15b8661c31c364d5f88ca))
+- **search:** Support the full Scryfall search syntax ([`7141c44d`](../../commit/7141c44d6e29ce10fe83649171d874351bf60b7b))
+- **decks:** Add Pauper Commander deck format ([`6e7e9585`](../../commit/6e7e958571f4e551357dcbe05057754ceff2e128))
+- **cards:** Show banned and restricted legalities like Scryfall ([`a4a41be9`](../../commit/a4a41be9fc7fd14d358a67f1b49a8012dbee5c6a))
+- **server:** List the Google Play app signing key in default asset links ([`53b5f8f5`](../../commit/53b5f8f5963b4b85a03d42bee760739e0f162b25))
+- **android:** Link the privacy policy from the native shell ([`9da82078`](../../commit/9da82078d1f28d1c13197cb1e811d018ec8e27bc))
+- **decks:** Import Commander precons from Moxfield ([`3c1ed409`](../../commit/3c1ed40997c464bb7131e477d907f44cd5978e69))
+
+## [2.2.0] - 2026-10-25
+
+### Bug Fixes
+
+- **deps:** Bump katex to 0.19.0 and override its transitive copies (#160) ([`ea25450f`](../../commit/ea25450fa287bb6a717de9288d068aaaf8c3a09f))
+- **pricing:** Sync vendor prices after the first catalog import ([`b64e9def`](../../commit/b64e9defaf6c2befe6c6bd053a0ee1f9289fc7da))
+- **deps:** Bump actions/upload-artifact from 7.0.1 to 7.0.2 (#164) ([`5a0cb321`](../../commit/5a0cb3216fba799fe87b5e907a96360a399f9583))
+- **deps:** Bump actions/download-artifact from 8.0.1 to 8.0.2 (#165) ([`2abcd9fb`](../../commit/2abcd9fb146b9adde21e94ad3c3b70bd5de2a39d))
+- **docker:** Build the healthcheck helper with Go 1.26.9 (#166) ([`d508167b`](../../commit/d508167bf163fee6497934995323e305c04c97e9))
+- **deps:** Update rustls and track Dockerfile base images with Dependabot (#167) ([`00f1e318`](../../commit/00f1e31864d15b2456c4ac83509be4e638a36dff))
+- **deps:** Bump golang from 1.26.9-alpine3.24 to 1.27.2-alpine3.24 (#168) ([`e83313f9`](../../commit/e83313f91c392e4bc4ce584284ac7cef266d6347))
+- **deps:** Bump rust from 1.98.0-alpine3.24 to 1.99.0-alpine3.24 (#169) ([`f6992df1`](../../commit/f6992df1960f7901d60fc3ed36b3f1b1d3160528))
+- **ui:** Stop card animations flickering on mobile ([`cc4b75a6`](../../commit/cc4b75a65a005522db8ff53651fd2556024e5af7))
+- **deps:** Distrust the compromised eMudhra intermediates (webpki-roots 1.0.10, rustls-webpki 0.103.16) (#170) ([`82ed1e7a`](../../commit/82ed1e7ae077d0dfdb4b49a0fe7fb5a2883f6e21))
+- **deps:** Bump jdx/mise-action from 5.1.1 to 5.2.0 (#171) ([`d72179d2`](../../commit/d72179d2e7c441a02bfbf910de2114dd6f8db9cb))
+- **deps:** Bump rust from 1.99.0-alpine3.24 to 1.99.1-alpine3.24 (#172) ([`bceb3cea`](../../commit/bceb3ceae20c522169bb3d277d3cda904887b461))
+- **security:** Harden public GraphQL, sessions, and proxy trust ([`54c5cbba`](../../commit/54c5cbba93fa648c05ec4251f51f0a2c1b0667b5))
+- **ai:** Allow slower OpenRouter completions ([`cafe9bf0`](../../commit/cafe9bf0ab9f47842ed079de2d5113df4e3c8695))
+- **deps:** Patch tokio, vite/vite-plus/vitest, graphql-codegen tooling and undici ([`aced8939`](../../commit/aced8939a37c36e0d4a0229a9fe1cecdf530f36f))
+
+### Build
+
+- Upgrade aube to 2.8.1 ([`b686da12`](../../commit/b686da129b2619499a1c7c0bcce0fff5c4abbf33))
+- **rust:** Unify jsonschema's dev-dependency features to avoid double compilation ([`90aac35d`](../../commit/90aac35d9bf84d22655fa55ace013c16c7db1d85))
+
+### CI
+
+- Key the Rust cache on the toolchain and Cargo.lock ([`3587beb4`](../../commit/3587beb4a45a79ee2bed11fed23c141b52d1b2a9))
+
+### Chores
+
+- **deps:** Bump docker/build-push-action from 7.3.0 to 7.4.0 (#154) ([`070844cb`](../../commit/070844cb2e599c20bd9de9587c6c5c2f00711a97))
+- **deps:** Bump docker/setup-buildx-action from 4.3.0 to 4.4.1 (#155) ([`153d4d14`](../../commit/153d4d14039fc37e27137aba78740497c6d5ddca))
+- **deps:** Bump jdx/mise-action from 4.3.0 to 5.1.1 (#159) ([`80b49191`](../../commit/80b4919111dea64ae098dbeeec669a9f0708af94))
+
+### Features
+
+- **catalog:** Add a set browser with a flip-through card stack ([`1d217762`](../../commit/1d21776279378ee6528ac24b3ba3631004586b9c))
+- **catalog:** Import Scryfall rulings in the catalog sync ([`a63eb423`](../../commit/a63eb423defac0a4b1fac9e4282dae477448cf6c))
+- **playtest:** Use the @cfbender/playtest v0.1.2 release ([`7d227537`](../../commit/7d2275372cd7475a3470606887b932bf4365f6a7))
+- **decks:** Add Duel Commander and Canadian Highlander deck formats ([`2b95507d`](../../commit/2b95507d74f91d26b8cfabfb2c53a183b68be2b6))
+- **ai:** Cache OpenRouter prompts and require a first-round tool call ([`d3dbffb5`](../../commit/d3dbffb5b6e24f81078ce8e8b774769446fb1a9f))
+- **ai:** Configurable reasoning effort and default tool choice ([`d4bd7ce7`](../../commit/d4bd7ce7f74ea4f85d1ddafb2c9dc882329eab43))
+- **decks:** Add a rules-based deck health section ([`31ea8693`](../../commit/31ea86933e58e6cdf2dbffb6fdfad54b9865f0c5))
+- **ai:** Replace strengths and pressure points with closing out and playing from behind ([`41c2b1a4`](../../commit/41c2b1a49522286baf26b2e4bae79795a00a2311))
+
+### Performance
+
+- **db:** Keep SQLite planner statistics fresh and remove global cache locks ([`29fcbefd`](../../commit/29fcbefd08f7cd0f62487ab985750fbfc86e0c20))
+
+### Refactoring
+
+- **playtest:** Move the deck playtester into a shared @cfbender/playtest package ([`0548b9ad`](../../commit/0548b9ada4987edfb25e4ca2d2406559187f700c))
+
+### Style
+
+- Apply oxfmt 0.74 formatting from vite-plus 1.4.0 ([`0cd66fc2`](../../commit/0cd66fc21527a0b7ef4fb1a2a9254862037f0444))
+
+## [2.1.0] - 2026-10-14
+
+### Bug Fixes
+
+- **pricing:** Price TCGplayer from tcgcsv market price, falling back to TCG Low ([`55637cbf`](../../commit/55637cbf9cb59a1cdfabd8e8f607828aa91779e9))
+- **scanner:** Flush correction labels before responding ([`5b8dd51f`](../../commit/5b8dd51f4a1fdb33630d177a1b332f7538878059))
+- **ai:** Skip archived decks in AI deck analysis ([`cc131365`](../../commit/cc1313657494ff25fbb292d34413fc340371146e))
+- **allocation:** Keep deck allocations consistent across card and item edits ([`49968ad4`](../../commit/49968ad4627d68e6f7373c2d1fa7f195144b5069))
+- **server:** Stop memory growth across price syncs ([`820090d3`](../../commit/820090d313353f256f3bd5bdd6add764e1d0d51c))
+- **ai:** Keep exile-based removal out of exile payoff tags ([`d70b2d5f`](../../commit/d70b2d5ff2c8a9e089b33e96f85b43408d03da3f))
+- **decks:** Stand the priciest card in front at the right of the deck box ([`f13db63d`](../../commit/f13db63deec8d33392e566e66c27d51ed3188a50))
+- **release:** Generate the changelog in shallow checkouts and on reruns ([`60f13e9c`](../../commit/60f13e9c00ad80272fc2dd4849e481e8f272c606))
+
+### Build
+
+- **rust:** Unify dev-dependency features to avoid double compilation ([`35307e1c`](../../commit/35307e1cbffbc322d248e5e4d501b30a0e2ded58))
+
+### Chores
+
+- **backlog:** Finalize TASK-94.5 ([`de941150`](../../commit/de941150e022c9a90d40453a53269807cfb5d2f7))
+- **backlog:** Close TASK-94 ([`a8961863`](../../commit/a8961863d67111306d8524a56d12dd38b55445a9))
+
+### Documentation
+
+- **rust:** One architecture overview, retire parity harness and port notes ([`2e8a14af`](../../commit/2e8a14af55e718c0b5f82b7aeaf27ab2f1a121a1))
+
+### Features
+
+- **ai:** Add Karsten mana curve and land/ramp guidance to deck analysis prompt ([`1b9a9ca1`](../../commit/1b9a9ca10db8c12d4b8c9c69d5bf8df5d44a6178))
+- **collection:** Track market value at acquisition and rebuild it from MTGJSON price history ([`573053db`](../../commit/573053db4a47d7b8f355c562671242d88a627e2e))
+- **scan:** Export the scanned list as text or CSV ([`8e952a62`](../../commit/8e952a626cf2a2fb6c3d9321c5a80d155eba4a11))
+- **catalog:** Map more Scryfall oracle tags to deck themes ([`97d7fbcb`](../../commit/97d7fbcbc87cc6d2c871df10259db379ae7bbc00))
+- **catalog:** Add impulse draw and cast-from-exile deck themes ([`9223a6a6`](../../commit/9223a6a67d81a49c546cbdc1aa0f2ede9305a1e8))
+- **ai:** Group deck cards into AI-planned roles with Jev ([`a2b4d7d0`](../../commit/a2b4d7d070172e3be4c18b006497f2e122d13e40))
+- **decks:** Offer AI Tag grouping first and fit the group menu on screen ([`2b70334f`](../../commit/2b70334fa0fca70bb0b8f3b609cb8deec80bc89a))
+- **ai:** Make the AI tag decision model configurable ([`c64a069b`](../../commit/c64a069b5b937d61d6b804d6fa249116a5be5f4c))
+- **collection:** Draw locations as physical storage with shared-element transitions ([`2ed7ad7f`](../../commit/2ed7ad7f38e10b684e32080c44ec7d8911d67ac6))
+- **collection:** Stick card, set, and rarity symbols on locations ([`bea586c5`](../../commit/bea586c5a4b829bf62f35d8291db61cc14ae171e))
+- **cards:** Sift through cards in the full-screen view ([`42b2bb54`](../../commit/42b2bb5499959fb04ddfd5500d2d8a7a767efede))
+- **collection:** Pack locations on one shelf sized to their objects ([`8de9270e`](../../commit/8de9270e49d0256d52d929025390f5f72de0a099))
+- **collection:** Pick a location visually and drop the added card into it ([`91950db6`](../../commit/91950db6ada0669368e99ccfbf5a503f5040d26e))
+- **ui:** Page title in the header on scroll and shaped loading placeholders ([`2e616955`](../../commit/2e616955f2a20281ed13e639d28ae0597b80cf57))
+- **decks,cards:** Deck boxes, card tilt, and opening cards into their page ([`5c82ad5a`](../../commit/5c82ad5a59942e089b2376ca13ba556c1c9817bf))
+- **decks:** Move deck tags into a toolbar dialog ([`3b8f82ab`](../../commit/3b8f82abc0363ca048ffbc96f958be582e6fd2d8))
+
+### Miscellaneous
+
+- Document the /api/v1 REST API with OpenAPI 3.1 and Swagger UI (#163) ([`0f859ddf`](../../commit/0f859ddf97580dd3536906ee542391f82371630c))
+
+### Performance
+
+- **decks:** Speed up adding AI recommendations to considering ([`857d4da3`](../../commit/857d4da3bdcdbec2cca9c66d174a134505acb563))
+
+### Refactoring
+
+- **web:** Serve GraphQL over async-graphql-axum and graphql-ws ([`0310689b`](../../commit/0310689bcd5c2f23b26420e233c61fe743c30803))
+- **web:** Keep sessions in a private cookie and rename secret/host variables ([`59c7be14`](../../commit/59c7be148e2b639beddcc70053ee18126c1ed76c))
+- **jobs:** Store background jobs in a native jobs table ([`5ae5934a`](../../commit/5ae5934a264db6fe0d8051663fc2f5ec9925c263))
+- **graphql:** Drop Absinthe error, id, and root type compatibility ([`43b67112`](../../commit/43b6711212f0c7c10c49a60edf78b6b0052131c7))
+- **tests:** Crate-local test schemas and direct crate imports ([`3c92e4e2`](../../commit/3c92e4e286196067c4e6bc89f56fadff843825c6))
+- **core:** Typed timestamps ([`5d56f768`](../../commit/5d56f768d531248ffa8d5a291abc24914f6a7b59))
+
+### Style
+
+- **decks:** Shrink the deck gallery to 90% width on wide screens ([`4cd88832`](../../commit/4cd8883223f28be2dda8ace6aa701081e43ea2cf))
+
+## [2.0.0] - 2026-10-07
+
+### Bug Fixes
+
+- Version the stylesheet and shell scripts per deploy ([`61c53cfc`](../../commit/61c53cfc7678dbbcf33d5ae318904c0be384a711))
+- **ai:** Refine bracket labels and interaction analysis ([`3c52c0e4`](../../commit/3c52c0e484c3a0774548d74d188571d601b777c3))
+- **ai:** Anchor bracket labels to practical pace ([`8a6ba0ac`](../../commit/8a6ba0acc47279f9c82c6a74ada363e48400c54a))
+- **ai:** Use compatible sampling defaults and log provider errors ([`fa0ff80f`](../../commit/fa0ff80fcbf4f73c25f8986c05f4ea561baaf589))
+- **ai:** Separate nullable bracket rating schema branches ([`dfb988d4`](../../commit/dfb988d4dff3203ce2f00920acc44230d061e6c1))
+- **ai:** Run saved-deck analysis in the background ([`a10defdb`](../../commit/a10defdbc8b35e5c5b6c4e528e837d5a293c9ac3))
+- **ai:** Enable card links and previews in deck analysis ([`6a101a37`](../../commit/6a101a377d014355f1da5a1ad953d4ed3a3eec0d))
+- **ai:** Open referenced cards on Scryfall ([`e792eff4`](../../commit/e792eff4693a193cc68a12e1176f8cd577300a86))
+- **docker:** Bump OTP to 29.1.1 for CVE-2026-89422 ([`618063d0`](../../commit/618063d04e998156f69e386d9e85f143d1b52a71))
+- **android:** Use supported resource shrinking assignment ([`fd68a7e7`](../../commit/fd68a7e7a9de99dc51f17d168f5e6e205d87fdde))
+- **pricing:** Isolate vendor sync crashes and log Oban job failures ([`92b0fc65`](../../commit/92b0fc65a1b0b176e6cd55f475501ca25aab3195))
+- **pricing:** Retry vendor price writes when SQLite is busy ([`58576592`](../../commit/58576592d0e2cb45040a6c2a11386df53e05bab8))
+- **decks:** Allow any card that can be your commander as commander ([`a2c57412`](../../commit/a2c574127579ea60fac498a83353d53243c458ba))
+- **decks:** Never allocate cards in the considering zone ([`d33c6b03`](../../commit/d33c6b0341124a8347d4167920fe1dd56e3d895d))
+- **import:** Reject imports whose location or printing was deleted after preview ([`36e34372`](../../commit/36e34372d873cbda41de82d8e18e4c38df5b2626))
+- **decks:** Keep purchase price when splitting collection items for allocation ([`26cac7e7`](../../commit/26cac7e75483a74079026c5caaa5b3eb15ff53c4))
+- **scryfall:** Import reversible cards and match their full names (#158) ([`87152b21`](../../commit/87152b21a24d92da4b51ac537baeb22e4daf826e))
+- **decks:** List only Scryfall-linked tokens when a card has them ([`9b38daa4`](../../commit/9b38daa4949a09312a362032570857b2dbc28bd3))
+- **repo:** Give SQLite writers 15 s before Oban's stager gives up ([`1c481f54`](../../commit/1c481f54111ba51a6b3770f692610a889c73f5b9))
+- **scanner:** Log tokens on click and reuse the last copy's back in tokens mode ([`56826719`](../../commit/56826719ae800bad1c7274eaaebf0f4a67bd7b89))
+- **catalog:** Stop the Scryfall import from starving other SQLite writers ([`74fe2de3`](../../commit/74fe2de3ce52e021bade35659a4ee5fc6b22a2aa))
+- **catalog:** Import bare-"Card" game helpers printed as tokens ([`062c8c9d`](../../commit/062c8c9d6e24b867720141686c422042a63ccc93))
+- **decks:** Keep copy counts and purchase prices when releasing considering allocations ([`a270d004`](../../commit/a270d0041c4f79789c4e9d9c49be26e10e7f94c5))
+- **decks:** Treat snow basics as basic lands ([`a587fda9`](../../commit/a587fda924b0c8afada689ed538f9fcf87f8f1cc))
+
+### Chores
+
+- **backlog:** Track trusted outlines for detector training ([`64fadd35`](../../commit/64fadd353bb66335d5271f54054214d70b5b25ac))
+- **backlog:** Record trusted outline progress ([`5755c6ef`](../../commit/5755c6eff92561c8c859e6e25e37bd29e7b11ce4))
+- **backlog:** Note trusted outlines are pushed ([`b1ae111d`](../../commit/b1ae111dc5cf7a4431589b659bb639bf5cc2e3cf))
+- **deps:** Update compatible dependencies and fix compiler warnings ([`bd506da1`](../../commit/bd506da10ea9877b92b655c2413e3c4fcbe6e815))
+- **deps:** Upgrade frontend tooling and resolve build warnings ([`544c59e1`](../../commit/544c59e1b0b24de065b02da4004608acdd573d4f))
+
+### Documentation
+
+- **scanner:** Link Oracle's guide to improving recognition ([`f3a1cca3`](../../commit/f3a1cca3308c33c2ef2006fe0014131d2edcdb85))
+- **scanner:** Use Oracle's new-set command for set releases ([`f18a47af`](../../commit/f18a47af6e19eb02027485469d980568edab3668))
+- Record granular bracket verification ([`49c1342c`](../../commit/49c1342cefd5002d2afd2986f2500e64fec43111))
+- Reorganize README and document all features and operations ([`337b0e5f`](../../commit/337b0e5ffc09f5fc285b39155480ca5003801d0f))
+- **scanner:** Describe Oracle's export-time hub penalty and its manifest record ([`fa4bbe63`](../../commit/fa4bbe637245aa2f4d932c03eddd418b9e4f0e51))
+- **scanner:** Note that oracle exports emblem arts with an emblem frame ([`6a1e790a`](../../commit/6a1e790ae8ce81cbd616061c21a248e43d52bbe8))
+
+### Features
+
+- **scanner:** Check card outlines so they can train the detector ([`1d85ec5b`](../../commit/1d85ec5bd0d13d9d81dbf7495200959e5d06eaa8))
+- **scanner:** Leave cards under a minimum price out of the total ([`0f2637bd`](../../commit/0f2637bd223f773f68513c062dcd7f12c44ddcea))
+- **scanner:** Run recognition on WASM threads behind a cross-origin isolated /scan ([`c8727f31`](../../commit/c8727f31b82879645d51b4eff4ebbcb5572a342d))
+- **ai:** Assess granular Commander bracket ratings ([`5a59f93d`](../../commit/5a59f93d8f5fabd461d31ee084bed9356be3735f))
+- **ai:** Add saved deck conversations and fresh chats ([`32c4fecb`](../../commit/32c4fecb4782287dc56b88455423740da2054060))
+- **pricing:** Price ManaPool from lowest near-mint listings per finish ([`2052e87f`](../../commit/2052e87fbcf714658f95c9d48dccc47b4979c168))
+- **decks:** Open AI analysis card references in the card detail dialog ([`640b927b`](../../commit/640b927b68ca579e027a6a7188593de69192e946))
+- **collection:** Toggle value rankings between total and percent gain/loss ([`a191f8c1`](../../commit/a191f8c118bf3daad5b3f36921cc53e08c5006f4))
+- **config:** Allow extra WebSocket origins via MANAVAULT_ALLOWED_ORIGINS (#156) ([`f0b687d2`](../../commit/f0b687d213d5794b9769c4c68da6137adc4d41b2))
+- **settings:** Add toggle to disable home screen animation ([`e8e207c9`](../../commit/e8e207c9cffd3c3831f7c2cf128ad8ac65c88bfb))
+- **collection:** Add bulk clean dialog to pull surplus cheap cards ([`f9d0643b`](../../commit/f9d0643b14fea6949668b684fb373747a8caff6d))
+- **collection:** Add bulk clean checklist, removal, foil preference, and keep swaps ([`1e53e5b9`](../../commit/1e53e5b93341e0706fa5aefde3a0cb3c0b49fb2b))
+- **collection:** Collapse bulk clean card rows and add pull all per card ([`8fac0617`](../../commit/8fac0617f85b0b5e1e1ac320dddd954fde2aaf29))
+- **collection:** Label header actions and clarify import/export icons ([`701bd477`](../../commit/701bd4775fd61f8622b014cf375603303cbdd7a1))
+- **collection:** Collapse header actions to icons with hover-expanding labels ([`db3266be`](../../commit/db3266be2854fda2c520da17cf92797af40db2be))
+- **decks:** Link decks to Moxfield or Archidekt and keep them synced ([`49026024`](../../commit/490260243f8eff52fa005d5d513ee35d68ecf958))
+- **ai:** Analyze Commander decks for multiplayer finishers and resources ([`0e53bdff`](../../commit/0e53bdffac8af611ea681c5914a200b62a487aad))
+- **collection:** Group bulk clean pulls by color and type ([`447d0a7c`](../../commit/447d0a7cfc5ed88e20a15522806b138e410268ab))
+- **tokens:** Track owned tokens across catalog, scanner, collection, and decks ([`56befabe`](../../commit/56befabe8409ec1e0af841716d760270c77936ec))
+- **tokens:** Narrow back-face prompt with Wizards' published token pairings ([`1e58fc15`](../../commit/1e58fc15ac5b85998acb62c436ee080eb68cd1ed))
+- **scryfall:** Re-run the full catalog sync after upgrades that change the importer ([`3e783db3`](../../commit/3e783db31ffca029d158ff2828f5d85034a7f215))
+- **scanner:** Tokens mode, learned token backs, token selection and masked search ([`d8f63468`](../../commit/d8f63468370af14c94aa8c1260662c5f01977c24))
+- **catalog:** Treat emblems as tokens so they can be a token's back ([`be7da783`](../../commit/be7da7834cea420e23f87ed9fbd1831a77ee06d2))
+- **scanner:** Pace frames, pause idle camera and show camera diagnostics ([`6f35b1d8`](../../commit/6f35b1d88dcb13dc3024b9f1cf1d6994e281c670))
+- **playtest:** Rework playtester UX after Moxfield's goldfish tool ([`7e7103f7`](../../commit/7e7103f7dc13439569162d1707430aa494a58214))
+- **scan:** Edit purchase price of scanned cards, defaulting to market ([`b660a015`](../../commit/b660a0152e732ae5d11f68395aad0f6bfec2b1b0))
+- **pricing:** Source TCGplayer prices from tcgcsv TCG Low ([`0cafdac2`](../../commit/0cafdac2ab7c32c24f9ea37d3171e2cae4369f9f))
+- Replace the Elixir backend with a Rust server ([`e2ee6a79`](../../commit/e2ee6a791197b2acdfc82025b75ba29c7f40cb41))
+
+### Performance
+
+- **scanner:** Skip empty frames and track the card between detector passes ([`5572814d`](../../commit/5572814d476361c76c03dc0e98d0be981a78558e))
+
 ## [1.4.3] - 2026-09-29
 
 ### Bug Fixes

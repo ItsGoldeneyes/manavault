@@ -1,18 +1,19 @@
+import { useApolloClient } from "@apollo/client/react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useMemo } from "react"
 
 import { EmptyState } from "../../components/card-image"
 import { Button } from "../../components/ui/button"
 import { useToast } from "../../components/ui/toast"
-import { DECK_GROUP_OPTIONS } from "../../lib/deck-grouping"
 import { deckCardsTotalPrice, deckMissingCardsTotalPrice, formatUsdCents } from "./buylist-export"
 import { ShareModeHidden } from "./deck-actions"
 import { createDeckPullList } from "./deck-allocation-model"
 import { countDeckZones } from "./deck-card-model"
 import { DeckDetailCardCollections } from "./deck-detail-card-collections"
 import { DeckDetailDialogLauncher } from "./deck-detail-dialog-launcher"
-import { DeckDetailHeader, DeckMobileTagsPanel } from "./deck-detail-header"
+import { DeckDetailHeader } from "./deck-detail-header"
 import { DeckDetailLoadingState } from "./deck-detail-loading"
+import { DeckBoxFieldsFragment } from "./deck-list-documents"
 import {
   bulkAllocationOverlay,
   editCardOverlay,
@@ -26,6 +27,7 @@ import { useDeckDetailSelection } from "./detail-page-selection"
 import { edhrecCardPrintingId } from "./edhrec"
 import { deckLegalityIssues } from "./deck-legality"
 import { hasDeckBuylistWork, hasDeckPullWork } from "./deck-readiness"
+import { DeckHealthSection } from "./deck-health-panel"
 import { useDeferredDeckAnalysis } from "./deck-stats-panel"
 import { DeckStatsSection, DeckTokensSection } from "./deck-stats-panel"
 import { useDeckDetailShortcuts } from "./use-deck-detail-shortcuts"
@@ -71,8 +73,26 @@ export function DeckDetailScreen({
     isRefreshing: isRefreshingDeck,
     refetch: refetchDeckQueries,
   } = useDeckDetail({ id, shareMode })
-  const canEditDecklist = deck?.status !== "archived"
+  const client = useApolloClient()
+  // The gallery's copy of this deck, if it has one, draws the header's deck
+  // box while the full deck loads.
+  const cachedDeck = useMemo(
+    () =>
+      shareMode
+        ? null
+        : client.readFragment({
+            id: client.cache.identify({ __typename: "Deck", id }),
+            fragment: DeckBoxFieldsFragment,
+          }),
+    [client, id, shareMode],
+  )
+  // Archived decks are fully read-only. Decks linked to Moxfield/Archidekt
+  // keep collection allocation but block every decklist edit.
+  const canAllocate = deck?.status !== "archived"
+  const isLinked = Boolean(deck?.externalSource)
+  const canEditDecklist = canAllocate && !isLinked
   const { activeTagId, overlay, setActiveTagId, setOverlay } = useDeckDialogs({
+    canAllocate,
     canEdit: canEditDecklist,
     deckId: id,
     edhrecOpen: Boolean(edhrecTab),
@@ -82,10 +102,17 @@ export function DeckDetailScreen({
     consideringCards,
     groupBy,
     groupedCards,
+    groupOptions,
     partnerCandidateIds,
     selectionCardIds: selectionDeckCardIds,
     setGroupBy,
-  } = useDeckCardGroups({ deckCards, deckTags: deck?.tags ?? [] })
+  } = useDeckCardGroups({
+    analyzedAt: deck?.aiAnalyzedAt,
+    deckCards,
+    deckId: id,
+    deckTags: deck?.tags ?? [],
+    hasAiTags: !shareMode && Boolean(deck?.hasAiCardCategories),
+  })
   const selection = useDeckDetailSelection(deckCards, selectionDeckCardIds)
   const clearSelection = () => {
     selection.clearSelectedDeckCards()
@@ -122,7 +149,7 @@ export function DeckDetailScreen({
   const hasReadinessWork = useMemo(() => hasDeckPullWork(deckCards), [deckCards])
   const hasBuylistWork = useMemo(() => hasDeckBuylistWork(deckCards), [deckCards])
   const zoneCounts = useMemo(() => countDeckZones(deckCards), [deckCards])
-  const deferredDeckAnalysis = useDeferredDeckAnalysis(deckCards)
+  const deferredDeckAnalysis = useDeferredDeckAnalysis(deckCards, deck?.format)
   const deckPrice = useMemo<DeckPrice | null>(() => {
     if (!deck) return null
     const price = deckCardsTotalPrice(deckCards)
@@ -205,8 +232,8 @@ export function DeckDetailScreen({
         selection.setHighlightedDeckCardIds(null)
       },
       onCycleGroup: () => {
-        const index = DECK_GROUP_OPTIONS.findIndex((option) => option.value === groupBy)
-        const next = DECK_GROUP_OPTIONS[(index + 1) % DECK_GROUP_OPTIONS.length]
+        const index = groupOptions.findIndex((option) => option.value === groupBy)
+        const next = groupOptions[(index + 1) % groupOptions.length]
         if (next) setGroupBy(next.value)
       },
       onJumpToTagIndex: (index) => {
@@ -225,7 +252,7 @@ export function DeckDetailScreen({
     !shareMode && canEditDecklist && overlay.kind !== "swap-cards",
   )
 
-  if (isInitialDeckLoading) return <DeckDetailLoadingState />
+  if (isInitialDeckLoading) return <DeckDetailLoadingState deck={cachedDeck} />
   if (!deck) {
     return (
       <EmptyState
@@ -262,20 +289,16 @@ export function DeckDetailScreen({
 
   return (
     <>
-      <div
-        className={
-          shareMode
-            ? undefined
-            : "lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:gap-6"
-        }
-      >
+      <div>
         <DeckDetailHeader
+          canAllocate={canAllocate}
           canEdit={canEditDecklist}
           deck={deck}
           deckCards={deckCards}
           deckPrice={deckPrice}
           deckTags={deck.tags}
           groupBy={groupBy}
+          groupOptions={groupOptions}
           hasBuylistWork={hasBuylistWork}
           hasReadinessWork={hasReadinessWork}
           isRefreshing={isRefreshingDeck}
@@ -291,6 +314,7 @@ export function DeckDetailScreen({
           onDownloadSharedDecklist={downloadSharedDecklist}
           onEditDeck={() => setOverlay({ kind: "edit-deck" })}
           onExportDeck={() => setOverlay({ kind: "export-deck" })}
+          onExternalSource={() => setOverlay({ kind: "external-source" })}
           onGroupByChange={setGroupBy}
           onImportDeck={() => setOverlay({ kind: "import-deck" })}
           onMissingCards={() => setOverlay({ kind: "missing-cards" })}
@@ -319,7 +343,8 @@ export function DeckDetailScreen({
           <DeckDetailReadiness
             allocationError={workflowError}
             buylistPrice={buylistPrice}
-            canBulkAllocate={canEditDecklist && hasBulkAllocationAvailable}
+            canBulkAllocate={canAllocate && hasBulkAllocationAvailable}
+            canEditDecklist={canEditDecklist}
             deckCards={deckCards}
             isPending={isUpdatingDeckCard}
             onAllocate={(deckCard, collectionItemId) =>
@@ -334,8 +359,8 @@ export function DeckDetailScreen({
             onOpenOptimizePrintings={() => setOverlay({ kind: "optimize-printings", error: null })}
             onTagCard={cardActions.tagDeckCard}
             onToggleProxy={allocationActions.toggleProxy}
-            open={canEditDecklist && overlay.kind === "readiness"}
-            readOnly={shareMode || !canEditDecklist}
+            open={canAllocate && overlay.kind === "readiness"}
+            readOnly={shareMode || !canAllocate}
           />
 
           {!shareMode && canEditDecklist && selection.isSelectionActive ? (
@@ -377,22 +402,9 @@ export function DeckDetailScreen({
             />
           ) : null}
 
-          <DeckMobileTagsPanel
-            canEdit={canEditDecklist}
-            deckTags={deck.tags}
-            shareMode={shareMode}
-            tagActions={{
-              activeTagId,
-              onCreate: deckTagActions.createTag,
-              onDelete: deckTagActions.deleteTag,
-              onJumpTo: jumpToTag,
-              onReorder: deckTagActions.reorderTags,
-              onUpdate: deckTagActions.updateTag,
-            }}
-          />
-
           <DeckDetailCardCollections
-            canEdit={canEditDecklist}
+            canAllocate={canAllocate}
+            canEditDecklist={canEditDecklist}
             consideringCards={consideringCards}
             deckFormat={deck.format}
             deckId={deck.id}
@@ -422,7 +434,15 @@ export function DeckDetailScreen({
             selectedCardIds={selection.selectedDeckCardIds}
             shareMode={shareMode}
           />
-          <DeckTokensSection tokens={deferredDeckAnalysis?.tokens ?? null} />
+          <DeckTokensSection showOwned={!shareMode} tokens={deferredDeckAnalysis?.tokens ?? null} />
+          <DeckHealthSection
+            deckCards={deckCards}
+            deckId={deck.id}
+            health={deferredDeckAnalysis?.health ?? null}
+            onHighlightDeckCards={selection.setHighlightedDeckCardIds}
+            onOpenCombos={() => setOverlay({ kind: "combos" })}
+            shareMode={shareMode}
+          />
           <DeckStatsSection
             stats={deferredDeckAnalysis?.stats ?? null}
             onHighlightDeckCards={selection.setHighlightedDeckCardIds}
@@ -431,6 +451,7 @@ export function DeckDetailScreen({
       </div>
 
       <DeckDetailDialogLauncher
+        canAllocate={canAllocate}
         canEdit={canEditDecklist}
         deck={deck}
         deckCards={deckCards}

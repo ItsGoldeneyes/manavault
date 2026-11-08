@@ -59,6 +59,8 @@ export const AISettingsDocument = graphql(`
       provider
       model
       deckAnalysisInstructions
+      decisionModel
+      reasoningEffort
       hasApiKey
     }
   }
@@ -71,8 +73,19 @@ export const UpdateAISettingsDocument = graphql(`
         provider
         model
         deckAnalysisInstructions
+        decisionModel
+        reasoningEffort
         hasApiKey
       }
+    }
+  }
+`)
+
+export const AIModelReasoningDocument = graphql(`
+  query AIModelReasoning($model: String!) {
+    aiModelReasoning(model: $model) {
+      supportedEfforts
+      defaultEffort
     }
   }
 `)
@@ -326,6 +339,44 @@ export const SyncVendorPricesDocument = graphql(`
           priceCount
           lastSyncedAt
         }
+      }
+    }
+  }
+`)
+
+export const AcquisitionPriceRebuildDocument = graphql(`
+  query AcquisitionPriceRebuild {
+    acquisitionPriceRebuild {
+      id
+      status
+      source
+      startedAt
+      completedAt
+      historyFrom
+      historyTo
+      itemsInWindow
+      itemsUpdated
+      itemsWithoutHistory
+      error
+    }
+  }
+`)
+
+export const RebuildAcquisitionPricesDocument = graphql(`
+  mutation RebuildAcquisitionPrices {
+    rebuildAcquisitionPrices {
+      rebuild {
+        id
+        status
+        source
+        startedAt
+        completedAt
+        historyFrom
+        historyTo
+        itemsInWindow
+        itemsUpdated
+        itemsWithoutHistory
+        error
       }
     }
   }

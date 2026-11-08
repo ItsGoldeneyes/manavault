@@ -18,21 +18,26 @@ export const ScannerPrintingsDocument = graphql(`
       promo
       releasedAt
       imageUrl
+      backImageUrl
       nonfoilCents: priceCents(finish: "nonfoil")
       foilCents: priceCents(finish: "foil")
       etchedCents: priceCents(finish: "etched")
       card {
         id
         name
+        layout
       }
     }
   }
 `)
 
-/** "Wrong card?": catalog cards by name, each with a printing to look the card up by. */
+/**
+ * "Wrong card?" and "Identify": catalog cards by name, each with a printing to look the card
+ * up by. Tokens are searched too, and are all that is searched in tokens mode.
+ */
 export const ScannerCardSearchDocument = graphql(`
-  query ScannerCardSearch($q: String!) {
-    cards(q: $q, first: 8) {
+  query ScannerCardSearch($q: String!, $tokens: CardTokenScope) {
+    cards(q: $q, first: 8, tokens: $tokens) {
       edges {
         node {
           id
@@ -74,6 +79,8 @@ export function printingOption(printing: ScannerPrinting): PrintingOption {
     promo: printing.promo,
     releasedAt: printing.releasedAt,
     imageUrl: printing.imageUrl,
+    backImageUrl: printing.backImageUrl,
+    layout: printing.card?.layout ?? null,
     // priceCents falls back across finishes; only offer a finish's price if it is printed.
     prices: {
       nonfoil: finishes.includes("nonfoil") ? printing.nonfoilCents : null,

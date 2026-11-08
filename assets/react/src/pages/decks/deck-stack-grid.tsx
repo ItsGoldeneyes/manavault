@@ -7,7 +7,8 @@ export { DeckStackCard } from "./deck-stack-card"
 export { DeckStackGroup, deckStackIndexFromPointer } from "./deck-stack-group"
 
 export function DeckGroupGrid({
-  canSetCommander,
+  canEditDecklist = true,
+  commanderFormat,
   deckId,
   deckTags,
   groups,
@@ -31,7 +32,9 @@ export function DeckGroupGrid({
   onUnassignTag,
   shareMode = false,
 }: {
-  canSetCommander: boolean
+  canEditDecklist?: boolean
+  /** The deck's format when commanders can be set here; null otherwise. */
+  commanderFormat: string | null
   deckId: string
   deckTags: DeckCustomTag[]
   groups: DeckGroup<DeckCardEntry>[]
@@ -68,7 +71,8 @@ export function DeckGroupGrid({
       {groups.map((group) => (
         <DeckStackGroup
           key={group.key}
-          canSetCommander={canSetCommander}
+          canEditDecklist={canEditDecklist}
+          commanderFormat={commanderFormat}
           deckId={deckId}
           deckTags={deckTags}
           group={group}

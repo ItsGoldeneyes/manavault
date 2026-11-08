@@ -1,4 +1,6 @@
-import { useNavigate } from "@tanstack/react-router"
+import { markCardPageSource } from "../../lib/card-page-morph"
+import { Link, useNavigate } from "@tanstack/react-router"
+import { Library } from "lucide-react"
 import { useState } from "react"
 import { PageHeader } from "../../components/app-shell"
 import { EmptyState } from "../../components/card-image"
@@ -32,6 +34,14 @@ export function CardCatalogPage({
         eyebrow="ManaVault Catalog"
         title="Card search"
         description="Search the local Scryfall catalog and add exact printings to your collection."
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/cards/sets">
+              <Library className="h-4 w-4" />
+              View sets
+            </Link>
+          </Button>
+        }
       />
       <CardSearchForm
         activeFilterCount={search.activeFilterCount}
@@ -60,13 +70,15 @@ export function CardCatalogPage({
           <CardResultsGrid
             cards={search.cards}
             onAddToDeck={setDeckTarget}
-            onSelectCard={(id) =>
-              navigate({
+            onSelectCard={(id) => {
+              markCardPageSource(id)
+              void navigate({
                 to: "/cards/$id",
                 params: { id },
                 search: search.resultSearchParams,
+                viewTransition: true,
               })
-            }
+            }}
             searchParams={search.resultSearchParams}
           />
           {search.hasMoreResults ? (

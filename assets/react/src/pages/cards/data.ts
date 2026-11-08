@@ -235,6 +235,7 @@ export const CardCollectionItemsDocument = graphql(`
             setName
             collectorNumber
             imageUrl
+            artCropUrl
             rarity
             card {
               id
@@ -268,10 +269,11 @@ export const CARD_LEGALITY_FORMATS = [
   { key: "modern", label: "Modern" },
   { key: "brawl", label: "Brawl" },
   { key: "legacy", label: "Legacy" },
-  { key: "timeless", label: "Timeless" },
+  { key: "competitivebrawl", label: "Comp. Brawl" },
   { key: "vintage", label: "Vintage" },
-  { key: "pauper", label: "Pauper" },
+  { key: "timeless", label: "Timeless" },
   { key: "commander", label: "Commander" },
-  { key: "penny", label: "Penny" },
+  { key: "pauper", label: "Pauper" },
   { key: "oathbreaker", label: "Oathbreaker" },
+  { key: "penny", label: "Penny" },
 ] as const

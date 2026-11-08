@@ -20,6 +20,7 @@ export type DeckDetailOverlay =
   | { kind: "edit-deck" }
   | { kind: "edhrec" }
   | { kind: "export-deck" }
+  | { kind: "external-source" }
   | { kind: "import-deck" }
   | { kind: "missing-cards" }
   | { kind: "move-card"; deckCard: DeckCardEntry; error: string | null }

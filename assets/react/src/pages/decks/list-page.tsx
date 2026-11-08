@@ -1,9 +1,8 @@
 import { useMutation, useQuery } from "@apollo/client/react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Archive, ChevronDown, Dices, Layers, Plus, Sparkles } from "lucide-react"
+import { Archive, ChevronDown, Dices, PackageOpen, Plus, Sparkles } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { EmptyState } from "../../components/card-image"
-import { ImageSummaryCard } from "../../components/image-summary-card"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
@@ -11,6 +10,7 @@ import { useToast } from "../../components/ui/toast"
 import { compactNumber, titleize } from "../../lib/utils"
 import { SummaryActionMenu } from "./deck-actions"
 import { DeckAnalysisDialog } from "./deck-analysis-dialog"
+import { DeckBox } from "./deck-box"
 import { DeckBracketBadge } from "./deck-bracket"
 import { DeckCombosDialog } from "./deck-combos-dialog"
 import { EditDeckDialog, NewDeckDialog } from "./deck-editor-dialogs"
@@ -20,20 +20,23 @@ import {
   deckLegalityLabel,
   deckLegalityTone,
 } from "./deck-legality"
-import { DeckNameWithCommanderIdentity, groupDecksByFormat } from "./deck-list-model"
+import { groupDecksByFormat } from "./deck-list-model"
 import { DeckPlayHistory, RandomDeckDialog } from "./deck-picker"
 import { ShareDeckDialog } from "./deck-share-dialogs"
+import { PreconImportDialog } from "./precon-import-dialog"
 import { flattenDecks, partitionDecksByArchive, type DeckSummary } from "./deck-types"
 import { DecksDocument, DeleteDeckDocument } from "./deck-list-documents"
 
 function DeckGalleryHeader({
   canPickDeck,
   onAnalyzeDeck,
+  onImportPrecon,
   onNewDeck,
   onPickDeck,
 }: {
   canPickDeck: boolean
   onAnalyzeDeck: () => void
+  onImportPrecon: () => void
   onNewDeck: () => void
   onPickDeck: () => void
 }) {
@@ -65,6 +68,15 @@ function DeckGalleryHeader({
           <Dices className="h-4 w-4" />
           Pick a deck
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-w-36 flex-1 sm:flex-none"
+          onClick={onImportPrecon}
+        >
+          <PackageOpen className="h-4 w-4" />
+          Import precon
+        </Button>
         <Button type="button" className="min-w-36 flex-1 sm:flex-none" onClick={onNewDeck}>
           <Plus className="h-4 w-4" />
           New deck
@@ -76,31 +88,21 @@ function DeckGalleryHeader({
 
 function DeckGallerySkeleton() {
   return (
-    <div className="space-y-10" aria-busy="true" aria-label="Loading deck gallery" role="status">
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="h-7 w-32 animate-pulse rounded bg-base-200" />
-          <div className="h-6 w-20 animate-pulse rounded-full bg-base-200" />
+    <div
+      role="status"
+      aria-busy="true"
+      className="grid gap-x-6 gap-y-8 sm:grid-cols-2 xl:grid-cols-3 min-[160rem]:grid-cols-4 min-[200rem]:grid-cols-5"
+    >
+      <span className="sr-only">Loading deck gallery</span>
+      {[0, 1, 2].map((index) => (
+        <div key={index} className="flex flex-col items-center gap-2">
+          <div className="flex aspect-[3/2] w-full items-end justify-center px-[7%] pb-6 pt-[12%]">
+            <div className="skeleton h-full w-full rounded-lg" />
+          </div>
+          <div className="skeleton h-5 w-1/2 rounded" />
+          <div className="skeleton h-3 w-1/4 rounded" />
         </div>
-        <div className="grid gap-5 md:grid-cols-2">
-          {[0, 1, 2, 3].map((index) => (
-            <div
-              key={index}
-              className="min-h-52 rounded-box border border-base-300 bg-base-100 p-5"
-            >
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-20 animate-pulse rounded bg-base-200" />
-                <div className="h-5 w-16 animate-pulse rounded bg-base-200" />
-              </div>
-              <div className="mt-20 h-8 w-3/4 animate-pulse rounded bg-base-200" />
-              <div className="mt-4 flex gap-2">
-                <div className="h-5 w-16 animate-pulse rounded bg-base-200" />
-                <div className="h-5 w-14 animate-pulse rounded bg-base-200" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      ))}
     </div>
   )
 }
@@ -171,15 +173,7 @@ function deckReadiness(deck: DeckSummary): DeckReadiness {
   }
 }
 
-function DeckReadinessBadges({ readiness }: { readiness: DeckReadiness }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 leading-none">
-      <Badge tone={readiness.tone}>{readiness.label}</Badge>
-      <Badge tone={readiness.detailTone}>{readiness.detail}</Badge>
-    </div>
-  )
-}
-
+/** A deck on the gallery shelf: its deck box, name, size, and readiness. */
 function DeckGalleryCard({
   deck,
   onCombos,
@@ -196,37 +190,38 @@ function DeckGalleryCard({
   const readiness = deckReadiness(deck)
 
   return (
-    <div className="relative">
-      <Link to="/decks/$id" params={{ id: deck.id }} className="block">
-        <ImageSummaryCard
-          imageUrl={deck.coverImageUrl}
-          fallback={<Layers className="h-12 w-12" />}
-          typeLine={
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>{titleize(deck.format)}</Badge>
-              {deck.status === "archived" ? <Badge>Archived</Badge> : null}
-            </div>
-          }
-          countLine={`${compactNumber(deck.cardCount || 0)} cards`}
-          detailLine={
-            <div className="flex flex-wrap items-center gap-2 leading-none">
-              <DeckReadinessBadges readiness={readiness} />
-              <DeckBracketBadge deck={deck} />
-            </div>
-          }
-          nameLine={
-            <DeckNameWithCommanderIdentity colors={deck.commanderColorIdentity} name={deck.name} />
-          }
-        />
+    <li className="group/tile relative min-w-0">
+      <Link
+        to="/decks/$id"
+        params={{ id: deck.id }}
+        className="location-card location-card--interactive block rounded-box focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        viewTransition
+      >
+        <DeckBox deck={deck} className="w-full" />
+        <div className="-mt-1 min-w-0 px-1 text-center">
+          <h3 className="line-clamp-2 text-xl font-black leading-tight tracking-normal sm:text-2xl">
+            {deck.name}
+          </h3>
+          <div className="mt-1 truncate font-mono text-xs font-bold text-base-content/65 sm:text-sm">
+            {compactNumber(deck.cardCount || 0)} cards
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 leading-none">
+            {readiness.tone === "error" || readiness.tone === "warning" ? (
+              <Badge tone={readiness.tone}>{readiness.label}</Badge>
+            ) : null}
+            <DeckBracketBadge deck={deck} />
+          </div>
+        </div>
       </Link>
       <SummaryActionMenu
+        className="right-0 top-0 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/tile:opacity-100 [@media(hover:hover)]:group-focus-within/tile:opacity-100"
         label={`${deck.name} actions`}
         onCombos={onCombos}
         onEdit={onEdit}
         onShare={onShare}
         onDelete={onDelete}
       />
-    </div>
+    </li>
   )
 }
 
@@ -256,7 +251,7 @@ function DeckFormatSections({
               {countSuffix ? ` ${countSuffix}` : ""}
             </span>
           </div>
-          <div className="grid gap-5 md:grid-cols-2">
+          <ul className="grid gap-x-6 gap-y-8 sm:grid-cols-2 xl:grid-cols-3 min-[160rem]:grid-cols-4 min-[200rem]:grid-cols-5">
             {decks.map((deck) => (
               <DeckGalleryCard
                 key={deck.id}
@@ -267,7 +262,7 @@ function DeckFormatSections({
                 onDelete={() => onDelete(deck)}
               />
             ))}
-          </div>
+          </ul>
         </section>
       ))}
     </div>
@@ -326,6 +321,7 @@ function ArchivedDecksAccordion({
 export function DecksPage() {
   const [isDeckAnalysisOpen, setIsDeckAnalysisOpen] = useState(false)
   const [isNewDeckOpen, setIsNewDeckOpen] = useState(false)
+  const [isPreconImportOpen, setIsPreconImportOpen] = useState(false)
   const [isRandomDeckOpen, setIsRandomDeckOpen] = useState(false)
   const [comboDeck, setComboDeck] = useState<DeckSummary | null>(null)
   const [editingDeck, setEditingDeck] = useState<DeckSummary | null>(null)
@@ -393,10 +389,13 @@ export function DecksPage() {
     navigate({ to: "/decks" })
   }
   return (
-    <>
+    // 90% of the shell's width cap: on wide screens the boxes read better a
+    // touch smaller, the way the page looks at 90% browser zoom.
+    <div className="mx-auto max-w-[max(94.5rem,90%)]">
       <DeckGalleryHeader
         canPickDeck={activeDecks.length > 0}
         onAnalyzeDeck={() => setIsDeckAnalysisOpen(true)}
+        onImportPrecon={() => setIsPreconImportOpen(true)}
         onNewDeck={() => setIsNewDeckOpen(true)}
         onPickDeck={() => setIsRandomDeckOpen(true)}
       />
@@ -434,6 +433,7 @@ export function DecksPage() {
       )}
       <DeckAnalysisDialog open={isDeckAnalysisOpen} onOpenChange={setIsDeckAnalysisOpen} />
       <NewDeckDialog open={isNewDeckOpen} onOpenChange={setIsNewDeckOpen} />
+      <PreconImportDialog open={isPreconImportOpen} onOpenChange={setIsPreconImportOpen} />
       <RandomDeckDialog
         open={isRandomDeckOpen}
         onOpenChange={setIsRandomDeckOpen}
@@ -456,6 +456,6 @@ export function DecksPage() {
       >
         This removes the deck and returns allocated cards to their original locations.
       </ConfirmDialog>
-    </>
+    </div>
   )
 }
