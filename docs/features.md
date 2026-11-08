@@ -470,12 +470,24 @@ history.
 
 ## AI Deck Insights
 
-AI features are optional and currently use OpenRouter. The owner configures and
-validates an API key and model ID in **Settings -> AI**, and can add custom
-analysis instructions; the key is encrypted at rest and is never returned
-through GraphQL. A reasoning effort setting offers only the efforts OpenRouter
-lists for the selected model, or the model's default; it applies to analyses
-and questions. Deck data is sent only when the owner explicitly runs an
+AI features are optional. The owner picks a provider in **Settings -> AI**:
+
+- **OpenRouter** - an API key and model ID. A reasoning effort setting offers
+  only the efforts OpenRouter lists for the selected model, or the model's
+  default; it applies to analyses and questions.
+- **OpenAI-compatible** - a local or self-hosted server with an OpenAI-style
+  `/v1` API, such as LM Studio's Local Model API, Ollama, or vLLM. Enter its
+  base URL (for example `http://192.168.1.10:1234/v1`), a model ID the server
+  lists, and an API key only if the server requires one. The model must
+  support tool calling. The server must listen on the network, not only on
+  `localhost`, and any firewall between it and ManaVault must allow the
+  connection. Completions may take up to 20 minutes. AI tags are not assigned
+  with this provider (see [Deck roles](#deck-roles)).
+
+Saving checks that the provider is reachable and offers the model. The owner
+can add custom analysis instructions. API keys are encrypted at rest and never
+returned through GraphQL, and switching provider never sends one provider's
+saved key to the other. Deck data is sent only when the owner explicitly runs an
 analysis, sends a question, or opens a deck grouped by **AI Tag**.
 
 ### Deck analysis
@@ -501,7 +513,8 @@ Each saved-deck analysis also names the deck's own card roles, such as
 "Cast-from-exile payoffs" or "-1/-1 counter engines", with standard roles like
 Ramp and Lands. After the analysis, a decision model sorts every non-commander
 card into one of those roles, or Other, with the commander as context. It uses
-the same OpenRouter key and defaults to Jev (`typesafe/jev-1.13`); change it
+the same OpenRouter key and defaults to Jev (`typesafe/jev-1.13`), so roles
+are assigned only with the OpenRouter provider; change it
 under **Settings -> AI -> AI tags**, where saving checks the model with one
 small request. Decks with roles open grouped by **AI Tag**, the first grouping
 option; decks without them do not offer it. Assignments are saved, so only cards added since the last assignment
@@ -652,7 +665,8 @@ The Settings page groups owner configuration:
   account (the card size slider in the app shell adjusts card images across
   the app)
 - **Pricing** - price source and vendor sync
-- **AI** - OpenRouter key, model, reasoning effort, and custom instructions
+- **AI** - provider (OpenRouter or an OpenAI-compatible server), key, model,
+  reasoning effort, and custom instructions
 - **Personal API keys** - read-only keys for integrations; see [api.md](api.md)
 - **Collection auto-sort** and **Default Deck Tags**
 - **Scryfall data** - force a Scryfall catalog or symbol/set icon reload

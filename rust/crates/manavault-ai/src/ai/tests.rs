@@ -2644,3 +2644,92 @@ async fn analysis_categories_are_assigned_by_jev_once_per_card() {
         .collect();
     assert_eq!(models, vec![json!("custom/decider"); 4]);
 }
+
+// ---------------------------------------------------------------------------
+// OpenAI-compatible servers (LM Studio, Ollama).
+
+/// Saves `openai_compatible` settings pointing at `base_url`, with no key.
+async fn insert_local_settings(app: &TestApp, base_url: &str, model: &str) {
+    sqlx::query(
+        "INSERT INTO ai_settings (id, provider, base_url, model, reasoning_effort, inserted_at, updated_at)
+         VALUES (1, 'openai_compatible', ?1, ?2, 'high', 'now', 'now')",
+    )
+    .bind(base_url)
+    .bind(model)
+    .execute(app.db())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn openai_compatible_servers_get_plain_completions_without_openrouter_extensions() {
+    let server = MockServer::start().await;
+    // OpenRouter is unreachable: nothing may go there, decisions included.
+    let app = TestApp::new().await;
+    insert_local_settings(&app, &format!("{}/v1", server.uri()), "qwen3-30b-a3b").await;
+    app.import_cards(&[fixtures::legal_commander_card()]).await;
+    let deck_id = insert_deck(app.db(), "Local", "commander").await;
+    add_deck_card(app.db(), deck_id, "oracle-test-commander", 1, "commander").await;
+    let analysis = analysis_json("2", &json!([]));
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(content_response(&analysis))
+        .mount(&server)
+        .await;
+
+    let deck = decks::get(app.db(), deck_id).await.unwrap().unwrap();
+    analyze_deck::run(&app.state, &deck).await.unwrap();
+    assert!(ai_analysis(&app, deck_id).await.is_some());
+
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert!(!request.headers.contains_key("authorization"));
+    assert!(!request.headers.contains_key("x-openrouter-title"));
+    let body: Value = serde_json::from_slice(&request.body).unwrap();
+    assert_eq!(body["model"], "qwen3-30b-a3b");
+    assert!(body["tools"].is_array());
+    for key in ["session_id", "plugins", "reasoning"] {
+        assert!(body.get(key).is_none(), "{key}");
+    }
+    // No cache-breakpoint parts: every message keeps plain string content.
+    assert!(
+        body["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|message| message["content"].is_string())
+    );
+}
+
+#[tokio::test]
+async fn openai_compatible_errors_name_the_model_server_and_the_firewall() {
+    let app = TestApp::new().await;
+    insert_local_settings(&app, "http://127.0.0.1:9/v1", "local-model").await;
+    let deck_id = insert_deck(app.db(), "Offline", "commander").await;
+    let question = ask_default(&app, deck_id, "Anything?").await;
+    assert_eq!(
+        user_message(answer_deck_question::run(&app.state, question.id).await),
+        "Could not reach the model server to answer this question. Check that its local API server is running and that a firewall allows the connection."
+    );
+
+    let server = MockServer::start().await;
+    sqlx::query("UPDATE ai_settings SET base_url = ?1")
+        .bind(format!("{}/v1", server.uri()))
+        .execute(app.db())
+        .await
+        .unwrap();
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(json!({"error": {"message": "Model is not loaded"}})),
+        )
+        .mount(&server)
+        .await;
+    let question = ask_default(&app, deck_id, "Again?").await;
+    assert_eq!(
+        user_message(answer_deck_question::run(&app.state, question.id).await),
+        "The model server: Model is not loaded"
+    );
+}

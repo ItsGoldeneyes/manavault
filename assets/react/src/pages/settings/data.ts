@@ -62,6 +62,8 @@ export const AISettingsDocument = graphql(`
       decisionModel
       reasoningEffort
       hasApiKey
+      baseUrl
+      configured
     }
   }
 `)
@@ -76,6 +78,8 @@ export const UpdateAISettingsDocument = graphql(`
         decisionModel
         reasoningEffort
         hasApiKey
+        baseUrl
+        configured
       }
     }
   }

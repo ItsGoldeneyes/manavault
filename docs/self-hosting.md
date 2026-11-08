@@ -74,7 +74,7 @@ the catalog and symbol/set icon assets refresh daily, vendor prices every 30
 minutes, and scanner models every six hours.
 
 Keep `MANAVAULT_SECRET_KEY` stable. It encrypts sessions and derives the key that
-encrypts stored secrets (the OpenRouter API key and cloud backup credentials).
+encrypts stored secrets (the AI provider API key and cloud backup credentials).
 After a change, or when restoring a backup under a different value, existing
 sessions end and those secrets load as empty; re-enter them in Settings.
 

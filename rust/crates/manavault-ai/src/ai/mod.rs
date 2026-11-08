@@ -3,7 +3,9 @@
 //! Provider settings live in [`manavault_core::settings::ai`]. Analyses of saved
 //! decks and deck questions run in Oban-compatible background jobs on the
 //! `ai` queue ([`workers`]); pasted or linked decklists are analyzed inline
-//! and saved as [`requests`]. The only provider is `OpenRouter`.
+//! and saved as [`requests`]. The providers are `OpenRouter` and any
+//! OpenAI-compatible server (LM Studio, Ollama, vLLM); both speak chat
+//! completions through [`openrouter`].
 
 pub mod analyze_deck;
 pub mod analyze_deck_list;
@@ -70,13 +72,18 @@ impl AiError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Provider {
     OpenRouter,
+    /// A server with an OpenAI-compatible `/v1` API at `base_url`.
+    OpenAiCompatible,
 }
 
 /// Settings with a key and model (`UpdateSettings.configured/1` passed).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configured {
     pub provider: String,
+    /// Empty for an OpenAI-compatible server that needs no key.
     pub api_key: String,
+    /// The `/v1` base URL of an OpenAI-compatible server.
+    pub base_url: Option<String>,
     pub model: String,
     pub deck_analysis_instructions: Option<String>,
     /// The decision model that assigns AI tags to deck cards.
@@ -89,16 +96,26 @@ impl Configured {
     /// `UpdateSettings.configured/1`.
     pub fn from_settings(settings: AiSettings) -> Result<Self, AiError> {
         let has_key = settings.has_api_key();
+        let local = settings.is_openai_compatible();
         let decision_model = settings.decision_model().to_owned();
-        match (settings.api_key, settings.model) {
-            (Some(api_key), Some(model)) if has_key && !model.is_empty() => Ok(Self {
-                provider: settings.provider,
-                api_key,
-                model,
-                deck_analysis_instructions: settings.deck_analysis_instructions,
-                decision_model,
-                reasoning_effort: settings.reasoning_effort,
-            }),
+        let api_key = if local {
+            Some(settings.api_key.unwrap_or_default())
+        } else {
+            settings.api_key.filter(|_| has_key)
+        };
+        let base_url = settings.base_url.filter(|_| local);
+        match (api_key, settings.model) {
+            (Some(api_key), Some(model)) if !model.is_empty() && (!local || base_url.is_some()) => {
+                Ok(Self {
+                    provider: settings.provider,
+                    api_key,
+                    base_url,
+                    model,
+                    deck_analysis_instructions: settings.deck_analysis_instructions,
+                    decision_model,
+                    reasoning_effort: settings.reasoning_effort,
+                })
+            }
             _ => Err(AiError::User(NOT_CONFIGURED.to_owned())),
         }
     }
@@ -111,7 +128,8 @@ impl Configured {
     /// `Provider.module/1`.
     pub fn provider(&self) -> Result<Provider, AiError> {
         match self.provider.as_str() {
-            "openrouter" => Ok(Provider::OpenRouter),
+            manavault_core::settings::ai::OPENROUTER => Ok(Provider::OpenRouter),
+            manavault_core::settings::ai::OPENAI_COMPATIBLE => Ok(Provider::OpenAiCompatible),
             _ => Err(AiError::User(UNSUPPORTED_PROVIDER.to_owned())),
         }
     }

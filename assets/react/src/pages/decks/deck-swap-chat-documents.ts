@@ -39,6 +39,7 @@ export const DeckSwapAiSettingsDocument = graphql(`
   query DeckSwapAiSettings {
     aiSettings {
       hasApiKey
+      configured
       model
     }
   }
