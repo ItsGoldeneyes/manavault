@@ -29,6 +29,8 @@ export const DecksDocument = graphql(`
           externalUrl
           externalSyncedAt
           externalSyncError
+          externalSyncIntervalHours
+          externalSyncCron
           coverDeckCardId
           coverImageUrl
           coverCardImageUrl
@@ -102,6 +104,8 @@ export const CreateDeckDocument = graphql(`
         externalUrl
         externalSyncedAt
         externalSyncError
+        externalSyncIntervalHours
+        externalSyncCron
         coverDeckCardId
         coverImageUrl
         coverCardImageUrl
@@ -146,6 +150,8 @@ export const UpdateDeckDocument = graphql(`
         externalUrl
         externalSyncedAt
         externalSyncError
+        externalSyncIntervalHours
+        externalSyncCron
         coverDeckCardId
         coverImageUrl
         coverCardImageUrl

@@ -1,0 +1,57 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: DeckId\",\n                  external_sync_interval_hours AS \"interval_hours!\",\n                  external_sync_cron,\n                  COALESCE(external_sync_attempted_at, external_synced_at)\n                    AS \"last_attempt: Timestamp\"\n           FROM decks\n           WHERE external_source IS NOT NULL AND status != 'archived' ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: DeckId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "decks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "interval_hours!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "decks",
+            "name": "external_sync_interval_hours"
+          }
+        }
+      },
+      {
+        "name": "external_sync_cron",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "decks",
+            "name": "external_sync_cron"
+          }
+        }
+      },
+      {
+        "name": "last_attempt: Timestamp",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b29160a2012f92d3ca827a3dd9882db4749aa1922cbaa158b79137a3c4edc5f3"
+}

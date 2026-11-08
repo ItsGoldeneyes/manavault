@@ -3,30 +3,59 @@ import { useEffect, useState } from "react"
 
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Input } from "../../components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select"
 import { Switch } from "../../components/ui/switch"
 import { formatDate } from "../settings/data"
 import type { DeckDetail, DeckSummary } from "./deck-types"
-import { externalSourceLabel, useDeckExternalSource } from "./use-deck-external-source"
+import {
+  externalSourceLabel,
+  SYNC_INTERVAL_HOURS,
+  syncIntervalLabel,
+  syncScheduleLabel,
+  useDeckExternalSource,
+  type SyncSchedule,
+} from "./use-deck-external-source"
 
 type ExternalDeck = Pick<
   DeckSummary | DeckDetail,
-  "id" | "status" | "externalSource" | "externalUrl" | "externalSyncedAt" | "externalSyncError"
+  | "id"
+  | "status"
+  | "externalSource"
+  | "externalUrl"
+  | "externalSyncedAt"
+  | "externalSyncError"
+  | "externalSyncIntervalHours"
+  | "externalSyncCron"
 >
+
+const CRON_VALUE = "cron"
 
 /**
  * Edit-dialog section that links a deck to a Moxfield or Archidekt deck.
  * Pasting a URL does nothing on its own; turning the switch on (after a
  * confirmation) imports the external deck over this decklist and keeps it in
  * sync. Turning it off unlinks the deck and leaves the current cards in place.
+ * While linked, `schedule` picks how often it syncs; the deck editor saves it
+ * with the rest of the form.
  */
 export function DeckExternalSourceField({
   deck,
   disabled = false,
   onPendingChange,
+  onScheduleChange,
+  schedule,
 }: {
   deck: ExternalDeck
   disabled?: boolean
   onPendingChange?: (pending: boolean) => void
+  onScheduleChange?: (schedule: SyncSchedule) => void
+  schedule?: SyncSchedule
 }) {
   const linked = Boolean(deck.externalSource)
   // The server refuses to link archived decks; unlinking still works.
@@ -37,6 +66,7 @@ export function DeckExternalSourceField({
   const { clearError, error, isLinking, isPending, isUnlinking, link, unlink } =
     useDeckExternalSource(deck.id)
   const sourceLabel = externalSourceLabel(deck.externalSource)
+  const scheduleLabel = syncScheduleLabel(deck)
   const checked = isLinking || (linked && !isUnlinking)
   const shownError = localError || error
 
@@ -82,7 +112,7 @@ export function DeckExternalSourceField({
           <span className="block text-sm font-bold">Link external deck</span>
           <span id="deck-external-source-help" className="block text-sm text-base-content/75">
             {linked
-              ? `Mirrors ${sourceLabel} and syncs hourly. Card edits are disabled here.`
+              ? `Mirrors ${sourceLabel} and syncs ${scheduleLabel}. Card edits are disabled here.`
               : archived
                 ? "Unarchive this deck before linking an external deck."
                 : "Replace this decklist with a Moxfield or Archidekt deck and keep it in sync."}
@@ -113,6 +143,58 @@ export function DeckExternalSourceField({
           }}
         />
       </label>
+
+      {linked && schedule && onScheduleChange ? (
+        <div className="space-y-2">
+          <label className="block space-y-2">
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-base-content/80">
+              Sync
+            </span>
+            <Select
+              value={schedule.mode === "cron" ? CRON_VALUE : String(schedule.intervalHours)}
+              onValueChange={(value) =>
+                onScheduleChange(
+                  value === CRON_VALUE
+                    ? { ...schedule, mode: "cron" }
+                    : { ...schedule, mode: "interval", intervalHours: Number(value) },
+                )
+              }
+              disabled={disabled || isPending}
+            >
+              <SelectTrigger
+                aria-label="Sync schedule"
+                className="min-h-11 bg-base-100 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SYNC_INTERVAL_HOURS.map((hours) => (
+                  <SelectItem key={hours} value={String(hours)}>
+                    {syncIntervalLabel(hours)}
+                  </SelectItem>
+                ))}
+                <SelectItem value={CRON_VALUE}>Cron schedule</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+          {schedule.mode === "cron" ? (
+            <div className="space-y-2">
+              <Input
+                aria-label="Cron expression"
+                aria-describedby="deck-sync-cron-help"
+                className="min-h-11 font-mono"
+                placeholder="0 */6 * * *"
+                value={schedule.cron}
+                disabled={disabled || isPending}
+                onChange={(event) => onScheduleChange({ ...schedule, cron: event.target.value })}
+              />
+              <span id="deck-sync-cron-help" className="block text-sm text-base-content/65">
+                Five fields (minute hour day month weekday), in UTC.
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {linked ? (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/65">
@@ -153,8 +235,8 @@ export function DeckExternalSourceField({
         open={confirm === "link"}
         title="Replace this decklist?"
       >
-        The current cards are replaced with the external deck, which then syncs every hour. You can
-        still allocate copies from your collection.
+        The current cards are replaced with the external deck, which then syncs {scheduleLabel}. You
+        can still allocate copies from your collection.
       </ConfirmDialog>
 
       <ConfirmDialog

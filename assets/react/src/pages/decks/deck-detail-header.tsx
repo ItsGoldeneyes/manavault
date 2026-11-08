@@ -42,7 +42,11 @@ import { DeckTagList } from "./deck-tag-list"
 import type { DeckCardEntry, DeckCustomTag, DeckDetail } from "./deck-types"
 import { hasCommander } from "./deck-types"
 import { useDeckAnalysis } from "./use-deck-analysis"
-import { externalSourceLabel, useDeckExternalSource } from "./use-deck-external-source"
+import {
+  externalSourceLabel,
+  syncScheduleLabel,
+  useDeckExternalSource,
+} from "./use-deck-external-source"
 import { formatDate } from "../settings/data"
 
 type DeckTagActions = {
@@ -211,8 +215,8 @@ function DeckExternalSourceNotice({ deck, onManage }: { deck: DeckDetail; onMana
             <span>Linked to {sourceLabel}</span>
           </div>
           <p className="mt-1 max-w-3xl">
-            The decklist mirrors {sourceLabel} and syncs hourly, so card edits are disabled here.
-            Allocating copies from your collection still works.
+            The decklist mirrors {sourceLabel} and syncs {syncScheduleLabel(deck)}, so card edits
+            are disabled here. Allocating copies from your collection still works.
           </p>
           <p className="mt-1 text-xs text-base-content/60">
             {deck.externalSyncError

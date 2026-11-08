@@ -639,3 +639,149 @@ async fn graphql_create_linked_deck_names_the_deck_and_creates_nothing_on_failur
         })
     );
 }
+
+// --- Sync schedules ---
+
+fn at(text: &str) -> manavault_core::timestamp::Timestamp {
+    manavault_core::timestamp::Timestamp::parse(text).unwrap()
+}
+
+#[test]
+fn interval_schedules_are_due_once_the_interval_has_passed() {
+    let hourly = external::Schedule::new(1, None);
+    let last = Some(at("2026-11-08T06:00:00Z"));
+    assert!(!external::is_due(&hourly, last, at("2026-11-08T06:59:00Z")));
+    // The worker runs on the minute, so half a minute early still counts.
+    assert!(external::is_due(&hourly, last, at("2026-11-08T06:59:40Z")));
+    assert!(external::is_due(&hourly, None, at("2026-11-08T06:00:00Z")));
+
+    let six = external::Schedule::new(6, None);
+    assert!(!external::is_due(&six, last, at("2026-11-08T11:00:00Z")));
+    assert!(external::is_due(&six, last, at("2026-11-08T12:00:00Z")));
+
+    // Out-of-range intervals are clamped to 1-24 hours.
+    let clamped = external::Schedule::new(100, None);
+    assert!(external::is_due(&clamped, last, at("2026-11-09T06:00:00Z")));
+}
+
+#[test]
+fn cron_schedules_are_due_after_a_firing_since_the_last_attempt() {
+    let every_six = external::Schedule::new(1, Some("0 */6 * * *"));
+    let last = Some(at("2026-11-08T06:00:10Z"));
+    assert!(!external::is_due(
+        &every_six,
+        last,
+        at("2026-11-08T06:30:00Z")
+    ));
+    assert!(!external::is_due(
+        &every_six,
+        last,
+        at("2026-11-08T11:59:00Z")
+    ));
+    assert!(external::is_due(
+        &every_six,
+        last,
+        at("2026-11-08T12:00:20Z")
+    ));
+    // A missed firing is caught up within an hour, but not later.
+    assert!(external::is_due(
+        &every_six,
+        last,
+        at("2026-11-08T12:45:00Z")
+    ));
+    assert!(!external::is_due(
+        &every_six,
+        last,
+        at("2026-11-08T13:30:00Z")
+    ));
+
+    // An invalid expression falls back to the interval.
+    let invalid = external::Schedule::new(2, Some("not cron"));
+    assert!(matches!(invalid, external::Schedule::Interval(2)));
+}
+
+#[tokio::test]
+async fn sync_due_follows_each_decks_schedule() {
+    let (app, server) = app_with_archidekt().await;
+    stub(
+        &server,
+        vec![entry("Time Walk", "unknown-Time Walk", 1, &[], "Normal")],
+    )
+    .await;
+    let hourly = create_deck(app.db(), "Hourly", None, None).await;
+    external::link(&app.state, hourly.id, URL).await.unwrap();
+    let daily = create_deck(app.db(), "Daily", None, None).await;
+    external::link(&app.state, daily.id, URL).await.unwrap();
+    update_deck(
+        app.db(),
+        daily.id,
+        records::DeckChanges {
+            external_sync_interval_hours: Some(Some(24)),
+            ..records::DeckChanges::default()
+        },
+    )
+    .await;
+
+    let now = manavault_core::timestamp::Timestamp::now();
+    assert!(
+        external::sync_due(&app.state, now)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let later = now + time::Duration::hours(2);
+    let results = external::sync_due(&app.state, later).await.unwrap();
+    let ids: Vec<DeckId> = results.iter().map(|(id, _)| *id).collect();
+    assert_eq!(ids, vec![hourly.id]);
+    assert!(results[0].1.is_ok());
+    let synced = records::get_deck(app.db(), hourly.id).await.unwrap();
+    assert!(synced.external_sync_attempted_at.is_some());
+}
+
+const SCHEDULE: &str = "mutation Schedule($id: ID!, $input: DeckUpdateInput!) {
+  updateDeck(id: $id, input: $input) { deck { externalSyncIntervalHours externalSyncCron } }
+}";
+
+#[tokio::test]
+async fn graphql_updates_and_validates_the_sync_schedule() {
+    let (app, _server) = app_with_archidekt().await;
+    let deck = create_deck(app.db(), "Scheduled", None, None).await;
+    let id = deck_gid(deck.id);
+
+    let data = app
+        .gql_data(SCHEDULE, json!({"id": id, "input": {"name": "Scheduled"}}))
+        .await;
+    assert_eq!(
+        data["updateDeck"]["deck"],
+        json!({"externalSyncIntervalHours": 1, "externalSyncCron": null})
+    );
+
+    let data = app
+        .gql_data(
+            SCHEDULE,
+            json!({"id": id, "input": {"externalSyncIntervalHours": 12, "externalSyncCron": " 0 3 * * * "}}),
+        )
+        .await;
+    assert_eq!(
+        data["updateDeck"]["deck"],
+        json!({"externalSyncIntervalHours": 12, "externalSyncCron": "0 3 * * *"})
+    );
+
+    let data = app
+        .gql_data(
+            SCHEDULE,
+            json!({"id": id, "input": {"externalSyncCron": null}}),
+        )
+        .await;
+    assert_eq!(data["updateDeck"]["deck"]["externalSyncCron"], Value::Null);
+
+    for input in [
+        json!({"externalSyncIntervalHours": 0}),
+        json!({"externalSyncIntervalHours": 25}),
+        json!({"externalSyncCron": "every day"}),
+    ] {
+        let response = app.gql(SCHEDULE, json!({"id": id, "input": input})).await;
+        assert_eq!(response["data"]["updateDeck"], Value::Null, "{input}");
+    }
+}

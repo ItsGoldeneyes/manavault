@@ -29,7 +29,11 @@ import { DECK_FORMATS, DECK_STATUSES } from "./deck-types"
 import { DeckPlayHistoryDocument } from "./deck-detail-documents"
 import { DeckExternalSourceField } from "./deck-external-source-field"
 import { CreateLinkedDeckDocument } from "./deck-share-documents"
-import { unresolvedToast } from "./use-deck-external-source"
+import {
+  syncScheduleFromDeck,
+  unresolvedToast,
+  type SyncSchedule,
+} from "./use-deck-external-source"
 import { CreateDeckDocument, UpdateDeckDocument } from "./deck-list-documents"
 
 export function EditDeckDialog({
@@ -55,6 +59,8 @@ export function EditDeckDialog({
   const [primer, setPrimer] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isExternalPending, setIsExternalPending] = useState(false)
+  const [syncSchedule, setSyncSchedule] = useState<SyncSchedule>(() => syncScheduleFromDeck({}))
+  const isLinked = Boolean(deck?.externalSource)
   const deckCards = deck && "deckCards" in deck ? deck.deckCards : null
   const inlineHistory = hasPlayHistory(deck) ? deck : null
   const historyQuery = useQuery(DeckPlayHistoryDocument, {
@@ -82,6 +88,7 @@ export function EditDeckDialog({
     setStatus(deckStatusValue(deck.status))
     setCoverDeckCardId(deck.coverDeckCardId)
     setPrimer(deck.primer || "")
+    setSyncSchedule(syncScheduleFromDeck(deck))
     setError(null)
   }, [deck, isOpen])
 
@@ -119,6 +126,12 @@ export function EditDeckDialog({
             ...history,
             primer: primer.trim() || null,
             ...(deckCards ? { coverDeckCardId } : {}),
+            ...(isLinked
+              ? {
+                  externalSyncIntervalHours: syncSchedule.intervalHours,
+                  externalSyncCron: syncSchedule.mode === "cron" ? syncSchedule.cron.trim() : null,
+                }
+              : {}),
           },
         },
         onCompleted: () => {
@@ -147,6 +160,11 @@ export function EditDeckDialog({
 
     if (parsedPlayCount == null || parsedSkipCount == null) {
       setError("Play and skip counts must be whole numbers of 0 or more")
+      return
+    }
+
+    if (isLinked && syncSchedule.mode === "cron" && !syncSchedule.cron.trim()) {
+      setError("Enter a cron expression or choose a sync interval")
       return
     }
 
@@ -236,6 +254,8 @@ export function EditDeckDialog({
               deck={deck}
               disabled={updateDeck.isPending}
               onPendingChange={setIsExternalPending}
+              schedule={syncSchedule}
+              onScheduleChange={setSyncSchedule}
             />
           ) : null}
 

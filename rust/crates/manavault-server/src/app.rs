@@ -42,7 +42,7 @@ pub fn crontab() -> Vec<CronEntry> {
         entry("@reboot", VENDOR_SYNC),
         entry("*/30 * * * *", VENDOR_SYNC),
         entry("* * * * *", manavault_system::backup::worker::WORKER),
-        entry("0 * * * *", manavault_collection::decks::external::WORKER),
+        entry("* * * * *", manavault_collection::decks::external::WORKER),
     ]
 }
 
@@ -164,7 +164,7 @@ mod tests {
                 manavault_system::scanner::update_worker::WORKER,
             ),
             ("* * * * *", manavault_system::backup::worker::WORKER),
-            ("0 * * * *", manavault_collection::decks::external::WORKER),
+            ("* * * * *", manavault_collection::decks::external::WORKER),
         ] {
             assert!(entries.contains(&expected), "{expected:?}");
         }

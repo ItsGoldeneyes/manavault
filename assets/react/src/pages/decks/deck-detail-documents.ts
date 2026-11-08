@@ -97,6 +97,8 @@ export const DeckDocument = graphql(`
       externalUrl
       externalSyncedAt
       externalSyncError
+      externalSyncIntervalHours
+      externalSyncCron
       coverDeckCardId
       coverImageUrl
       coverCardImageUrl

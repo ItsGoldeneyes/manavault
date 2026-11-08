@@ -19,6 +19,37 @@ export function externalSourceLabel(source: string | null | undefined) {
   return (source && EXTERNAL_SOURCE_LABELS[source]) || "external deck"
 }
 
+/** The hourly choices for a linked deck's sync interval. */
+export const SYNC_INTERVAL_HOURS = Array.from({ length: 24 }, (_, index) => index + 1)
+
+/** How a linked deck re-syncs, as edited in the deck editor. */
+export type SyncSchedule = { mode: "interval" | "cron"; intervalHours: number; cron: string }
+
+export function syncScheduleFromDeck(deck: {
+  externalSyncIntervalHours?: number | null
+  externalSyncCron?: string | null
+}): SyncSchedule {
+  return {
+    mode: deck.externalSyncCron ? "cron" : "interval",
+    intervalHours: deck.externalSyncIntervalHours ?? 1,
+    cron: deck.externalSyncCron ?? "",
+  }
+}
+
+export function syncIntervalLabel(hours: number) {
+  return hours === 1 ? "Every hour" : `Every ${hours} hours`
+}
+
+/** Lowercase phrase for a saved schedule, e.g. "every 6 hours". */
+export function syncScheduleLabel(deck: {
+  externalSyncIntervalHours?: number | null
+  externalSyncCron?: string | null
+}) {
+  return deck.externalSyncCron
+    ? `on the cron schedule ${deck.externalSyncCron} (UTC)`
+    : syncIntervalLabel(deck.externalSyncIntervalHours ?? 1).toLowerCase()
+}
+
 export function unresolvedToast(prefix: string, unresolved: string[]) {
   if (!unresolved.length) return prefix
   return `${prefix}; ${pluralize(unresolved.length, "card")} not found: ${unresolved

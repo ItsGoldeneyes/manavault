@@ -25,7 +25,12 @@ pub struct DeckChanges {
     pub last_played_at: Change<String>,
     pub primer: Change<String>,
     pub cover_deck_card_id: Change<DeckCardId>,
+    pub external_sync_interval_hours: Change<i64>,
+    pub external_sync_cron: Change<String>,
 }
+
+/// The allowed range of `external_sync_interval_hours`.
+pub const SYNC_INTERVAL_HOURS: std::ops::RangeInclusive<i64> = 1..=24;
 
 /// A deck's editable fields after a valid changeset.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +44,8 @@ struct DeckValues {
     last_played_at: Option<Timestamp>,
     primer: Option<String>,
     cover_deck_card_id: Option<DeckCardId>,
+    external_sync_interval_hours: i64,
+    external_sync_cron: Option<String>,
 }
 
 fn validate(
@@ -51,6 +58,7 @@ fn validate(
     let status_change = cast_string(changes.status.clone());
     let primer_change = cast_string(changes.primer.clone());
     let played_change = cast_string(changes.last_played_at.clone());
+    let cron_change = cast_string(changes.external_sync_cron.clone());
 
     let name = apply(current.map(|deck| deck.name.clone()), &name_change);
     let format_text = apply(
@@ -88,6 +96,16 @@ fn validate(
         current.and_then(|deck| deck.cover_deck_card_id),
         &changes.cover_deck_card_id,
     );
+    let external_sync_interval_hours = apply(
+        Some(current.map_or(1, |deck| deck.external_sync_interval_hours)),
+        &changes.external_sync_interval_hours,
+    )
+    .unwrap_or(1);
+    let external_sync_cron = apply(
+        current.and_then(|deck| deck.external_sync_cron.clone()),
+        &cron_change,
+    )
+    .map(|cron| cron.trim().to_owned());
     let last_played_at = match &played_change {
         None => current.and_then(|deck| deck.last_played_at),
         Some(None) => None,
@@ -128,6 +146,22 @@ fn validate(
     if let Some(Some(count)) = changes.skip_count {
         at_least(&mut errors, "skip_count", Some(count), 0);
     }
+    if let Some(Some(hours)) = changes.external_sync_interval_hours
+        && !SYNC_INTERVAL_HOURS.contains(&hours)
+    {
+        errors.add(
+            "external_sync_interval_hours",
+            "must be between 1 and 24 hours",
+        );
+    }
+    if let Some(Some(cron)) = &cron_change
+        && manavault_core::jobs::cron::Cron::parse(cron).is_none()
+    {
+        errors.add(
+            "external_sync_cron",
+            "must be a five-field cron expression, like 0 */6 * * *",
+        );
+    }
     let format = format_text.as_deref().and_then(DeckFormat::parse);
     if format_text.is_some() && format.is_none() {
         errors.add("format", INVALID);
@@ -149,6 +183,8 @@ fn validate(
                 last_played_at,
                 primer,
                 cover_deck_card_id,
+                external_sync_interval_hours,
+                external_sync_cron,
             })
         }
         _ => Err(errors),
@@ -220,7 +256,8 @@ pub async fn update_deck(
     sqlx::query!(
         r#"UPDATE decks SET name = ?2, format = ?3, status = ?4, included_for_play = ?5,
                  play_count = ?6, skip_count = ?7, last_played_at = ?8, primer = ?9,
-                 cover_deck_card_id = ?10, updated_at = ?11
+                 cover_deck_card_id = ?10, updated_at = ?11,
+                 external_sync_interval_hours = ?12, external_sync_cron = ?13
            WHERE id = ?1"#,
         deck.id,
         values.name,
@@ -232,7 +269,9 @@ pub async fn update_deck(
         values.last_played_at,
         values.primer,
         values.cover_deck_card_id,
-        now
+        now,
+        values.external_sync_interval_hours,
+        values.external_sync_cron
     )
     .execute(pool)
     .await?;
