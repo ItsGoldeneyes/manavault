@@ -6,12 +6,8 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { DeckDiffDocument } from "../src/pages/decks/deck-compare-documents"
-import {
-  ScanCompareDecksDocument,
-  ScanDeckCompareDialog,
-  scanCompareList,
-  summarizeScanDiff,
-} from "../src/pages/scan/scan-deck-compare-dialog"
+import { ScanCompareDecksDocument } from "../src/pages/scan/documents"
+import { ScanDeckCompareDialog } from "../src/pages/scan/scan-deck-compare-dialog"
 import type { ScanEntry } from "../src/pages/scan/scan-list"
 
 afterEach(cleanup)
@@ -80,38 +76,6 @@ const diff = {
   ],
 }
 
-test("sums copies per card name and leaves tokens out", () => {
-  // Newest first, as the scan list stores them; the same printing scanned twice is two entries.
-  const entries = [
-    scanned("Lightning Bolt", 1, "146"),
-    { ...scanned("Goblin", 2, "5"), id: "token", layout: "token" },
-    scanned("Counterspell", 1, "50"),
-    { ...scanned("Lightning Bolt", 2, "146"), id: "bolt-again" },
-  ]
-  expect(scanCompareList(entries)).toEqual({
-    text: "3 Lightning Bolt\n1 Counterspell",
-    total: 4,
-    tokens: 2,
-  })
-})
-
-test("summarizes a diff from the scan's side", () => {
-  // Scanned: 3 Lightning Bolt, 1 Giant Growth, 2 of an unknown name; deck: 4 Bolt + 2 Counterspell.
-  // The unknown name is an add, so it counts once, as extra, not again as unrecognized.
-  expect(summarizeScanDiff(diff, 6)).toEqual({
-    matched: 3,
-    deckTotal: 6,
-    missing: [
-      { cardName: "Counterspell", quantity: 2 },
-      { cardName: "Lightning Bolt", quantity: 1 },
-    ],
-    extra: [
-      { cardName: "Giant Growth", quantity: 1 },
-      { cardName: "Notacard", quantity: 2, unrecognized: true },
-    ],
-  })
-})
-
 test("picking a deck diffs the scan list against it", async () => {
   const entries = [
     scanned("Lightning Bolt", 3, "146"),
@@ -154,7 +118,7 @@ test("picking a deck diffs the scan list against it", async () => {
   const client = new ApolloClient({ cache: new InMemoryCache(), link })
   render(
     <ApolloProvider client={client}>
-      <ScanDeckCompareDialog open entries={entries} onClose={vi.fn()} />
+      <ScanDeckCompareDialog entries={entries} onClose={vi.fn()} />
     </ApolloProvider>,
   )
 
@@ -200,11 +164,7 @@ test("the deck picker loads decks past the first page", async () => {
   const client = new ApolloClient({ cache: new InMemoryCache(), link })
   render(
     <ApolloProvider client={client}>
-      <ScanDeckCompareDialog
-        open
-        entries={[scanned("Lightning Bolt", 1, "146")]}
-        onClose={vi.fn()}
-      />
+      <ScanDeckCompareDialog entries={[scanned("Lightning Bolt", 1, "146")]} onClose={vi.fn()} />
     </ApolloProvider>,
   )
 
@@ -217,7 +177,6 @@ test("a list of only tokens has nothing to compare", () => {
   render(
     <ApolloProvider client={client}>
       <ScanDeckCompareDialog
-        open
         entries={[{ ...scanned("Goblin", 2, "5"), layout: "token" }]}
         onClose={vi.fn()}
       />

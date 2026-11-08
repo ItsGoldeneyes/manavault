@@ -175,9 +175,8 @@ export function ScanListSheet({
       </Dialog>
 
       <ScanExportDialog open={exporting} entries={entries} onClose={() => setExporting(false)} />
-      {/* Mounted only while open: it queries decks, and the sheet renders without Apollo in tests. */}
       {comparing ? (
-        <ScanDeckCompareDialog open entries={entries} onClose={() => setComparing(false)} />
+        <ScanDeckCompareDialog entries={entries} onClose={() => setComparing(false)} />
       ) : null}
       <ConfirmDialog
         open={confirmClear}
