@@ -641,6 +641,16 @@ impl PublicDeck {
         self.0.row.external_synced_at.map(|at| at.to_string())
     }
 
+    /// Hours between scheduled syncs (1-24); ignored when `externalSyncCron` is set.
+    async fn external_sync_interval_hours(&self) -> i64 {
+        self.0.row.external_sync_interval_hours
+    }
+
+    /// A UTC five-field cron expression that schedules syncs instead of the interval.
+    async fn external_sync_cron(&self) -> Option<&str> {
+        self.0.row.external_sync_cron.as_deref()
+    }
+
     async fn ai_analyzed_at(&self) -> Option<String> {
         self.0.row.ai_analyzed_at.map(|at| at.to_string())
     }
