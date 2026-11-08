@@ -6,6 +6,11 @@ export const CollectionLocationFieldsFragment = graphql(`
     name
     kind
     description
+    stickers {
+      kind
+      value
+      iconUrl
+    }
     itemCount
     totalPriceText
     valueSummary {
@@ -18,6 +23,19 @@ export const CollectionLocationFieldsFragment = graphql(`
       id
       scryfallId
       artCropUrl
+      imageUrl
+    }
+    previewItems: collectionItems(first: 9, sort: { field: "price", direction: "desc" }) {
+      edges {
+        node {
+          id
+          finish
+          printing {
+            id
+            imageUrl
+          }
+        }
+      }
     }
   }
 `)
@@ -101,6 +119,18 @@ export const DeleteLocationDocument = graphql(`
       location {
         id
         name
+      }
+    }
+  }
+`)
+
+export const LocationPickerDocument = graphql(`
+  query LocationPicker {
+    locations(first: 100) {
+      edges {
+        node {
+          ...CollectionLocationFields
+        }
       }
     }
   }

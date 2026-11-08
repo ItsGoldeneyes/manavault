@@ -85,7 +85,8 @@ export function CollectionFilterModal({
   }
 
   function applyDraft() {
-    showToast(`${pluralize(activeCount, "filter")} applied`)
+    if (activeCount) showToast(`${pluralize(activeCount, "filter")} applied`)
+    else showToast("Filters cleared", { tone: "info" })
     onApply(draft)
   }
 
@@ -126,7 +127,7 @@ export function CollectionFilterModal({
               />
             </FilterSection>
 
-            <FilterSection label="Colors" syntax="c:w, c>=uw, c:c">
+            <FilterSection label="Colors" syntax="c:uw, c=uw, c:c">
               <ColorFilterControl
                 operator={draft.colorOperator}
                 selected={draft.colors}
@@ -255,7 +256,7 @@ export function CollectionFilterModal({
                   />
                 </FilterSection>
 
-                <FilterSection label="Color identity" syntax="id:u, id<=esper, id:c">
+                <FilterSection label="Color identity" syntax="id:esper, id=uw, id:c">
                   <ColorFilterControl
                     operator={draft.identityOperator}
                     selected={draft.identity}
@@ -339,7 +340,11 @@ export function CollectionFilterModal({
                 <Badge tone={activeCount ? "primary" : "neutral"}>{activeCount} active</Badge>
               </div>
               <div className="grid gap-2">
-                <Button type="button" disabled={!syntax} onClick={applyDraft}>
+                <Button
+                  type="button"
+                  disabled={!syntax && !buildCollectionFilterQuery(filters)}
+                  onClick={applyDraft}
+                >
                   Apply filters
                 </Button>
                 <Button type="button" variant="outline" onClick={resetDraft}>

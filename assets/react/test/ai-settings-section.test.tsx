@@ -7,12 +7,24 @@ import { afterEach, expect, test } from "vitest"
 import { ToastProvider } from "../src/components/ui/toast"
 import { AISettingsSection } from "../src/pages/settings/ai-settings-section"
 import {
+  AIModelReasoningDocument,
   AISettingsDocument,
   RefreshAllDeckAnalysesDocument,
   UpdateAISettingsDocument,
 } from "../src/pages/settings/data"
 
 afterEach(cleanup)
+
+function reasoningMock(
+  model: string,
+  aiModelReasoning: { supportedEfforts: string[]; defaultEffort: string | null } | null,
+) {
+  return {
+    request: { query: AIModelReasoningDocument, variables: { model } },
+    result: { data: { aiModelReasoning } },
+    maxUsageCount: Number.POSITIVE_INFINITY,
+  }
+}
 
 test("loads and saves custom deck analysis instructions", async () => {
   const existingInstructions = "Never suggest infinite combos."
@@ -21,9 +33,15 @@ test("loads and saves custom deck analysis instructions", async () => {
     provider: "openrouter",
     model: "anthropic/claude-sonnet-4",
     deckAnalysisInstructions: existingInstructions,
+    decisionModel: "typesafe/jev-1.13",
+    reasoningEffort: null,
     hasApiKey: true,
   }
-  const updatedSettings = { ...settings, deckAnalysisInstructions: updatedInstructions }
+  const updatedSettings = {
+    ...settings,
+    deckAnalysisInstructions: updatedInstructions,
+    decisionModel: "custom/decider",
+  }
   const link = new MockLink([
     {
       request: { query: AISettingsDocument },
@@ -37,6 +55,8 @@ test("loads and saves custom deck analysis instructions", async () => {
             provider: "openrouter",
             model: "anthropic/claude-sonnet-4",
             deckAnalysisInstructions: updatedInstructions,
+            decisionModel: "custom/decider",
+            reasoningEffort: null,
           },
         },
       },
@@ -58,6 +78,10 @@ test("loads and saves custom deck analysis instructions", async () => {
   expect(instructions.getAttribute("maxlength")).toBe("4000")
 
   await userEvent.type(instructions, " Add a budget upgrades section.")
+  const decisionModel = screen.getByRole("textbox", { name: /Decision model ID/ })
+  expect((decisionModel as HTMLInputElement).value).toBe("typesafe/jev-1.13")
+  await userEvent.clear(decisionModel)
+  await userEvent.type(decisionModel, "custom/decider")
   await userEvent.click(screen.getByRole("button", { name: "Validate and save" }))
 
   expect(await screen.findByText("AI settings validated and saved.")).toBeTruthy()
@@ -69,6 +93,8 @@ test("preserves dirty form values when settings refetch", async () => {
     provider: "openrouter",
     model: "anthropic/claude-sonnet-4",
     deckAnalysisInstructions: "Initial instructions",
+    decisionModel: "typesafe/jev-1.13",
+    reasoningEffort: null,
     hasApiKey: true,
   }
   const refetchedSettings = {
@@ -114,6 +140,8 @@ test("queues a refresh for every deck analysis", async () => {
     provider: "openrouter",
     model: "anthropic/claude-sonnet-4",
     deckAnalysisInstructions: "",
+    decisionModel: "typesafe/jev-1.13",
+    reasoningEffort: null,
     hasApiKey: true,
   }
   const link = new MockLink([
@@ -143,4 +171,81 @@ test("queues a refresh for every deck analysis", async () => {
 
   expect(screen.getByRole("button", { name: "Queueing..." }).hasAttribute("disabled")).toBe(true)
   expect(await screen.findByText("Queued AI analysis refresh for 3 decks.")).toBeTruthy()
+})
+
+test("offers the reasoning efforts the model supports and drops ones the next model lacks", async () => {
+  const settings = {
+    provider: "openrouter",
+    model: "openai/gpt-6.1-sol",
+    deckAnalysisInstructions: "",
+    decisionModel: "typesafe/jev-1.13",
+    reasoningEffort: "xhigh",
+    hasApiKey: true,
+  }
+  const save = (model: string, reasoningEffort: string | null) => ({
+    request: {
+      query: UpdateAISettingsDocument,
+      variables: {
+        input: {
+          provider: "openrouter",
+          model,
+          deckAnalysisInstructions: "",
+          decisionModel: "typesafe/jev-1.13",
+          reasoningEffort,
+        },
+      },
+    },
+    result: { data: { updateAiSettings: { aiSettings: { ...settings, model, reasoningEffort } } } },
+  })
+  const link = new MockLink([
+    { request: { query: AISettingsDocument }, result: { data: { aiSettings: settings } } },
+    reasoningMock("openai/gpt-6.1-sol", {
+      supportedEfforts: ["max", "xhigh", "high", "medium", "low"],
+      defaultEffort: "medium",
+    }),
+    reasoningMock("google/gemini-4-argon", {
+      supportedEfforts: ["high", "medium", "low"],
+      defaultEffort: "medium",
+    }),
+    save("openai/gpt-6.1-sol", "low"),
+    save("google/gemini-4-argon", null),
+  ])
+  const client = new ApolloClient({ cache: new InMemoryCache(), link })
+  const user = userEvent.setup()
+
+  render(
+    <ApolloProvider client={client}>
+      <ToastProvider>
+        <AISettingsSection />
+      </ToastProvider>
+    </ApolloProvider>,
+  )
+
+  const effort = await screen.findByRole("combobox", { name: /Reasoning effort/ })
+  expect(effort.textContent).toBe("Extra high")
+  await waitFor(() => expect(effort.hasAttribute("disabled")).toBe(false))
+  await user.click(effort)
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    "Model default (Medium)",
+    "Max",
+    "Extra high",
+    "High",
+    "Medium",
+    "Low",
+  ])
+  await user.click(screen.getByRole("option", { name: "Low" }))
+  await user.click(screen.getByRole("button", { name: "Validate and save" }))
+  expect(await screen.findByText("AI settings validated and saved.")).toBeTruthy()
+
+  // The next model does not offer Max, so the form falls back to its default.
+  await user.click(effort)
+  await user.click(screen.getByRole("option", { name: "Max" }))
+  const model = screen.getByRole("textbox", { name: /Model ID/ })
+  await user.clear(model)
+  await user.type(model, "google/gemini-4-argon")
+  await waitFor(() => expect(effort.textContent).toBe("Model default (Medium)"))
+  await user.click(screen.getByRole("button", { name: "Validate and save" }))
+  await waitFor(() =>
+    expect(screen.getAllByText("AI settings validated and saved.").length).toBeGreaterThan(1),
+  )
 })

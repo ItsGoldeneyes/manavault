@@ -50,6 +50,21 @@ export const DisassembleDeckDocument = graphql(`
   }
 `)
 
+export const AssignDeckCardCategoriesDocument = graphql(`
+  mutation AssignDeckCardCategories($id: ID!) {
+    assignDeckCardCategories(id: $id) {
+      categories {
+        name
+        description
+      }
+      cards {
+        oracleId
+        category
+      }
+    }
+  }
+`)
+
 export const DeckPlayHistoryDocument = graphql(`
   query DeckPlayHistory($id: ID!) {
     deck(id: $id) {
@@ -73,12 +88,19 @@ export const DeckDocument = graphql(`
       aiAnalysis
       aiAnalysisModel
       aiAnalyzedAt
+      hasAiCardCategories
       commanderBracket
       commanderBracketEstimate
       commanderBracketRating
       shareToken
+      externalSource
+      externalUrl
+      externalSyncedAt
+      externalSyncError
       coverDeckCardId
       coverImageUrl
+      coverCardImageUrl
+      priciestCardImageUrls(first: 6)
       cardCount
       commanderColorIdentity
       legality {
@@ -123,9 +145,26 @@ export const DeckDocument = graphql(`
               colors
               colorIdentity
               gameChanger
+              edhrecRank
               edhrecSaltiness
               deckCategory
               deckThemes
+              producedTokens {
+                ownedCount
+                printing {
+                  id
+                  scryfallId
+                  oracleId
+                  imageUrl
+                  backImageUrl
+                  setCode
+                  card {
+                    id
+                    name
+                    typeLine
+                  }
+                }
+              }
             }
             preferredPrinting {
               id

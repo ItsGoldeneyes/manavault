@@ -25,8 +25,14 @@ export const DecksDocument = graphql(`
           commanderBracketEstimate
           commanderBracketRating
           shareToken
+          externalSource
+          externalUrl
+          externalSyncedAt
+          externalSyncError
           coverDeckCardId
           coverImageUrl
+          coverCardImageUrl
+          priciestCardImageUrls(first: 6)
           commanderColorIdentity
           cardCount
           legality {
@@ -52,6 +58,8 @@ export const RandomDeckDocument = graphql(`
       format
       status
       coverImageUrl
+      coverCardImageUrl
+      priciestCardImageUrls(first: 6)
       commanderColorIdentity
       cardCount
       playCount
@@ -90,8 +98,14 @@ export const CreateDeckDocument = graphql(`
         commanderBracketEstimate
         commanderBracketRating
         shareToken
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
         coverDeckCardId
         coverImageUrl
+        coverCardImageUrl
+        priciestCardImageUrls(first: 6)
         commanderColorIdentity
         cardCount
         legality {
@@ -128,8 +142,14 @@ export const UpdateDeckDocument = graphql(`
         commanderBracketEstimate
         commanderBracketRating
         shareToken
+        externalSource
+        externalUrl
+        externalSyncedAt
+        externalSyncError
         coverDeckCardId
         coverImageUrl
+        coverCardImageUrl
+        priciestCardImageUrls(first: 6)
         commanderColorIdentity
         cardCount
         legality {
@@ -153,6 +173,46 @@ export const DeleteDeckDocument = graphql(`
         id
         name
       }
+    }
+  }
+`)
+
+/** What the gallery already knows about a deck, enough to draw its box. */
+export const DeckBoxFieldsFragment = graphql(`
+  fragment DeckBoxFields on Deck {
+    id
+    name
+    format
+    cardCount
+    coverImageUrl
+    coverCardImageUrl
+    priciestCardImageUrls(first: 6)
+    commanderColorIdentity
+  }
+`)
+
+export const CommanderPreconsDocument = graphql(`
+  query CommanderPrecons {
+    commanderPrecons {
+      id
+      name
+      product
+      releaseDate
+      url
+      colorIdentity
+    }
+  }
+`)
+
+export const ImportCommanderPreconDocument = graphql(`
+  mutation ImportCommanderPrecon($input: ImportCommanderPreconInput!) {
+    importCommanderPrecon(input: $input) {
+      deck {
+        id
+        name
+      }
+      unresolved
+      addedToCollection
     }
   }
 `)

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { CameraOff, List, LoaderCircle, ScanSearch, Settings2, X } from "lucide-react"
+import { CameraOff, List, LoaderCircle, MoonStar, ScanSearch, Settings2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import {
   restoreNativeSystemBarsTheme,
@@ -19,6 +19,7 @@ import type { ScanView } from "./scan-view"
 import { useScanSession, type FrameSnapshot } from "./use-scan-session"
 import { IdentifySheet } from "./identify-sheet"
 import { OutlineEditor } from "./outline-editor"
+import { TokenBackSheet } from "./token-back-sheet"
 
 type Sheet =
   | { type: "none" }
@@ -77,7 +78,24 @@ export function ScanPage() {
           panY: settings.previewPanY,
         }}
         onFocusAt={(x, y) => void camera.focusAt(x, y)}
+        onTap={settings.tokenMode ? session.logArmed : undefined}
       />
+
+      {session.asleep ? (
+        <button
+          type="button"
+          onClick={session.wake}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-base-100 px-8 text-center focus-visible:outline-none"
+        >
+          <span className="flex h-14 w-14 items-center justify-center rounded-box border-[1.5px] border-base-300 bg-base-200">
+            <MoonStar className="h-7 w-7 text-base-content/70" aria-hidden="true" />
+          </span>
+          <span className="text-2xl font-black">Camera paused</span>
+          <span className="text-base text-base-content/70">
+            No card for a minute, so the camera is off to save battery. Tap to resume.
+          </span>
+        </button>
+      ) : null}
 
       <header className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-base-100/80 to-transparent px-3 pb-8 pt-[calc(var(--safe-top)_+_0.75rem)]">
         <Link
@@ -123,8 +141,14 @@ export function ScanPage() {
         <CameraErrorPanel message={camera.state.message} onRetry={start} />
       ) : (
         <div className="absolute inset-x-0 bottom-0 mx-auto flex max-w-xl flex-col gap-2 bg-gradient-to-t from-base-100/80 to-transparent px-3 pb-[calc(var(--safe-bottom)_+_0.75rem)] pt-10">
-          <div className="flex items-center justify-center gap-2">
-            <StatusPill camera={camera.state} recognizer={recognizer.state} view={view} />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <StatusPill
+              asleep={session.asleep}
+              camera={camera.state}
+              recognizer={recognizer.state}
+              view={view}
+              tokenMode={settings.tokenMode}
+            />
             {recognizer.state.status === "ready" && camera.state.status === "live" ? (
               <button
                 type="button"
@@ -142,6 +166,8 @@ export function ScanPage() {
             onFinish={session.setFinish}
             onPrinting={(id) => setSheet({ type: "printing", id })}
             onLanguage={session.setLanguage}
+            onBackFace={session.pickBackFace}
+            tokenMode={settings.tokenMode}
           />
         </div>
       )}
@@ -155,6 +181,8 @@ export function ScanPage() {
         onFinish={session.setFinish}
         onPrinting={(id) => setSheet({ type: "printing", id })}
         onLanguage={session.setLanguage}
+        onPurchasePrice={session.setPurchasePrice}
+        onBackFace={session.pickBackFace}
         onRemove={session.removeEntry}
         onClear={session.clear}
         onAddToCollection={session.addToCollection}
@@ -163,6 +191,7 @@ export function ScanPage() {
         open={sheet.type === "settings"}
         settings={settings}
         recognizer={recognizer.state}
+        camera={camera.diagnostics}
         lastMs={view.ms}
         onChange={session.setSettings}
         onClose={close}
@@ -181,6 +210,12 @@ export function ScanPage() {
         onSave={session.saveOutline}
         onSkip={session.skipOutline}
       />
+      <TokenBackSheet
+        entry={session.backFacePick}
+        entries={entries}
+        onPick={session.setBackFace}
+        onClose={session.dismissBackFace}
+      />
       <PrintingSheet
         entry={printingEntry}
         settings={settings}
@@ -198,17 +233,22 @@ export function ScanPage() {
 }
 
 function StatusPill({
+  asleep,
   camera,
   recognizer,
   view,
+  tokenMode,
 }: {
+  asleep: boolean
   camera: CameraState
   recognizer: RecognizerState
   view: ScanView
+  tokenMode: boolean
 }) {
-  const { text, busy } =
-    camera.status === "live"
-      ? statusText(recognizer, view)
+  const { text, busy } = asleep
+    ? { text: "Paused to save battery", busy: false }
+    : camera.status === "live"
+      ? statusText(recognizer, view, tokenMode)
       : { text: "Starting camera…", busy: true }
   return (
     <p
@@ -222,7 +262,11 @@ function StatusPill({
   )
 }
 
-function statusText(recognizer: RecognizerState, view: ScanView): { text: string; busy: boolean } {
+function statusText(
+  recognizer: RecognizerState,
+  view: ScanView,
+  tokenMode: boolean,
+): { text: string; busy: boolean } {
   switch (recognizer.status) {
     case "idle":
     case "checking":
@@ -254,10 +298,12 @@ function statusText(recognizer: RecognizerState, view: ScanView): { text: string
       }
     case "duplicate":
       return { text: "Already logged · tap +1 for another copy", busy: false }
+    case "ready":
+      return { text: `Tap to add ${view.candidate?.name ?? ""}`, busy: false }
     case "accept":
       return { text: `Logged ${view.candidate?.name ?? ""}`, busy: false }
     default:
-      return { text: "Hold one card in view", busy: false }
+      return { text: tokenMode ? "Hold one token in view" : "Hold one card in view", busy: false }
   }
 }
 

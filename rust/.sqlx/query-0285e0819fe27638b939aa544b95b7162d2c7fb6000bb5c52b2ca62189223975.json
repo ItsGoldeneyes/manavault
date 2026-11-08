@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT provider, api_key, model, deck_analysis_instructions, decision_model,\n           reasoning_effort\n         FROM ai_settings WHERE id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "provider",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "name": "api_key",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "api_key"
+          }
+        }
+      },
+      {
+        "name": "model",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "model"
+          }
+        }
+      },
+      {
+        "name": "deck_analysis_instructions",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "deck_analysis_instructions"
+          }
+        }
+      },
+      {
+        "name": "decision_model",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "decision_model"
+          }
+        }
+      },
+      {
+        "name": "reasoning_effort",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ai_settings",
+            "name": "reasoning_effort"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0285e0819fe27638b939aa544b95b7162d2c7fb6000bb5c52b2ca62189223975"
+}

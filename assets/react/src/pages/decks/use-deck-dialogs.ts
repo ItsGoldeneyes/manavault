@@ -9,6 +9,9 @@ type DialogState = {
 }
 
 type DialogContext = {
+  /** Allocation-only flows (pull list, bulk allocation, disassembly) stay open on linked decks. */
+  canAllocate: boolean
+  /** Decklist edits; false for archived and externally linked decks. */
   canEdit: boolean
   deckId: string
   edhrecOpen: boolean
@@ -29,16 +32,31 @@ function allowedOverlay(overlay: DeckDetailOverlay, context: DialogContext) {
       : NO_DECK_DETAIL_OVERLAY
   }
   if (!context.canEdit) {
-    return overlay.kind === "edit-deck" ||
-      overlay.kind === "export-deck" ||
-      overlay.kind === "preview-card" ||
-      overlay.kind === "share-deck" ||
-      overlay.kind === "shortcuts"
+    return READ_ONLY_OVERLAYS.has(overlay.kind) ||
+      (context.canAllocate && ALLOCATION_OVERLAYS.has(overlay.kind))
       ? overlay
       : NO_DECK_DETAIL_OVERLAY
   }
   return overlay
 }
+
+const READ_ONLY_OVERLAYS = new Set<DeckDetailOverlay["kind"]>([
+  "edit-deck",
+  "export-deck",
+  "external-source",
+  "preview-card",
+  "share-deck",
+  "shortcuts",
+])
+
+const ALLOCATION_OVERLAYS = new Set<DeckDetailOverlay["kind"]>([
+  "bulk-allocation",
+  "combos",
+  "compare-deck",
+  "disassembly",
+  "missing-cards",
+  "readiness",
+])
 
 function reducer(state: DialogState, action: DialogAction): DialogState {
   if (action.type === "set-active-tag") {
@@ -78,7 +96,7 @@ export function useDeckDialogs(context: DialogContext) {
 
   useEffect(
     () => dispatch({ type: "sync", context }),
-    [context.canEdit, context.deckId, context.edhrecOpen, context.shareMode],
+    [context.canAllocate, context.canEdit, context.deckId, context.edhrecOpen, context.shareMode],
   )
 
   return {

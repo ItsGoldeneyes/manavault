@@ -1,6 +1,7 @@
 # Self-Hosting ManaVault
 
-ManaVault runs as a single Phoenix release backed by SQLite and local files. No
+ManaVault runs as a single Rust binary (`manavault`) backed by SQLite and local
+files. No
 Postgres, Redis, object storage, or hosted service is required.
 
 - [Container image](#container-image)
@@ -30,12 +31,17 @@ and is useful for testing only.
 
 ## Quick Container Run
 
-Generate a Phoenix secret and an owner password hash from a local checkout:
+Generate a secret key base and an owner password hash. The image's binary
+prints the hash, so no source checkout is needed:
 
 ```sh
-mise exec -- mix phx.gen.secret
-mise exec -- mix manavault.auth.hash 'change-me'
+openssl rand -base64 48
+docker run --rm --entrypoint /app/bin/manavault ghcr.io/cfbender/manavault:<version> \
+  hash-password 'change-me'
 ```
+
+From a source checkout, `cargo run --bin manavault -- hash-password 'change-me'`
+(in `rust/`) prints the same format.
 
 Run with a mounted `/data` volume:
 
@@ -47,9 +53,9 @@ docker run -d \
   --restart unless-stopped \
   -p 4000:4000 \
   -v "$PWD/data:/data" \
-  -e SECRET_KEY_BASE='paste-generated-secret' \
+  -e MANAVAULT_SECRET_KEY='paste-generated-secret' \
   -e MANAVAULT_ADMIN_PASSWORD_HASH='paste-generated-password-hash' \
-  -e PHX_HOST=localhost \
+  -e MANAVAULT_PUBLIC_HOST=localhost \
   ghcr.io/cfbender/manavault:<version>
 ```
 
@@ -60,13 +66,14 @@ curl http://localhost:4000/health
 # {"status":"ok"}
 ```
 
-First boot runs pending Ecto migrations and schedules background syncs. Card
+First boot creates the database (or applies pending migrations to an existing
+one) and schedules background syncs. Card
 searches and import matching become useful after the bulk catalog sync succeeds.
 The catalog uses Scryfall's public bulk-data endpoint. While the app is running,
 the catalog and symbol/set icon assets refresh daily, vendor prices every 30
 minutes, and scanner models every six hours.
 
-Keep `SECRET_KEY_BASE` stable. It signs sessions and derives the key that
+Keep `MANAVAULT_SECRET_KEY` stable. It encrypts sessions and derives the key that
 encrypts stored secrets (the OpenRouter API key and cloud backup credentials).
 After a change, or when restoring a backup under a different value, existing
 sessions end and those secrets load as empty; re-enter them in Settings.
@@ -86,10 +93,10 @@ services:
     volumes:
       - ./data:/data
     environment:
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      PHX_HOST: ${PHX_HOST:-localhost}
+      MANAVAULT_SECRET_KEY: ${MANAVAULT_SECRET_KEY}
+      MANAVAULT_PUBLIC_HOST: ${MANAVAULT_PUBLIC_HOST:-localhost}
       MANAVAULT_ADMIN_PASSWORD_HASH: ${MANAVAULT_ADMIN_PASSWORD_HASH}
-      # Only needed when ManaVault is also reached under hostnames other than PHX_HOST:
+      # Only needed when ManaVault is also reached under hostnames other than MANAVAULT_PUBLIC_HOST:
       # MANAVAULT_ALLOWED_ORIGINS: https://manavault.mytailnet.ts.net
     healthcheck:
       test: ["CMD", "/usr/local/bin/manavault-healthcheck"]
@@ -106,9 +113,10 @@ image does not include `curl`.
 Generate both required secrets once, put them in `.env`, then start the stack:
 
 ```sh
-printf 'SECRET_KEY_BASE=%s\n' "$(mise exec -- mix phx.gen.secret)" > .env
-printf 'MANAVAULT_ADMIN_PASSWORD_HASH=%s\n' "$(mise exec -- mix manavault.auth.hash 'change-me')" >> .env
-printf 'PHX_HOST=localhost\n' >> .env
+printf 'MANAVAULT_SECRET_KEY=%s\n' "$(openssl rand -base64 48)" > .env
+printf 'MANAVAULT_ADMIN_PASSWORD_HASH=%s\n' "$(docker run --rm --entrypoint /app/bin/manavault \
+  ghcr.io/cfbender/manavault:<version> hash-password 'change-me')" >> .env
+printf 'MANAVAULT_PUBLIC_HOST=localhost\n' >> .env
 docker compose up -d
 ```
 
@@ -122,14 +130,18 @@ docker build --pull --no-cache-filter runner -t manavault .
 docker run --rm \
   -p 4000:4000 \
   -v "$PWD/data:/data" \
-  -e SECRET_KEY_BASE="$(mise exec -- mix phx.gen.secret)" \
-  -e MANAVAULT_ADMIN_PASSWORD_HASH="$(mise exec -- mix manavault.auth.hash 'change-me')" \
-  -e PHX_HOST=localhost \
+  -e MANAVAULT_SECRET_KEY="$(openssl rand -base64 48)" \
+  -e MANAVAULT_ADMIN_PASSWORD_HASH="$(docker run --rm --entrypoint /app/bin/manavault manavault hash-password 'change-me')" \
+  -e MANAVAULT_PUBLIC_HOST=localhost \
   manavault
 ```
 
-The build refreshes base images and runtime Alpine packages while retaining
-compiled-dependency caches. Public share-preview PNGs use resvg 0.48.1 and
+The build has four stages: Node with aube and Tailwind's standalone CLI builds
+the frontend into `priv/static`, the Rust toolchain builds the `manavault`
+release binary (`cargo build --release --locked` against the committed `.sqlx`
+query metadata), and a slim Debian runtime holds the binary, the static files,
+CA certificates, DejaVu fonts, and `tini`. It refreshes base images and runtime
+Debian packages while retaining compiled-dependency caches. Public share-preview PNGs use resvg 0.48.1 and
 DejaVu fonts; the container no longer needs the GLib-based `rsvg-convert`.
 Non-container installations need `resvg` on `PATH` to generate these PNGs.
 
@@ -151,7 +163,7 @@ set `MANAVAULT_ADMIN_PASSWORD_HASH`, or explicitly opt out with
 already protects ManaVault).
 
 To change the password, generate a new hash with
-`mix manavault.auth.hash 'new-password'`, update the environment variable, and
+`manavault hash-password 'new-password'`, update the environment variable, and
 recreate the container.
 
 Keep static assets and public share links public at the proxy. ManaVault protects
@@ -170,6 +182,19 @@ collapsing all clients into the proxy's IP address. Enable proxy-header trust
 only when a proxy you control overwrites or appends the configured forwarded-IP
 header (`MANAVAULT_FORWARDED_IP_HEADER`, default `x-forwarded-for`).
 
+If ManaVault can be reached other than through that proxy (a published port on
+the LAN, another container on the same network), also list the proxy's address
+or network in `MANAVAULT_TRUSTED_PROXIES`. ManaVault then reads the forwarded
+header only from those peers and uses the peer address for everyone else, so a
+direct client cannot pick its own rate-limit key:
+
+```sh
+MANAVAULT_TRUSTED_PROXIES=172.18.0.0/16
+```
+
+Behind Cloudflare, trust its client header instead of `x-forwarded-for`:
+`MANAVAULT_FORWARDED_IP_HEADER=CF-Connecting-IP`.
+
 A minimal Traefik config can stay simple:
 
 ```yaml
@@ -184,19 +209,19 @@ labels:
 ### Serving more than one hostname
 
 Live updates use a WebSocket, and ManaVault only accepts WebSocket connections
-from pages served on `PHX_HOST`. If the same instance is also reached under
+from pages served on `MANAVAULT_PUBLIC_HOST`. If the same instance is also reached under
 another name, for example through a reverse proxy at `manavault.example.com` and
 through `tailscale serve` at `manavault.mytailnet.ts.net`, list the extra origins:
 
 ```sh
-PHX_HOST=manavault.example.com
+MANAVAULT_PUBLIC_HOST=manavault.example.com
 MANAVAULT_ALLOWED_ORIGINS=https://manavault.mytailnet.ts.net,https://manavault.lan
 ```
 
 Each entry is a scheme, hostname, and optional port (`https://manavault.lan:8443`)
-with no path. `PHX_HOST` stays allowed automatically, and ManaVault refuses to
+with no path. `MANAVAULT_PUBLIC_HOST` stays allowed automatically, and ManaVault refuses to
 start if an entry is malformed. Absolute URLs that ManaVault generates, such as
-deck share links and link-preview metadata, still use `PHX_HOST`.
+deck share links and link-preview metadata, still use `MANAVAULT_PUBLIC_HOST`.
 
 ### Login rate limits
 
@@ -212,21 +237,21 @@ The thresholds are configurable; see
 
 ### Recover from a permanent login ban
 
-Permanent bans do not expire. For a running release container, clear one client
-or all clients through the release node (replace `manavault` with the container
-name):
+Permanent bans do not expire. In a running container, clear one client or all
+clients with the binary (replace `manavault` with the container name); the
+running server's short-lived rate-limit windows expire on their own:
 
 ```sh
-docker exec manavault /app/bin/manavault rpc 'Manavault.Auth.AttemptLimiter.reset("203.0.113.10")'
-docker exec manavault /app/bin/manavault rpc 'Manavault.Auth.AttemptLimiter.reset_all()'
+docker exec -u app manavault /app/bin/manavault unban 203.0.113.10
+docker exec -u app manavault /app/bin/manavault unban --all
 ```
 
-From a source checkout, the mix task does the same against the database
-configured for the current Mix environment:
+From a source checkout, the same binary does it against the development
+database (`MANAVAULT_ENV=dev`; set `DATABASE_PATH` for another file):
 
 ```sh
-mise exec -- mix manavault.auth.unban 203.0.113.10
-mise exec -- mix manavault.auth.unban --all
+MANAVAULT_ENV=dev MANAVAULT_ROOT=.. mise exec -- cargo run --bin manavault -- unban 203.0.113.10   # in rust/
+MANAVAULT_ENV=dev MANAVAULT_ROOT=.. mise exec -- cargo run --bin manavault -- unban --all
 ```
 
 Both remove the client's rows from the `auth_client_failures` table and clear
@@ -280,9 +305,10 @@ Production mutable application data defaults under `/data`:
 - `/data/backups` - ManaVault backup artifacts
 - `/data/restores` - staged restore artifacts
 
-On container boot, the entrypoint creates these directories, makes the mounted
-data directory writable by the application user, and the release runs pending
-Ecto migrations.
+On container boot, the entrypoint creates these directories and makes the
+mounted data directory writable by the application user. The server then
+creates the database, or applies pending migrations to an existing one, from
+the migrations it embeds.
 
 The local-data model is intentionally simple: back up the mounted `/data`
 directory and you have the application state that matters. The caches are
@@ -299,11 +325,46 @@ disposable and do not need to be preserved.
 
 3. Confirm `GET /health` returns `{"status":"ok"}`.
 
-When the new release has pending migrations, ManaVault first writes a
-pre-migration backup to `/data/backups`. If that backup fails, startup fails
-instead of running migrations without a recoverable snapshot. Set
+On boot the server applies any pending database migrations, oldest first, so
+an install from any earlier release (including the ones built on the previous
+backend) upgrades in place. Before migrating it writes a pre-migration backup
+to `/data/backups/manavault-pre_migration-<timestamp>.zip`. Encrypted settings
+keep working as long as `MANAVAULT_SECRET_KEY` stays the same. Upgrading from a
+1.x release signs every browser out once: the session cookie changed format, so
+sign in again after the upgrade. Upgrading from 2.1.0 or earlier also signs
+every browser out once: sessions are now recorded on the server so that
+logging out revokes them. The 1.x variable names `SECRET_KEY_BASE` and
+`PHX_HOST` still work (with a warning in the server log) until you rename them
+to `MANAVAULT_SECRET_KEY` and `MANAVAULT_PUBLIC_HOST`. Background jobs move to
+a new `jobs` table: queued jobs carry over, finished job history does not, so
+a deck analysis that finished before the upgrade shows no job status (the
+saved analysis itself is kept).
+A database from a newer release than the image still starts (migrations the
+image does not know are ignored with a warning), but downgrading is not
+supported; restore the pre-migration backup instead. Set
 `MANAVAULT_SKIP_MIGRATION_BACKUP=true` only when you have already made an
 external backup.
+
+When a release changes what the catalog importer records (for example the
+token printings and card-to-token links added for the Tokens tab), the first
+start after upgrading re-runs the full Scryfall catalog sync instead of
+waiting for the daily refresh. Until it finishes, features that depend on the
+new data fall back to their previous behavior (deck token lists show Oracle
+text guesses rather than real token cards), except card rulings, which come
+only from Scryfall's rulings bulk file and appear once that sync has imported
+them. Progress is logged as
+`Scryfall catalog sync ...`, and **Settings -> Scryfall data -> Reload Scryfall
+catalog** forces the sync by hand.
+
+The catalog import only writes cards, printings, and token links whose stored
+data differs from the Scryfall bulk file, and it pauses briefly between batch
+commits so other writers (background jobs, price refreshes, user edits) can
+take the SQLite write lock. Progress lines report
+`written_cards=N written_printings=M` alongside the source counts; on a day
+with no catalog changes both stay near zero. `database is locked` errors mean
+a writer waited the full SQLite `busy_timeout` (10 seconds) for the lock;
+seeing this repeatedly points to another long-running writer rather than the
+import.
 
 To roll back, stop the container, restore the pre-migration backup (see
 [Restore](#restore)), and start the previous image tag. Switching the tag alone
@@ -314,15 +375,15 @@ leaves the newer schema in place.
 Inside a running container, create a backup in `/data/backups`:
 
 ```sh
-docker exec manavault /app/bin/manavault rpc 'Manavault.Backup.create!()'
+docker exec -u app manavault /app/bin/manavault backup
 ```
 
-From a source checkout, the mix task backs up the database configured for the
-current Mix environment (the development database by default); `--output-dir`
-chooses where the zip is written:
+From a source checkout, the binary backs up the development database
+(`MANAVAULT_ENV=dev`, or `--database PATH`); `-o DIR` chooses where the zip is
+written:
 
 ```sh
-mise exec -- mix manavault.backup
+MANAVAULT_ENV=dev MANAVAULT_ROOT=.. mise exec -- cargo run --bin manavault -- backup   # in rust/
 ```
 
 By default the artifact is written to `<DATA_DIR>/backups` or, in local
@@ -344,23 +405,29 @@ tar -czf manavault-data-$(date -u +%Y%m%dT%H%M%SZ).tar.gz data
 Restore a ManaVault backup zip with the app stopped:
 
 ```sh
-mise exec -- mix manavault.restore /path/to/manavault-manual-20260617T120000Z.zip
+/app/bin/manavault restore /path/to/manavault-manual-20260617T120000Z.zip
 ```
 
 The restore replaces the configured SQLite database and restored local files.
 Before it overwrites anything, it saves the existing database and local files
 under `<DATA_DIR>/backups/pre-restore-<timestamp>`.
 
-For a release/container restore, stop the running container, restore into the
-mounted host `data` directory from a local checkout, then start the container
-again:
+For a container restore, stop the running container, restore into the mounted
+`data` directory with the image's binary (it reads the same environment as the
+server, here the `.env` from [Docker Compose](#docker-compose); `docker compose
+run --rm -u app --entrypoint /app/bin/manavault manavault restore <zip>` works
+too), then start the container again:
 
 ```sh
 docker stop manavault
-mise exec -- mix manavault.restore --database ./data/manavault.db --data-dir ./data \
-  ./data/backups/manavault-manual-20260617T120000Z.zip
+docker run --rm -u app -v "$PWD/data:/data" --env-file .env \
+  --entrypoint /app/bin/manavault ghcr.io/cfbender/manavault:<version> \
+  restore /data/backups/manavault-manual-20260617T120000Z.zip
 docker start manavault
 ```
+
+From a checkout, `cargo run --bin manavault -- restore --database ../data/manavault.db
+--data-dir ../data <zip>` (in `rust/`) does the same.
 
 Alternatively, extract a full-directory tar backup over the stopped host `data`
 directory, or stage a cloud restore from Settings.
@@ -377,32 +444,37 @@ Scheduled backups use a five-field CRON expression evaluated in UTC, and a
 retention count prunes older remote backups. A cloud restore downloads the
 selected artifact to `<DATA_DIR>/restores/pending.zip`; restart ManaVault to
 apply it before the database starts. Provider credentials are encrypted with a
-key derived from `SECRET_KEY_BASE`.
+key derived from `MANAVAULT_SECRET_KEY`.
 
 ## Production Environment Variables
 
 Required:
 
-- `SECRET_KEY_BASE` - Phoenix secret key base. Generate with
-  `mise exec -- mix phx.gen.secret`. Keep it stable; see
-  [Quick container run](#quick-container-run).
+- `MANAVAULT_SECRET_KEY` - secret key (64+ characters; encrypts sessions and
+  stored credentials). Generate with `openssl rand -base64 48`. Keep it
+  stable; see [Quick container run](#quick-container-run). The 1.x name
+  `SECRET_KEY_BASE` is still read, with a deprecation warning.
 - `MANAVAULT_ADMIN_PASSWORD_HASH` - owner password hash for built-in login.
-  Generate with `mise exec -- mix manavault.auth.hash 'your-password'`. Required
+  Generate with `manavault hash-password 'your-password'`. Required
   unless `MANAVAULT_AUTH_DISABLED=true`.
 
 Server:
 
 - `PORT` - HTTP port inside the container. Defaults to `4000`.
-- `PHX_HOST` - host used for generated URLs. Defaults to `example.com` in
-  Phoenix production config; set to your deployment host.
+- `MANAVAULT_PUBLIC_HOST` - public host used for generated URLs. Required in
+  production. The 1.x name `PHX_HOST` is still read, with a deprecation warning.
 - `MANAVAULT_ALLOWED_ORIGINS` - comma-separated extra origins allowed to open the
   live-update WebSocket, e.g. `https://manavault.mytailnet.ts.net`. Needed only
   when the instance is reached under more than one hostname, such as a reverse
-  proxy plus Tailscale. Unset by default, which allows `PHX_HOST` only. See
+  proxy plus Tailscale. Unset by default, which allows `MANAVAULT_PUBLIC_HOST` only. See
   [Serving more than one hostname](#serving-more-than-one-hostname).
 - `DATA_DIR` - mutable data root. Defaults to `/data`.
 - `DATABASE_PATH` - SQLite database path. Defaults to `/data/manavault.db`.
-- `POOL_SIZE` - Ecto pool size. Defaults to `5`.
+- `POOL_SIZE` - SQLite connection pool size. Defaults to `5`.
+- `MANAVAULT_ENV` - `prod` (default), `dev`, or `test`; selects defaults (dev
+  and test disable authentication and use local paths). The image sets `prod`.
+- `MANAVAULT_STATIC_DIR` - built frontend and static files. Defaults to
+  `<MANAVAULT_ROOT>/priv/static` (`/app/priv/static` in the image).
 - `SHARE_PREVIEW_CACHE_DIR` - share preview image cache. Defaults to
   `<DATA_DIR>/cache/share-previews`.
 - `MANAVAULT_ASSET_VERSION` - cache-busting version used by the HTML shell, PWA
@@ -424,6 +496,10 @@ Authentication and sessions:
   trusted proxy that controls the header.
 - `MANAVAULT_FORWARDED_IP_HEADER` - forwarded client-IP header to trust when
   `MANAVAULT_TRUST_PROXY_HEADERS=true`. Defaults to `x-forwarded-for`.
+- `MANAVAULT_TRUSTED_PROXIES` - comma-separated IP addresses or CIDR ranges of
+  the proxies whose forwarded header is trusted, e.g. `172.18.0.0/16`. Defaults
+  to empty, which trusts the header from every peer when
+  `MANAVAULT_TRUST_PROXY_HEADERS=true`.
 - `MANAVAULT_AUTH_MAX_ATTEMPTS_PER_IP` - failed login attempts allowed per
   client IP during the rate-limit window. Defaults to `5`.
 - `MANAVAULT_AUTH_MAX_ATTEMPTS_GLOBAL` - failed login attempts allowed across all
@@ -461,22 +537,20 @@ Card scanner:
 
 ### Diagnosing a stalled catalog sync
 
-Oban's Lifeline checks once a minute for jobs left `executing` for over an hour
-after a crash, restart, or failed database acknowledgement. It requeues jobs
-with attempts remaining and discards exhausted jobs, allowing the next scheduled
-or manual reload to enqueue again. The one-hour threshold must stay above every
-worker timeout; current workers run for at most 30 minutes.
+Once a minute the job runner returns jobs left `running` for over an hour
+(a worker that never returned) to the queue, and at boot it requeues every
+job the previous process was running. The one-hour threshold must stay above
+every worker timeout; current workers run for at most 30 minutes.
 
-`Exqlite.Error: Database busy` while updating `oban_jobs` means a job could not
-record its result. A backup worker error alone does not establish that the
-catalog sync failed. To check, run these read-only queries against the live
-SQLite database (default `/data/manavault.db`):
+`database is locked` while updating `jobs` means a job could not record its
+result. A backup worker error alone does not establish that the catalog sync
+failed. To check, run these read-only queries against the live SQLite
+database (default `/data/manavault.db`):
 
 ```sql
-SELECT id, worker, state, attempt, max_attempts, attempted_at, errors
-FROM oban_jobs
-WHERE worker IN ('Manavault.Catalog.ScryfallCatalogWorker',
-                 'Manavault.Backup.CloudBackupWorker')
+SELECT id, worker, state, attempt, max_attempts, run_at, started_at, last_error
+FROM jobs
+WHERE worker IN ('scryfall_catalog', 'cloud_backup')
 ORDER BY id DESC LIMIT 20;
 
 SELECT id, status, started_at, completed_at, printings_count, error
@@ -486,11 +560,11 @@ SELECT scryfall_id, set_code, collector_number, updated_at
 FROM scryfall_printings WHERE set_code = 'sld' AND collector_number = '2618';
 ```
 
-An old `executing` catalog job can block both scheduled and forced reloads
-because sync jobs are unique across all incomplete states. Lifeline recovers
-existing orphans too, on its next check once they exceed the threshold. Recovery
-does not remove the underlying SQLite write contention; repeated busy errors
-still need investigation of the overlapping writes.
+A `running` catalog job blocks both scheduled and forced reloads because sync
+jobs are unique while queued or running; the runner requeues it once it passes
+the threshold. Recovery does not remove the underlying SQLite write
+contention; repeated busy errors still need investigation of the overlapping
+writes.
 
 The recurring saltiness and commander-rank refreshes commit updates in batches
 of at most 200 cards, then clear values absent from the new feed in equally

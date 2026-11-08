@@ -1,18 +1,36 @@
 import { useMemo, useState } from "react"
 
-import { groupDeckCards, type DeckGroupBy } from "../../lib/deck-grouping"
+import { deckGroupOptions, groupDeckCards, type DeckGroupBy } from "../../lib/deck-grouping"
+import { useDeckCardRoles } from "./use-deck-card-roles"
 import { isValidCommanderPair } from "./commander-pairing"
 import { compareDeckCards } from "./deck-card-model"
 import type { DeckCardEntry, DeckCustomTag } from "./deck-types"
 
 export function useDeckCardGroups({
+  analyzedAt,
   deckCards,
+  deckId,
   deckTags,
+  hasAiTags,
 }: {
+  analyzedAt: string | null | undefined
   deckCards: DeckCardEntry[]
+  deckId: string
   deckTags: DeckCustomTag[]
+  /** The deck has AI card categories and the viewer can assign them. */
+  hasAiTags: boolean
 }) {
-  const [groupBy, setGroupBy] = useState<DeckGroupBy>("theme")
+  // Until the owner picks a grouping, decks with AI tags open grouped by them.
+  const [chosenGroupBy, setGroupBy] = useState<DeckGroupBy | null>(null)
+  const preferred = chosenGroupBy ?? (hasAiTags ? "role" : "theme")
+  const groupBy: DeckGroupBy = preferred === "role" && !hasAiTags ? "theme" : preferred
+  const groupOptions = useMemo(() => deckGroupOptions(hasAiTags), [hasAiTags])
+  const roles = useDeckCardRoles({
+    analyzedAt,
+    deckCards,
+    deckId,
+    enabled: groupBy === "role",
+  })
   const stackCards = useMemo(
     () => deckCards.filter((deckCard) => deckCard.zone !== "considering"),
     [deckCards],
@@ -22,8 +40,8 @@ export function useDeckCardGroups({
     [deckCards],
   )
   const groupedCards = useMemo(
-    () => groupDeckCards(stackCards, groupBy, deckTags),
-    [deckTags, groupBy, stackCards],
+    () => groupDeckCards(stackCards, groupBy, deckTags, roles.roles),
+    [deckTags, groupBy, roles.roles, stackCards],
   )
   const partnerCandidateIds = useMemo(() => {
     const commanders = deckCards.filter((deckCard) => deckCard.zone === "commander")
@@ -52,6 +70,7 @@ export function useDeckCardGroups({
   return {
     consideringCards,
     groupBy,
+    groupOptions,
     groupedCards,
     partnerCandidateIds,
     selectionCardIds,

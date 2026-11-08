@@ -1,4 +1,5 @@
 export type DeckGroupBy =
+  | "role"
   | "theme"
   | "category"
   | "type"
@@ -25,28 +26,43 @@ export type DeckGroupIcon =
   | "none"
   | "getting"
   | "consider_cutting"
+  | "anthem"
   | "aristocrats"
   | "auras"
   | "blink"
   | "burn"
   | "card_advantage"
+  | "card_selection"
+  | "cast_from_exile"
+  | "cheat"
   | "combo"
   | "copy"
+  | "cost_reduction"
   | "counters"
   | "discard"
   | "drain"
   | "engine"
   | "equipment"
   | "evasion"
+  | "extra_turns"
+  | "goad"
   | "graveyard_hate"
+  | "group_hug"
+  | "haste"
+  | "impulse_draw"
+  | "lands_matter"
   | "lifegain"
   | "mass_disruption"
   | "mill"
+  | "minus_counters"
+  | "plus_counters"
   | "protection"
   | "pump"
   | "ramp"
+  | "reanimation"
   | "recursion"
   | "sacrifice"
+  | "self_mill"
   | "spellslinger"
   | "stax"
   | "storm"
@@ -55,6 +71,8 @@ export type DeckGroupIcon =
   | "theft"
   | "tokens"
   | "tutor"
+  | "typal"
+  | "untap"
   | "voltron"
   | "win_condition"
   | { kind: "colors"; colors: string[] }
@@ -71,6 +89,7 @@ type DeckGroupingPrinting = {
 }
 
 export type DeckGroupingCard = {
+  oracleId?: string | null
   name: string | null
   typeLine: string | null
   cmc: number | null
@@ -105,7 +124,22 @@ export type DeckGroup<T extends DeckGroupingDeckCard = DeckGroupingDeckCard> = {
 
 export type DeckGroupingTag = { id: string; name: string; color: string; position: number }
 
-export const DECK_GROUP_OPTIONS: Array<{ label: string; value: DeckGroupBy }> = [
+export const AI_TAG_GROUP_OPTION: DeckGroupOption = {
+  label: "AI Tag",
+  value: "role",
+}
+
+/** The grouping options, led by AI Tag when the deck has AI card categories. */
+export function deckGroupOptions(hasAiTags: boolean) {
+  return hasAiTags ? [AI_TAG_GROUP_OPTION, ...DECK_GROUP_OPTIONS] : DECK_GROUP_OPTIONS
+}
+
+/** AI card categories in display order, and each card's category by oracle id. */
+export type DeckCardRoles = { categories: string[]; byOracleId: Map<string, string> }
+
+export type DeckGroupOption = { label: string; value: DeckGroupBy }
+
+export const DECK_GROUP_OPTIONS: DeckGroupOption[] = [
   { label: "Theme", value: "theme" },
   { label: "Category", value: "category" },
   { label: "Type", value: "type" },
@@ -166,6 +200,7 @@ const SALT_BUCKETS = [
   { key: "3-plus", label: "Salt 3+", min: 3, order: 3 },
 ]
 const GROUP_VALUE_ICONS: Record<string, DeckGroupIcon> = {
+  anthem: "anthem",
   aristocrats: "aristocrats",
   artifact: "artifact",
   auras: "auras",
@@ -173,8 +208,12 @@ const GROUP_VALUE_ICONS: Record<string, DeckGroupIcon> = {
   board_wipe: "mass_disruption",
   burn: "burn",
   card_advantage: "card_advantage",
+  card_selection: "card_selection",
+  cast_from_exile: "cast_from_exile",
+  cheat: "cheat",
   combo: "combo",
   copy: "copy",
+  cost_reduction: "cost_reduction",
   counters: "counters",
   creature: "creature",
   discard: "discard",
@@ -183,20 +222,31 @@ const GROUP_VALUE_ICONS: Record<string, DeckGroupIcon> = {
   enchantment: "enchantment",
   equipment: "equipment",
   evasion: "evasion",
+  extra_turns: "extra_turns",
+  goad: "goad",
   graveyard_hate: "graveyard_hate",
+  group_hug: "group_hug",
+  haste: "haste",
+  impulse_draw: "impulse_draw",
   instant: "instant",
   land: "land",
   lands: "land",
+  lands_matter: "lands_matter",
   lifegain: "lifegain",
   mass_disruption: "mass_disruption",
   mill: "mill",
+  minus_counters: "minus_counters",
   planeswalker: "planeswalker",
+  plus_counters: "plus_counters",
   protection: "protection",
   pump: "pump",
   ramp: "ramp",
+  reanimation: "reanimation",
   recursion: "recursion",
   removal: "targeted_disruption",
   sacrifice: "sacrifice",
+  sacrifice_outlet: "sacrifice",
+  self_mill: "self_mill",
   sorcery: "sorcery",
   spellslinger: "spellslinger",
   stax: "stax",
@@ -206,6 +256,8 @@ const GROUP_VALUE_ICONS: Record<string, DeckGroupIcon> = {
   theft: "theft",
   tokens: "tokens",
   tutor: "tutor",
+  typal: "typal",
+  untap: "untap",
   voltron: "voltron",
   win_condition: "win_condition",
 }
@@ -214,11 +266,14 @@ export function groupDeckCards<T extends DeckGroupingDeckCard>(
   deckCards: T[],
   groupBy: DeckGroupBy,
   deckTags: DeckGroupingTag[] = [],
+  roles: DeckCardRoles | null = null,
 ): DeckGroup<T>[] {
   const groups = new Map<string, DeckGroup<T>>()
+  // Without AI categories the Roles grouping shows themes.
+  const effectiveGroupBy = groupBy === "role" && !roles?.categories.length ? "theme" : groupBy
 
   for (const deckCard of deckCards) {
-    const descriptors = deckCardGroupDescriptors(deckCard, groupBy, deckTags)
+    const descriptors = deckCardGroupDescriptors(deckCard, effectiveGroupBy, deckTags, roles)
     for (const descriptor of descriptors) {
       const existing: DeckGroup<T> = groups.get(descriptor.key) || {
         cards: [],
@@ -237,7 +292,7 @@ export function groupDeckCards<T extends DeckGroupingDeckCard>(
 
   return [...groups.values()]
     .map((group) => ({ ...group, cards: group.cards.sort(compareDeckCards) }))
-    .sort((left, right) => compareDeckGroups(left, right, groupBy))
+    .sort((left, right) => compareDeckGroups(left, right, effectiveGroupBy))
 }
 
 // A card can belong to multiple custom-tag groups (many-to-many); every other
@@ -246,12 +301,59 @@ function deckCardGroupDescriptors<T extends DeckGroupingDeckCard>(
   deckCard: T,
   groupBy: DeckGroupBy,
   deckTags: DeckGroupingTag[],
+  roles: DeckCardRoles | null,
 ): Array<Omit<DeckGroup<T>, "cards" | "quantity">> {
   if (groupBy === "tag") {
     return customTagDescriptors(deckCard, deckTags)
   }
 
+  if (groupBy === "role" && roles) {
+    return [roleDescriptor(deckCard, roles)]
+  }
+
   return [deckCardGroupDescriptor(deckCard, groupBy)]
+}
+
+function roleDescriptor<T extends DeckGroupingDeckCard>(
+  deckCard: T,
+  roles: DeckCardRoles,
+): Omit<DeckGroup<T>, "cards" | "quantity"> {
+  if (deckCard.zone === "commander") return commanderGroup()
+
+  const category = deckCard.card?.oracleId ? roles.byOracleId.get(deckCard.card.oracleId) : null
+  if (!category) return { icon: "none", key: "role:unsorted", label: "Unsorted", order: 999 }
+
+  return {
+    icon: roleIcon(category),
+    key: `role:${category}`,
+    label: category,
+    order: roles.categories.indexOf(category),
+  }
+}
+
+// AI category names are free text; match common role words to an icon.
+const ROLE_ICON_WORDS: Array<[RegExp, DeckGroupIcon]> = [
+  [/\bland/i, "land"],
+  [/ramp|mana/i, "ramp"],
+  [/wipe|sweeper/i, "mass_disruption"],
+  [/removal|interaction|answer/i, "targeted_disruption"],
+  [/counterspell/i, "counters"],
+  [/protect/i, "protection"],
+  [/tutor/i, "tutor"],
+  [/draw|advantage|card flow/i, "card_advantage"],
+  [/token/i, "tokens"],
+  [/sacrific|aristocrat/i, "sacrifice"],
+  [/recur|reanimat|graveyard/i, "recursion"],
+  [/finisher|win con|wincon/i, "win_condition"],
+  [/blink|flicker/i, "blink"],
+  [/exile/i, "cast_from_exile"],
+  [/-1\/-1/, "minus_counters"],
+  [/counter/i, "plus_counters"],
+  [/payoff|engine|synergy/i, "engine"],
+]
+
+function roleIcon(category: string): DeckGroupIcon {
+  return ROLE_ICON_WORDS.find(([pattern]) => pattern.test(category))?.[1] ?? "none"
 }
 
 function customTagDescriptors<T extends DeckGroupingDeckCard>(
@@ -321,7 +423,7 @@ function deckCardGroupDescriptor<T extends DeckGroupingDeckCard>(
     return {
       icon: groupValueIcon(theme),
       key: theme,
-      label: titleizeGroupValue(theme),
+      label: themeLabel(theme),
       order: theme.toLowerCase() === "other" ? 99 : 0,
     }
   }
@@ -543,6 +645,17 @@ function firstNonEmpty(values: Array<string | null> | null | undefined) {
 
 function normalizedGroupValue(value: string | null | undefined) {
   return String(value || "").trim()
+}
+
+const THEME_LABELS: Record<string, string> = {
+  cheat: "Cheat Into Play",
+  minus_counters: "-1/-1 Counters",
+  plus_counters: "+1/+1 Counters",
+  self_mill: "Self-Mill",
+}
+
+export function themeLabel(theme: string) {
+  return THEME_LABELS[theme] || titleizeGroupValue(theme)
 }
 
 function titleizeGroupValue(value: string) {

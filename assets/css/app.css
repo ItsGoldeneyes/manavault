@@ -3,10 +3,12 @@
 
 @import "tailwindcss" source(none);
 @import "./palettes.css";
+/* The shared playtester package: its Tailwind source and keyframes. */
+@import "@cfbender/playtest/styles.css";
 @source "../css";
 @source "../react/src";
-@source "../../lib/manavault_web/components/layouts";
-@source "../../lib/manavault_web/controllers";
+@source "../../rust/crates/manavault-core/src/web";
+@source "../../rust/crates/manavault-server/src/web";
 
 /* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
    curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
@@ -276,6 +278,101 @@ html[data-theme-style="glass"] :is(.btn-outline, .btn-ghost):hover {
     radial-gradient(ellipse 34% 28% at 68% 78%, var(--card-modal-glow-soft) 0%, transparent 76%);
   opacity: var(--card-modal-glow-opacity);
 }
+/* The backdrop glow takes the current card's art colors; registering the
+   colors lets them ease from one card to the next. */
+@property --card-modal-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+@property --card-modal-glow-soft {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+/* Art tint: the card's dominant colors at the theme's lightness, with enough
+   chroma to read even when the art is muted. */
+.fullscreen-printing-dialog[data-art] {
+  --card-modal-bg: oklch(from var(--art-primary) 0.93 0.035 h);
+  --card-modal-glow: oklch(from var(--art-primary) 0.74 max(c, 0.13) h);
+  --card-modal-glow-soft: oklch(from var(--art-secondary) 0.82 max(c, 0.1) h);
+  --card-modal-glow-opacity: 0.8;
+}
+
+[data-theme="dark"] .fullscreen-printing-dialog[data-art] {
+  --card-modal-bg: oklch(from var(--art-primary) 0.2 0.035 h);
+  --card-modal-glow: oklch(from var(--art-primary) 0.46 max(c, 0.12) h);
+  --card-modal-glow-soft: oklch(from var(--art-secondary) 0.36 max(c, 0.08) h);
+}
+
+/* Easing the tint repaints the whole dialog every frame, which phones cannot
+   keep up with while the next card animates in; there the tint swaps. */
+@media (hover: hover) and (pointer: fine) {
+  .fullscreen-printing-dialog {
+    transition:
+      background-color 700ms ease,
+      --card-modal-glow 700ms ease,
+      --card-modal-glow-soft 700ms ease;
+  }
+}
+
+/* Below `sm` the dialog covers the screen, so blurring the page behind it
+   is wasted work every frame. */
+@media (max-width: 639px) {
+  :has(+ * > .fullscreen-printing-dialog) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Filmstrip: neighboring cards under the full-screen card, the current one
+   raised above the others. */
+.printing-filmstrip__card {
+  width: 2.5rem;
+  aspect-ratio: 5 / 7;
+  opacity: 0.62;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  transition:
+    width 260ms cubic-bezier(0.2, 0.9, 0.25, 1.1),
+    transform 260ms cubic-bezier(0.2, 0.9, 0.25, 1.1),
+    opacity 200ms ease;
+}
+
+.printing-filmstrip__card--current {
+  width: 3.5rem;
+  opacity: 1;
+  transform: translateY(-0.35rem);
+  box-shadow:
+    0 0 0 2px var(--card-modal-fg),
+    0 10px 18px -6px rgb(0 0 0 / 0.45);
+}
+
+@media (hover: hover) {
+  .printing-filmstrip__card:not(.printing-filmstrip__card--current):hover {
+    opacity: 1;
+    transform: translateY(-0.5rem) scale(1.06);
+  }
+}
+
+@media (min-width: 640px) {
+  .printing-filmstrip__card {
+    width: 3rem;
+  }
+
+  .printing-filmstrip__card--current {
+    width: 4.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fullscreen-printing-dialog,
+  .printing-filmstrip__card {
+    transition: none;
+  }
+}
+
 .fullscreen-printing-dialog__muted {
   color: var(--card-modal-muted);
 }
@@ -556,6 +653,765 @@ body[data-scroll-locked] .app-shell-main {
   }
 }
 
+/* Location objects: each storage location is drawn as the physical thing it
+   stands for (binder page, bulk box, deck box, folder, fanned list, loose
+   pile), filled with its own cards. Sizes use container units of the object. */
+.lo-stage {
+  --lo-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --cb-light: oklch(74% 0.07 72);
+  --cb-mid: oklch(65% 0.078 66);
+  --cb-dark: oklch(47% 0.06 60);
+  --cb-deep: oklch(33% 0.045 55);
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1.25rem 1rem 1.4rem;
+  overflow: clip;
+  background: radial-gradient(
+    ellipse 42% 12% at 50% calc(100% - 1.3rem),
+    rgb(0 0 0 / 0.3),
+    transparent 72%
+  );
+  perspective: 900px;
+}
+
+.lo-card {
+  position: absolute;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border-radius: 4.75% / 3.4%;
+  background: oklch(22% 0.01 20);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+.lo-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lo-card--blank {
+  background: linear-gradient(145deg, oklch(32% 0.03 30), oklch(21% 0.02 20));
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.06),
+    inset 0 0 0 6px rgb(0 0 0 / 0.22),
+    0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+/* Binder: a sleeved nine-pocket page over the page beneath it. */
+.lo-binder {
+  position: relative;
+  height: 90%;
+  aspect-ratio: 0.81;
+  transform-style: preserve-3d;
+  transition: transform 460ms var(--lo-spring);
+}
+
+.lo-binder-page {
+  position: absolute;
+  inset: 0;
+  border-radius: 3% / 2.4%;
+  background: linear-gradient(160deg, oklch(28% 0.012 20), oklch(18% 0.01 20));
+  box-shadow:
+    0 12px 20px -10px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  transition: transform 460ms var(--lo-spring);
+}
+
+.lo-binder-page--under {
+  transform: translate(5%, -2%) rotate(3deg);
+  filter: brightness(0.75);
+}
+
+.lo-binder-page--front {
+  container-type: size;
+  overflow: hidden;
+  transform: rotate(-1.5deg);
+}
+
+.lo-binder-rings {
+  position: absolute;
+  top: 14cqh;
+  bottom: 14cqh;
+  left: 3.6cqh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.lo-binder-rings span {
+  width: 3.4cqh;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  box-shadow: 0 0.3cqh 0 rgb(255 255 255 / 0.12);
+}
+
+.lo-binder-grid {
+  position: absolute;
+  top: 5.6cqh;
+  left: 11.5cqh;
+  display: grid;
+  grid-template-columns: repeat(3, 20cqh);
+  grid-template-rows: repeat(3, 28cqh);
+  gap: 2.4cqh;
+}
+
+.lo-pocket {
+  position: relative;
+  border-radius: 1.2cqh;
+  background: rgb(0 0 0 / 0.3);
+  box-shadow:
+    inset 0 0 0 0.3cqh rgb(255 255 255 / 0.08),
+    inset 0 0.6cqh 1cqh rgb(0 0 0 / 0.35);
+}
+
+.lo-pocket .lo-card {
+  inset: 0.9cqh;
+  aspect-ratio: auto;
+}
+
+/* The sleeve: a lip at the pocket opening and a faint plastic sheen. */
+.lo-pocket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  background: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.12),
+    transparent 14%,
+    transparent 70%,
+    rgb(255 255 255 / 0.05)
+  );
+  pointer-events: none;
+}
+
+.lo-sheen {
+  position: absolute;
+  inset: -20%;
+  z-index: 7;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    rgb(255 255 255 / 0.16) 47%,
+    rgb(255 255 255 / 0.05) 52%,
+    transparent 60%
+  );
+  transform: translateX(-38%);
+  transition: transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Bulk box: cards standing front to back, their name bars showing above the
+   front wall; rear cards sit higher, smaller, and darker. */
+.lo-box {
+  position: relative;
+  height: 80%;
+  aspect-ratio: 1.3;
+  container-type: size;
+  clip-path: inset(-40% -10% 0 -10%);
+}
+
+.lo-box-inner {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(9% 6%, 91% 6%, 100% 56%, 100% 100%, 0 100%, 0 56%);
+  background:
+    linear-gradient(
+      to right,
+      rgb(0 0 0 / 0.28),
+      transparent 12%,
+      transparent 88%,
+      rgb(0 0 0 / 0.28)
+    ),
+    linear-gradient(to bottom, var(--cb-dark), var(--cb-deep));
+}
+
+.lo-box-slot {
+  position: absolute;
+  top: calc(4cqh + var(--i) * 8.6cqh);
+  left: 50%;
+  z-index: var(--i);
+  width: 50cqw;
+  aspect-ratio: 5 / 7;
+  transform: translateX(-50%) scale(calc(0.86 + var(--i) * 0.028));
+  transform-origin: top center;
+  filter: brightness(calc(0.6 + var(--i) * 0.08));
+  transition: transform 420ms var(--lo-spring);
+  transition-delay: calc(var(--i) * 28ms);
+}
+
+.lo-box-slot .lo-card {
+  inset: 0;
+}
+
+.lo-box-front {
+  position: absolute;
+  inset: 56cqh 0 0;
+  z-index: 20;
+  border-radius: 0.8cqh 0.8cqh 1.6cqh 1.6cqh;
+  background: linear-gradient(to bottom, var(--cb-light), var(--cb-mid));
+  box-shadow:
+    inset 0 0.8cqh 0 rgb(255 255 255 / 0.2),
+    inset 0 -1.2cqh 2cqh rgb(0 0 0 / 0.14),
+    0 10px 16px -10px rgb(0 0 0 / 0.55);
+}
+
+.lo-box-handle {
+  position: absolute;
+  top: 10cqh;
+  left: 50%;
+  width: 26cqw;
+  height: 9cqh;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: oklch(24% 0.03 55 / 0.85);
+  box-shadow:
+    inset 0 0.8cqh 1cqh rgb(0 0 0 / 0.6),
+    0 0.4cqh 0 rgb(255 255 255 / 0.22);
+}
+
+/* Deck box: the top card rises out of an open box printed with the cover art. */
+.lo-deckbox {
+  position: relative;
+  height: 90%;
+  aspect-ratio: 0.74;
+  container-type: size;
+}
+
+.lo-deckbox-inside {
+  position: absolute;
+  top: 30cqh;
+  left: 6cqw;
+  right: 16cqw;
+  height: 10cqh;
+  border-radius: 1.4cqh 1.4cqh 0 0;
+  background: oklch(14% 0.01 20);
+}
+
+.lo-deckbox-card {
+  top: 4cqh;
+  left: 11cqw;
+  width: 66cqw;
+  transition: transform 460ms var(--lo-spring);
+}
+
+.lo-deckbox-front {
+  position: absolute;
+  inset: 34cqh 14cqw 0 4cqw;
+  z-index: 10;
+  overflow: hidden;
+  border-radius: 1.2cqh 1.2cqh 2.4cqh 2.4cqh;
+  background: linear-gradient(160deg, oklch(36% 0.08 8), oklch(22% 0.05 8));
+  box-shadow:
+    inset 0 0.6cqh 0 rgb(255 255 255 / 0.16),
+    0 12px 18px -10px rgb(0 0 0 / 0.6);
+}
+
+.lo-deckbox-front img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+}
+
+.lo-deckbox-front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgb(255 255 255 / 0.16),
+    transparent 30%,
+    transparent 70%,
+    rgb(0 0 0 / 0.3)
+  );
+}
+
+.lo-deckbox-seam {
+  position: absolute;
+  top: 12cqh;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 0.5cqh;
+  background: rgb(0 0 0 / 0.4);
+  box-shadow: 0 0.4cqh 0 rgb(255 255 255 / 0.14);
+}
+
+.lo-deckbox-side {
+  position: absolute;
+  top: 30cqh;
+  right: 4cqw;
+  bottom: 1.6cqh;
+  z-index: 9;
+  width: 10.5cqw;
+  clip-path: polygon(0 4cqh, 100% 0, 100% 96%, 0 100%);
+  background: linear-gradient(to bottom, oklch(26% 0.05 8), oklch(16% 0.035 8));
+}
+
+/* Lists, folders, and other locations: a fanned hand of cards. */
+.lo-fan {
+  position: relative;
+  height: 86%;
+  aspect-ratio: 1.3;
+}
+
+.lo-fan-card {
+  bottom: 0;
+  left: 50%;
+  height: 86%;
+  translate: -50% 0;
+  rotate: calc(var(--o) * 9deg);
+  transform-origin: 50% 120%;
+  transition:
+    rotate 460ms var(--lo-spring),
+    translate 460ms var(--lo-spring);
+}
+
+.lo-fan--folder .lo-fan-card {
+  bottom: 14%;
+  height: 74%;
+  rotate: calc(var(--o) * 6deg);
+}
+
+.lo-folder-back,
+.lo-folder-front {
+  position: absolute;
+  bottom: 0;
+  border-radius: 1.5% / 2.5%;
+}
+
+.lo-folder-back {
+  left: 6%;
+  right: 6%;
+  height: 74%;
+  background: oklch(72% 0.08 78);
+}
+
+.lo-folder-back::before {
+  content: "";
+  position: absolute;
+  top: -7%;
+  left: 0;
+  width: 34%;
+  height: 10%;
+  border-radius: 6% 18% 0 0 / 30% 60% 0 0;
+  background: inherit;
+}
+
+.lo-folder-front {
+  left: 3%;
+  right: 3%;
+  z-index: 10;
+  height: 46%;
+  background: linear-gradient(to bottom, oklch(84% 0.07 82), oklch(77% 0.075 78));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.35),
+    0 10px 16px -10px rgb(0 0 0 / 0.5);
+}
+
+/* Unfiled: a loose pile of cards. */
+.lo-pile {
+  position: relative;
+  height: 72%;
+  aspect-ratio: 1.6;
+}
+
+.lo-pile-card {
+  top: 50%;
+  left: 50%;
+  height: 100%;
+  translate: calc(-50% + var(--x) * 1%) calc(-50% + var(--y) * 1%);
+  rotate: calc(var(--r) * 1deg);
+  transition:
+    rotate 460ms var(--lo-spring),
+    translate 460ms var(--lo-spring);
+}
+
+/* Location tiles size to their object's shape, so a row of binders, boxes,
+   and deck boxes packs like things on a shelf. --lo-w is the object's width
+   over the stage's inner height (object height share × aspect ratio, plus
+   room for what sticks out, like the binder's back page). */
+.location-tile {
+  --lo-stage: 10rem;
+  --lo-w: 1.1;
+  width: max(8.5rem, calc((var(--lo-stage) - 2.65rem) * var(--lo-w) + 2rem));
+}
+
+.location-tile[data-kind="binder"] {
+  --lo-w: 0.8;
+}
+
+.location-tile[data-kind="box"] {
+  --lo-w: 1.06;
+}
+
+.location-tile[data-kind="deck_box"] {
+  --lo-w: 0.72;
+}
+
+.location-tile[data-kind="unfiled"] {
+  --lo-w: 1.16;
+}
+
+.location-tile-stage {
+  height: var(--lo-stage);
+}
+
+@media (min-width: 640px) {
+  .location-tile {
+    --lo-stage: 14rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .location-tile {
+    --lo-stage: 15.5rem;
+  }
+}
+
+/* Stickers: symbols stuck on the object like die-cut vinyl, in a loose,
+   slightly overlapping row on one of its surfaces (so they ride along when the
+   object moves). Each sticker is nudged and tilted a little off the line. */
+.lo-stickers {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.lo-stickers .lo-sticker {
+  translate: calc(var(--sticker-size) * var(--dx, 0)) calc(var(--sticker-size) * var(--dy, 0));
+}
+
+.lo-stickers .lo-sticker + .lo-sticker {
+  margin-left: calc(var(--sticker-size) * -0.14);
+}
+
+/* Across the binder page's bottom row of pockets. */
+.lo-stickers--binder {
+  --sticker-size: 16cqh;
+  right: 5cqh;
+  bottom: 7cqh;
+  left: 10cqh;
+}
+
+/* Along the box's front wall, below the handle. */
+.lo-stickers--box {
+  --sticker-size: 17cqh;
+  right: 0;
+  bottom: 6cqh;
+  left: 0;
+}
+
+/* Across the deck box's front panel. */
+.lo-stickers--deckbox {
+  --sticker-size: 14cqh;
+  right: 14cqw;
+  bottom: 8cqh;
+  left: 4cqw;
+}
+
+/* Along the folder's front pocket. */
+.lo-stickers--folder {
+  --sticker-size: 17cqh;
+  right: 3%;
+  bottom: 10%;
+  left: 3%;
+}
+
+/* Along the bottom of the fanned cards. */
+.lo-stickers--fan {
+  --sticker-size: 18cqh;
+  right: 6cqw;
+  bottom: 6cqh;
+  left: 30cqw;
+  justify-content: flex-end;
+}
+
+.lo-fan {
+  container-type: size;
+}
+
+.lo-sticker {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--sticker-size, 2.5rem);
+  aspect-ratio: 1;
+  /* Relative to the sticker, not its container (percent padding would be). */
+  padding: calc(var(--sticker-size, 2.5rem) * 0.11);
+  border-radius: 50%;
+  background: oklch(98.5% 0.006 85);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.1),
+    0 1px 1px rgb(0 0 0 / 0.28),
+    0 3px 6px -2px rgb(0 0 0 / 0.4);
+  rotate: var(--tilt, 0deg);
+}
+
+/* Vinyl gloss and a faint lifted edge. */
+.lo-sticker::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgb(255 255 255 / 0.55),
+    transparent 38%,
+    transparent 72%,
+    rgb(0 0 0 / 0.06)
+  );
+  pointer-events: none;
+}
+
+.lo-sticker img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lo-sticker--set {
+  border-radius: 24%;
+  padding: calc(var(--sticker-size, 2.5rem) * 0.13);
+}
+
+.lo-sticker-set {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: oklch(20% 0.01 40);
+}
+
+.lo-sticker-gem {
+  display: block;
+  width: 88%;
+  height: 88%;
+  clip-path: polygon(50% 2%, 98% 38%, 80% 98%, 20% 98%, 2% 38%);
+  background:
+    linear-gradient(160deg, rgb(255 255 255 / 0.6), transparent 34%),
+    linear-gradient(200deg, transparent 52%, rgb(0 0 0 / 0.28)), var(--gem);
+}
+
+.lo-sticker-gem--common {
+  --gem: oklch(28% 0.01 40);
+}
+
+.lo-sticker-gem--uncommon {
+  --gem: linear-gradient(135deg, oklch(86% 0.012 240), oklch(62% 0.02 240));
+}
+
+.lo-sticker-gem--rare {
+  --gem: linear-gradient(135deg, oklch(86% 0.11 88), oklch(62% 0.12 72));
+}
+
+.lo-sticker-gem--mythic {
+  --gem: linear-gradient(135deg, oklch(80% 0.15 62), oklch(58% 0.2 38));
+}
+
+/* Hover: the object answers the pointer the way the real thing would. */
+@media (hover: hover) {
+  .location-card--interactive:hover .lo-binder {
+    transform: translateY(-3%) rotateX(9deg) rotateZ(1deg);
+  }
+
+  .location-card--interactive:hover .lo-binder-page--under {
+    transform: translate(9%, -3%) rotate(6deg);
+  }
+
+  .location-card--interactive:hover .lo-sheen {
+    transform: translateX(38%);
+  }
+
+  .location-card--interactive:hover .lo-box-slot {
+    transform: translateX(-50%) translateY(-5cqh) scale(calc(0.86 + var(--i) * 0.028));
+  }
+
+  .location-card--interactive:hover .lo-deckbox-card {
+    transform: translateY(-9cqh) rotate(-3deg);
+  }
+
+  .location-card--interactive:hover .lo-fan-card {
+    rotate: calc(var(--o) * 15deg);
+  }
+
+  .location-card--interactive:hover .lo-fan--folder .lo-fan-card {
+    rotate: calc(var(--o) * 9deg);
+    translate: -50% -12%;
+  }
+
+  .location-card--interactive:hover .lo-pile-card {
+    rotate: calc(var(--r) * 1.35deg);
+    translate: calc(-50% + var(--x) * 1.25%) calc(-50% + var(--y) * 1.25% - 3%);
+  }
+
+  .location-card--interactive:hover .card-tile-foil-overlay::before {
+    animation-play-state: running;
+  }
+}
+
+/* A location chosen to receive a card holds its hover pose: the binder page
+   tilts open, box cards lift, the fan spreads. */
+.location-card--interactive.is-open .lo-binder {
+  transform: translateY(-3%) rotateX(9deg) rotateZ(1deg);
+}
+
+.location-card--interactive.is-open .lo-binder-page--under {
+  transform: translate(9%, -3%) rotate(6deg);
+}
+
+.location-card--interactive.is-open .lo-sheen {
+  transform: translateX(38%);
+}
+
+.location-card--interactive.is-open .lo-box-slot {
+  transform: translateX(-50%) translateY(-5cqh) scale(calc(0.86 + var(--i) * 0.028));
+}
+
+.location-card--interactive.is-open .lo-deckbox-card {
+  transform: translateY(-9cqh) rotate(-3deg);
+}
+
+.location-card--interactive.is-open .lo-fan-card {
+  rotate: calc(var(--o) * 15deg);
+}
+
+.location-card--interactive.is-open .lo-fan--folder .lo-fan-card {
+  rotate: calc(var(--o) * 9deg);
+  translate: -50% -12%;
+}
+
+.location-card--interactive.is-open .lo-pile-card {
+  rotate: calc(var(--r) * 1.35deg);
+  translate: calc(-50% + var(--x) * 1.25%) calc(-50% + var(--y) * 1.25% - 3%);
+}
+
+/* The chosen location gives a little as a card drops in. */
+.lo-receive .lo-stage > * {
+  animation: lo-receive 420ms cubic-bezier(0.2, 0.9, 0.25, 1.2);
+}
+
+@keyframes lo-receive {
+  0% {
+    scale: 1;
+  }
+
+  35% {
+    scale: 1.08 0.94;
+  }
+
+  70% {
+    scale: 0.98 1.02;
+  }
+
+  100% {
+    scale: 1;
+  }
+}
+
+/* A card dragged in from another page: the drop zones fade in over the page,
+   and the zone that takes the card holds for a beat before they fade out. */
+.card-drop-overlay {
+  animation: card-drop-in 140ms ease-out;
+}
+
+.card-drop-overlay--landing {
+  animation: card-drop-out 200ms ease-in 280ms forwards;
+}
+
+@keyframes card-drop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes card-drop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-drop-overlay,
+  .card-drop-overlay--landing {
+    animation: none;
+  }
+}
+
+/* Compact stages for picking a location inside a dialog. */
+.lo-stage--mini {
+  padding: 0.5rem 0.5rem 0.65rem;
+  background: radial-gradient(
+    ellipse 42% 12% at 50% calc(100% - 0.6rem),
+    rgb(0 0 0 / 0.3),
+    transparent 72%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-stage * {
+    transition: none !important;
+  }
+}
+
+/* Shared-element transitions (opening a location, opening a card) settle with
+   a slight spring; the rest of the page only cross-fades. */
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: linear(
+    0,
+    0.006,
+    0.025 2.8%,
+    0.101 6.1%,
+    0.539 18.9%,
+    0.721 25.3%,
+    0.849 31.5%,
+    0.937 38.1%,
+    0.968 41.8%,
+    0.991 45.7%,
+    1.006 50.1%,
+    1.015 55%,
+    1.017 63.9%,
+    1.001
+  );
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+html[data-card-morph] .location-card,
+html[data-card-morph] .location-card * {
+  view-transition-name: none !important;
+}
+
+/* The full-screen card's glow blurs far past the card's edges, and Safari
+   draws a snapshot with that much overflow offset and oversized, so the card
+   would jump at the end of the morph. It sits the morph out. */
+html[data-card-morph] .pc-behind {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 .deck-tag-feedback {
   animation: deck-tag-feedback 1250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -662,5 +1518,252 @@ body[data-scroll-locked] .app-shell-main {
 @media (prefers-reduced-motion: reduce) {
   .scan-focus-ring {
     animation-duration: 1ms;
+  }
+}
+
+/* Header brand: the wordmark gives way to the page title once the page's
+   heading scrolls under the header. */
+.app-header-brand__wordmark,
+.app-header-brand__title {
+  transition:
+    opacity 220ms ease,
+    translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.app-header-brand__title {
+  opacity: 0;
+  translate: 0 0.6rem;
+}
+
+.app-header-brand[data-show-title] .app-header-brand__wordmark {
+  opacity: 0;
+  translate: 0 -0.6rem;
+}
+
+.app-header-brand[data-show-title] .app-header-brand__title {
+  opacity: 1;
+  translate: 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-brand__wordmark,
+  .app-header-brand__title {
+    translate: none !important;
+  }
+}
+
+/* Deck box (wide): a deck box standing on its long side, its front printed
+   with the cover art, the open top showing sleeves and the cover card rising
+   out. Sizes use container units of the box. */
+.db-stage {
+  aspect-ratio: 1.4;
+  padding: 0.75rem 0.5rem 1.4rem;
+}
+
+.db-box {
+  position: relative;
+  width: 88%;
+  aspect-ratio: 1.6;
+  container-type: size;
+  transition: transform 460ms var(--lo-spring);
+}
+
+/* The dark opening at the top, seen over the front wall. */
+.db-inside {
+  position: absolute;
+  top: 10cqh;
+  left: 2.5cqw;
+  right: 10cqw;
+  height: 16cqh;
+  border-radius: 1.4cqh 1.4cqh 0 0;
+  background: linear-gradient(to bottom, oklch(12% 0.01 20), oklch(20% 0.015 20));
+}
+
+/* Tops of sleeved cards standing in the box. */
+.db-sleeve {
+  position: absolute;
+  top: calc(13cqh - var(--s) * 1.6cqh);
+  left: calc(48cqw + var(--s) * 9cqw);
+  width: 26cqw;
+  height: 20cqh;
+  border-radius: 1.2cqh 1.2cqh 0 0;
+  background: linear-gradient(to bottom, oklch(30% 0.03 10), oklch(18% 0.02 10));
+  box-shadow: inset 0 0.4cqh 0 rgb(255 255 255 / 0.12);
+  transition: translate 420ms var(--lo-spring);
+  transition-delay: calc(var(--s) * 40ms);
+}
+
+/* The deck's most valuable cards, standing in a loose row beside the cover
+   card with their tops showing above the front wall. */
+.db-standing {
+  position: absolute;
+  top: calc(-13cqh + var(--o) * var(--o) * 2cqh);
+  left: calc(36cqw + var(--s) * 12cqw);
+  width: 21cqw;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border-radius: 4.75% / 3.4%;
+  background: oklch(22% 0.01 20);
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.45);
+  rotate: calc(var(--o) * 3.5deg);
+  transform-origin: 50% 100%;
+  filter: brightness(calc(0.82 + var(--s) * 0.05));
+  transition:
+    translate 440ms var(--lo-spring),
+    rotate 440ms var(--lo-spring);
+  transition-delay: calc(var(--s) * 35ms);
+}
+
+.db-standing img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.db-card {
+  position: absolute;
+  z-index: 5;
+  top: -12cqh;
+  left: 9cqw;
+  width: 27cqw;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border-radius: 4.75% / 3.4%;
+  background: oklch(22% 0.01 20);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
+  rotate: -4deg;
+  transition:
+    translate 460ms var(--lo-spring),
+    rotate 460ms var(--lo-spring);
+}
+
+.db-card img,
+.db-front img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The box's short side, receding to the right. */
+.db-side {
+  position: absolute;
+  top: 18cqh;
+  right: 0;
+  bottom: 1.5cqh;
+  width: 9.5cqw;
+  clip-path: polygon(0 4cqh, 100% 0, 100% 96%, 0 100%);
+  background: linear-gradient(to bottom, oklch(24% 0.04 10), oklch(14% 0.03 10));
+}
+
+.db-front {
+  position: absolute;
+  inset: 21cqh 9cqw 0 0;
+  z-index: 10;
+  overflow: hidden;
+  border-radius: 1.6cqh 1.6cqh 2.4cqh 2.4cqh;
+  background: oklch(26% 0.05 8);
+  box-shadow:
+    inset 0 0.6cqh 0 rgb(255 255 255 / 0.18),
+    0 14px 22px -12px rgb(0 0 0 / 0.65);
+}
+
+.db-front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      105deg,
+      rgb(255 255 255 / 0.14),
+      transparent 30%,
+      transparent 72%,
+      rgb(0 0 0 / 0.32)
+    ),
+    linear-gradient(to bottom, transparent 55%, rgb(0 0 0 / 0.28));
+  pointer-events: none;
+}
+
+/* The lid's seam across the top of the front. */
+.db-lid {
+  position: absolute;
+  top: 13cqh;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 0.5cqh;
+  background: rgb(0 0 0 / 0.42);
+  box-shadow: 0 0.4cqh 0 rgb(255 255 255 / 0.14);
+}
+
+.lo-stickers--deckwide {
+  --sticker-size: 15cqh;
+  left: 4cqw;
+  bottom: 7cqh;
+  z-index: 2;
+  justify-content: flex-start;
+}
+
+@media (hover: hover) {
+  .location-card--interactive:hover .db-card {
+    translate: 0 -5cqh;
+    rotate: -7deg;
+  }
+
+  .location-card--interactive:hover .db-sleeve {
+    translate: 0 -2.5cqh;
+  }
+
+  .location-card--interactive:hover .db-standing {
+    translate: calc(var(--o) * 1.5cqw) -4cqh;
+    rotate: calc(var(--o) * 6deg);
+  }
+
+  .location-card--interactive:hover .db-box {
+    transform: translateY(-1.5%);
+  }
+}
+
+/* Card tilt: a card under the mouse leans toward it and catches a soft
+   glare, then settles flat when the pointer leaves (see useCardTilt). The 3D
+   transform applies only while the card tilts and eases back to none: a
+   resting 3D transform gives every card in a grid its own GPU layer, and
+   Safari blinks cards while scrolling once it runs out of layer memory. */
+.card-tilt {
+  transition:
+    transform 420ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    box-shadow 200ms ease;
+}
+
+.card-tilt[data-tilting] {
+  transform: perspective(800px) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+  transition:
+    transform 90ms linear,
+    box-shadow 200ms ease;
+}
+
+/* Only a mouse tilts cards, so touch screens skip the glare layer. */
+@media (hover: hover) and (pointer: fine) {
+  .card-tilt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at var(--glare-x, 50%) var(--glare-y, 50%),
+      rgb(255 255 255 / 0.42),
+      rgb(255 255 255 / 0.1) 36%,
+      transparent 60%
+    );
+    mix-blend-mode: overlay;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms ease;
+  }
+
+  .card-tilt[data-tilting]::after {
+    opacity: 1;
   }
 }

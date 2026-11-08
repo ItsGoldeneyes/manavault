@@ -1,0 +1,209 @@
+# Rust backend
+
+ManaVault's server. It serves the owner and public-share GraphQL APIs, the
+HTML shell and static files, sessions, and background jobs over one SQLite
+database, for the React frontend in `assets/react`.
+
+## Crates
+
+The server is split into domain crates so an edit recompiles one crate and
+independent crates build in parallel. Crates import each other by name
+(`manavault_core::state::AppState`, `manavault_catalog::catalog::search`);
+no crate re-exports another crate's modules.
+
+```diagram
+manavault-server (binary `manavault`: owner schema, routes, job registry, CLI)
+ ├─ manavault-share       public share schema, share pages, preview images
+ │   └─ manavault-ai      AI deck analysis and questions
+ │       └─ manavault-trade        trade binder, wants, list matching, shared lists
+ ├─ manavault-deck-intel  allocation views, buylists, EDHREC and combo recommendations
+ │   └─ manavault-collection       collection, locations, imports/exports, decks
+ │       └─ manavault-catalog      Scryfall catalog and search, tokens, assets, prices
+ ├─ manavault-system      local and cloud backups, scanner bundles
+ └─ manavault-core        config, database and migrations, AppState, jobs,
+                          GraphQL primitives, auth, settings, sessions and web helpers
+manavault-allocation      reserving collection copies for deck cards
+```
+
+- Axum serves HTTP, async-graphql the GraphQL APIs (JSON `POST` via
+  async-graphql-axum; subscriptions over graphql-ws at `/api/graphql/ws`),
+  sqlx talks to SQLite, and
+  [lotus](https://github.com/cfbender/lotus) supplies the Magic domain types,
+  Scryfall parsing, and decklist sources shared with the-gathering.
+- The `#[utoipa::path]` annotation next to each `/api/v1` handler and the
+  `ToSchema` derives on the types it serializes assemble the OpenAPI document
+  in `web::api_docs` (`GET /api-docs/openapi.json`), which Swagger UI renders
+  at `GET /docs/rest` in every environment. The UI's assets are embedded in
+  the binary, so the build downloads nothing and the routes need no static
+  files of their own; `docs/api.md` holds the contract and the steps to
+  document another endpoint.
+- `manavault-allocation` reserves physical collection copies for deck cards
+  (allocate, deallocate, statuses, bulk and pull-list allocation, collection
+  adds, proxies, disassembly, buylist needs), with the allocation invariants
+  in types. `crates/manavault-allocation/formal/` holds a TLA+ model of the
+  allocation flows and the deck-card and collection-item edits that touch the
+  same rows; its README explains how to check it with TLC.
+- Collection and decks share a crate because their GraphQL types point at each
+  other (a collection item lists its decks; a deck card lists its items). The
+  job framework lives in `manavault-core` because `AppState` holds the queue
+  and workers receive `AppState`; each worker lives in its domain crate and
+  `manavault-server::app::workers` registers them.
+- Timestamps: `manavault_core::timestamp::Timestamp` is the type of
+  second-precision text columns (`inserted_at`, `updated_at`, ...): UTC,
+  stored and rendered as `YYYY-MM-DDTHH:MM:SSZ`, decoded from the formats
+  earlier releases wrote. Microsecond columns (jobs, logs, vendor prices) use
+  `timestamp::{micros, now_micros, parse}` with `time::OffsetDateTime`; the
+  two widths stay separate because mixed widths would break text ordering in
+  SQL. GraphQL exposes timestamps as strings.
+- Tests live next to the code they cover. No domain crate depends on
+  `manavault-server`: `manavault_core::testing` provides `TempDir`,
+  `TestState` (a fresh migrated database, optionally with workers), and
+  `TestApp`, which runs GraphQL operations against a schema the crate under
+  test assembles from the root objects it and its dependencies own
+  (each crate's `#[cfg(test)] mod test_app`); `manavault_catalog::testing`
+  and `manavault_collection::testing` add card and collection fixtures. Tests
+  whose behavior comes from the server's middleware or the full router (share
+  and trade pages, Scryfall assets, serving an upgraded old database) are
+  integration tests in `crates/manavault-server/tests/`, where the personal
+  API's tests also check the served OpenAPI document against the official 3.1
+  meta-schema vendored in `crates/manavault-server/tests/fixtures` (`jsonschema`
+  is a dev-dependency, so the release binary is unaffected).
+  The test helpers compile in every build rather than behind a feature, so
+  test and dev builds share one build of each crate.
+
+### Build settings
+
+Dev builds are incremental, link through `scripts/linker.sh` (mold, else lld,
+else plain `cc`; `.agents/setup` installs mold), and keep only line tables as
+debug info (`[profile.dev]` in `Cargo.toml`, `debug = 0` for dependencies),
+so a one-line edit rebuilds in seconds instead of relinking a minute. CI and
+the Docker release build set `CARGO_INCREMENTAL=0`. Incremental caches cost
+disk; `mise run rust:sweep` drops those untouched for three days.
+
+The bundled SQLite is compiled without `SQLITE_ENABLE_MEMORY_MANAGEMENT` and
+with `SQLITE_DEFAULT_MEMSTATUS=0` (`LIBSQLITE3_FLAGS` in `.cargo/config.toml`):
+both default settings take a process-wide mutex on every page or allocation,
+which serialized the pool's concurrent reads. The server runs
+`PRAGMA optimize` at boot and after each Scryfall import (`db::optimize`) so
+the query planner has statistics for the catalog and collection tables.
+
+## Commands
+
+Run from the repository root:
+
+```sh
+mise install rust sqlite github:tailwindlabs/tailwindcss
+mise run rust:check          # cargo fmt --check, clippy -D warnings, cargo test (all --locked)
+mise run rust:test           # cargo test only
+mise run dev                 # server + Vite (5173) + Tailwind watch: scripts/dev-rust.sh
+mise run rust:dev            # only the server, on the dev database and $PORT (default 4000)
+mise run rust:build          # release binary: target/release/manavault
+mise run rust:assets         # production frontend build into priv/static/assets
+mise run rust:prebuild       # compile server and test binaries (orb setup runs this)
+mise run rust:new-migration -- <name>  # new rust/migrations/<timestamp>_<name>.sql
+mise run rust:sqlx-prepare   # after a migration or query change: rust/schema.sql + .sqlx
+mise run rust:sweep          # drop incremental caches untouched for 3 days (disk)
+```
+
+In development (`MANAVAULT_ENV=dev`) the HTML shell loads the React app from
+the Vite dev server when the request is local or comes through Vite's proxy
+(`x-manavault-vite-proxy`), so browse through Vite on 5173 or set
+`MANAVAULT_VITE_DISABLED=true` to serve the built bundle from
+`priv/static/assets`. The server serves static files from
+`MANAVAULT_STATIC_DIR` (default `$MANAVAULT_ROOT/priv/static`).
+
+The production image (`Dockerfile`) builds the frontend, builds this binary
+with `cargo build --release --locked` (offline sqlx metadata), and runs it on
+slim Debian; see `docs/self-hosting.md`. CI (`.github/workflows/quality.yml`)
+regenerates `schema.sql` and `.sqlx` from the migrations and fails when they
+differ from the committed files, then runs `rust:check` and `rust:build`.
+
+To check the production build locally, run the release binary the way the image
+does. `MANAVAULT_ENV` defaults to `prod`, which requires a secret key and a
+public host, refuses to start without an admin password unless
+`MANAVAULT_AUTH_DISABLED=true`, and puts `DATA_DIR` in `/data` — so point it at
+a scratch directory and set the environment explicitly:
+
+```sh
+mise run rust:assets    # only after a frontend change; the shell serves priv/static/assets
+mise run rust:build
+MANAVAULT_ENV=prod PORT=4100 MANAVAULT_ROOT="$PWD" \
+  DATA_DIR=/tmp/manavault-prod \
+  DATABASE_PATH=/tmp/manavault-prod/manavault.db \
+  MANAVAULT_SECRET_KEY="$(openssl rand -base64 48)" \
+  MANAVAULT_PUBLIC_HOST=localhost:4100 \
+  MANAVAULT_AUTH_DISABLED=true \
+  rust/target/release/manavault serve
+```
+
+The app shell, `/api-docs/openapi.json`, and `/docs/rest` are then served
+straight from the binary, with no Vite in the picture.
+
+`manavault hash-password <password>` prints a `MANAVAULT_ADMIN_PASSWORD_HASH`
+value, `manavault sdl` prints the owner GraphQL schema, and
+`manavault sdl --public` the public share schema (`/share/graphql`).
+Maintenance commands read the same environment as the server:
+
+- `manavault migrate` creates or migrates the configured database and exits.
+- `manavault unban CLIENT_ID | --all` clears permanent login bans.
+- `manavault backup [-o DIR] [--data-dir DIR] [--database PATH]` writes a
+  backup zip (default `DATA_DIR/backups`).
+- `manavault restore PATH [--data-dir DIR] [--database PATH]` restores one;
+  stop the server first. A cloud restore staged from Settings is applied
+  automatically at the next start, before the database opens.
+
+## Configuration
+
+The binary reads its configuration from the environment (`PORT`, `DATA_DIR`,
+`DATABASE_PATH`, `MANAVAULT_SECRET_KEY`, `MANAVAULT_PUBLIC_HOST`,
+`MANAVAULT_ADMIN_PASSWORD_HASH`, `MANAVAULT_AUTH_DISABLED`, ...; see
+`crates/manavault-core/src/config.rs` and `docs/self-hosting.md`).
+`MANAVAULT_ENV` (`prod` by default, or `dev`/`test`) selects the defaults.
+Stored credentials keep the `enc.v1.` format earlier releases wrote, so
+upgrading with the same secret keeps saved API keys readable; the 1.x names
+`SECRET_KEY_BASE` and `PHX_HOST` are still read with a warning. Sessions are a
+typed value in a private (encrypted) cookie, `manavault_session`.
+
+## Schema and migrations
+
+`migrations/<version>_<name>.sql` is the schema definition. `build.rs` embeds
+the files and the server applies pending ones on boot (`db::migrate`): oldest
+first, each in a `BEGIN IMMEDIATE` transaction (statement by statement when it
+turns `PRAGMA foreign_keys` off), recorded in `schema_migrations` with the
+versions every earlier release used, so a database from any release upgrades in
+place. Migrations that must compute data have a `data_step` in
+`db::migrate`. Before migrating a production database the server writes a
+pre-migration backup (`backups/manavault-pre_migration-<stamp>.zip`, skipped
+with `MANAVAULT_SKIP_MIGRATION_BACKUP`). Versions the build does not know (a
+newer release's database) are ignored with a warning; `db::migrate::RETIRED`
+lists the three versions a 1.x release deleted, so databases that recorded
+them never warn. Downgrades are not supported.
+
+`schema.sql` is the schema the migrations produce (`mise run rust:schema`):
+
+- **sqlx query macros.** `rust:sqlx-prepare` applies the migrations to
+  `target/schema.db`, compiles every `query!` against it, and records the
+  results in `.sqlx/`. Normal builds read `.sqlx/` (`SQLX_OFFLINE=true` in
+  `.cargo/config.toml`), so they never need a database.
+- **Tests.** `db::tests` checks that the migrations produce exactly this
+  schema and that a v1.0.0 database with data upgrades intact.
+
+## Conventions
+
+- Workspace lints forbid `unsafe` and deny `unwrap`, `expect`, `panic!`,
+  indexing, and `as` casts outside tests. Restructure with types, `Option`,
+  `?`, `get`, and `TryFrom` instead of allowing them.
+- Make invalid states unrepresentable: lotus ids and `Quantity`, enums for
+  fixed-vocabulary columns, proof types such as `AllocatableDeckCard`.
+- Static SQL uses the checked macros (`sqlx::query!`, `query_as!`,
+  `query_scalar!`); dynamic filters use `QueryBuilder`.
+- Keep the GraphQL schema compatible with the frontend's operations
+  (`assets/react/src/gql`): diff `manavault sdl` before and after a change,
+  and run `mise exec -- aube run codegen` so the frontend types follow.
+- Document a `/api/v1` endpoint by deriving `ToSchema` on the types it
+  serializes and annotating the handler, then listing both in
+  `web::api_docs::ApiDoc`; the served document is generated from those
+  annotations and never written by hand (`docs/api.md`).
+- Comments that say "earlier releases" or "found during the port" describe
+  behavior inherited from, or deliberately changed since, the 1.x backend this
+  server replaced; the git history before the Rust rewrite holds the rest.

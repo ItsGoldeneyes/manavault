@@ -396,6 +396,12 @@
   max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 16rem);
 }
 
+/* Leave room for the filmstrip under the card. */
+.fullscreen-printing-dialog--strip .manavault-printing-profile-card .pc-card {
+  height: min(calc(100dvh - var(--safe-top) - var(--safe-bottom) - 21rem), 48rem);
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 21rem);
+}
+
 .manavault-printing-profile-card .pc-details {
   display: none;
 }
@@ -532,10 +538,27 @@
     transition: none;
   }
 
-  .manavault-printing-profile-card--foil .pc-card:hover,
-  .manavault-printing-profile-card--foil .pc-card.active,
-  .manavault-printing-profile-card--foil .pc-card-shell.active .pc-card {
-    transform: translateZ(0);
+  /* Touch screens do not tilt the card, so it needs none of the 3D layers
+     the tilt uses. Flattened, the card and its foil blends draw as one image
+     that its deal animation moves; as separate blended layers, Android
+     recombines them every frame and the card flickers as it animates. */
+  .manavault-printing-profile-card.pc-card-wrapper,
+  .manavault-printing-profile-card .pc-card,
+  .manavault-printing-profile-card .pc-card:hover,
+  .manavault-printing-profile-card .pc-card.active,
+  .manavault-printing-profile-card .pc-card-shell.active .pc-card,
+  .manavault-printing-profile-card .pc-shine,
+  .manavault-printing-profile-card .pc-shine::after,
+  .manavault-printing-profile-card .pc-content,
+  .manavault-printing-profile-card .pc-avatar-content .avatar {
+    transform: none;
+    perspective: none;
+    backface-visibility: visible;
+    will-change: auto;
+  }
+
+  .manavault-printing-profile-card .pc-avatar-content .avatar {
+    transform: translateX(-50%);
   }
 
   .manavault-printing-profile-card--foil .pc-shine {

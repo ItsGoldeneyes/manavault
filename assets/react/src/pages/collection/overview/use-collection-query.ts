@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from "react"
 import { present } from "../../../lib/utils"
 import { COLLECTION_PAGE_SIZE } from "../constants"
 import { CollectionItemGroupsPageDocument } from "../items/documents"
+import { isUnfiledLocation } from "../location-summary"
 import type { CollectionSort, CollectionTab } from "../types"
 import { CollectionDocument } from "./documents"
 
@@ -26,7 +27,7 @@ export function useCollectionQuery({
   })
   const itemsQuery = useQuery(CollectionItemGroupsPageDocument, {
     variables: { filters, sort: itemSort, first: COLLECTION_PAGE_SIZE, after: null },
-    skip: activeTab === "locations" || activeTab === "value",
+    skip: activeTab === "locations" || activeTab === "tokens" || activeTab === "value",
     fetchPolicy: "cache-and-network",
   })
   const groups = useMemo(
@@ -65,9 +66,7 @@ export function useCollectionQuery({
   }, [locations])
   const data = summaryQuery.data
   const unfiledCount =
-    data?.unfiledCollectionItemCount ??
-    locations.find((location) => location.id === "unfiled")?.itemCount ??
-    0
+    data?.unfiledCollectionItemCount ?? locations.find(isUnfiledLocation)?.itemCount ?? 0
 
   return {
     autoSortRules: data?.collectionAutoSortRules ?? [],
@@ -81,6 +80,7 @@ export function useCollectionQuery({
       recent: Math.min(RECENT_ITEMS_LIMIT, data?.recentCollectionItemCount ?? 0),
       available: data?.availableCollectionItemCount ?? 0,
       unfiled: unfiledCount,
+      tokens: data?.tokenItemCount ?? 0,
     },
     itemsQuery,
     itemSort,

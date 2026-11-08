@@ -1,4 +1,4 @@
-import { Minus, Plus, Search, Trash2 } from "lucide-react"
+import { Minus, Plus, Search, Share, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { SetIcon } from "../../components/card-tile"
 import { Button } from "../../components/ui/button"
@@ -12,8 +12,10 @@ import {
 } from "../../components/ui/dialog"
 import { Input } from "../../components/ui/input"
 import { cn } from "../../lib/utils"
+import { centsToCurrencyInput, parseCurrencyInputCents } from "../collection/form-helpers"
 import type { Finish } from "./printing-choice"
 import { ScanEntryChips } from "./scan-entry-chips"
+import { ScanExportDialog } from "./scan-export-dialog"
 import {
   entryPriceCents,
   filterEntries,
@@ -32,6 +34,8 @@ export function ScanListSheet({
   onFinish,
   onPrinting,
   onLanguage,
+  onPurchasePrice,
+  onBackFace,
   onRemove,
   onClear,
   onAddToCollection,
@@ -45,6 +49,9 @@ export function ScanListSheet({
   onFinish: (id: string, finish: Finish) => void
   onPrinting: (id: string) => void
   onLanguage: (id: string, language: string) => void
+  /** Per-copy price paid; `null` goes back to the market price. */
+  onPurchasePrice: (id: string, cents: number | null) => void
+  onBackFace: (id: string) => void
   onRemove: (id: string) => void
   onClear: () => void
   onAddToCollection: () => void
@@ -52,6 +59,7 @@ export function ScanListSheet({
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const visible = filterEntries(entries, query)
   const count = totalQuantity(entries)
 
@@ -114,6 +122,8 @@ export function ScanListSheet({
                     onFinish={(finish) => onFinish(entry.id, finish)}
                     onPrinting={() => onPrinting(entry.id)}
                     onLanguage={(language) => onLanguage(entry.id, language)}
+                    onPurchasePrice={(cents) => onPurchasePrice(entry.id, cents)}
+                    onBackFace={() => onBackFace(entry.id)}
                     onRemove={() => onRemove(entry.id)}
                   />
                 ))}
@@ -127,17 +137,32 @@ export function ScanListSheet({
               variant="ghost"
               disabled={entries.length === 0}
               onClick={() => setConfirmClear(true)}
+              aria-label="Clear"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Clear
+              {/* Icon-only on phones so the footer's three actions fit on one row. */}
+              <span className="hidden sm:inline">Clear</span>
             </Button>
-            <Button type="button" disabled={entries.length === 0} onClick={onAddToCollection}>
-              Add to collection
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={entries.length === 0}
+                onClick={() => setExporting(true)}
+                aria-label="Export"
+              >
+                <Share className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+              <Button type="button" disabled={entries.length === 0} onClick={onAddToCollection}>
+                Add to collection
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
+      <ScanExportDialog open={exporting} entries={entries} onClose={() => setExporting(false)} />
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={setConfirmClear}
@@ -164,6 +189,8 @@ function ScanListRow({
   onFinish,
   onPrinting,
   onLanguage,
+  onPurchasePrice,
+  onBackFace,
   onRemove,
 }: {
   entry: ScanEntry
@@ -173,6 +200,8 @@ function ScanListRow({
   onFinish: (finish: Finish) => void
   onPrinting: () => void
   onLanguage: (language: string) => void
+  onPurchasePrice: (cents: number | null) => void
+  onBackFace: () => void
   onRemove: () => void
 }) {
   const price = entryPriceCents(entry)
@@ -201,14 +230,22 @@ function ScanListRow({
           )}
           <span className="min-w-0 flex-1">
             <span className="block truncate font-bold">{entry.name}</span>
-            <span className="mt-0.5 flex items-center gap-1.5 text-xs text-base-content/70">
+            {/* Badges wrap as a unit onto the next line; the text inside one never wraps. */}
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-base-content/70">
               <SetIcon rarity={entry.rarity} setCode={entry.setCode} />
-              <span className="font-mono">
+              <span className="whitespace-nowrap font-mono">
                 {entry.setCode.toUpperCase()} #{entry.collectorNumber} ·{" "}
                 {entry.language.toUpperCase()}
               </span>
               {finishLabel ? (
-                <span className="badge badge-warning badge-outline badge-sm">{finishLabel}</span>
+                <span className="badge badge-warning badge-outline badge-sm whitespace-nowrap">
+                  {finishLabel}
+                </span>
+              ) : null}
+              {entry.back ? (
+                <span className="badge badge-outline badge-sm max-w-full">
+                  <span className="truncate">Back: {entry.back.name}</span>
+                </span>
               ) : null}
             </span>
           </span>
@@ -249,6 +286,7 @@ function ScanListRow({
             onFinish={onFinish}
             onPrinting={onPrinting}
             onLanguage={onLanguage}
+            onBackFace={onBackFace}
           />
           <Button
             type="button"
@@ -261,6 +299,56 @@ function ScanListRow({
           </Button>
         </div>
       ) : null}
+      {editing ? <PurchasePriceField entry={entry} onChange={onPurchasePrice} /> : null}
     </li>
+  )
+}
+
+/**
+ * The per-copy price paid, imported as the collection item's purchase price. Blank follows the
+ * market price; the edit is saved on blur or Enter, and an invalid amount is discarded.
+ */
+function PurchasePriceField({
+  entry,
+  onChange,
+}: {
+  entry: ScanEntry
+  onChange: (cents: number | null) => void
+}) {
+  const [draft, setDraft] = useState(() => centsToCurrencyInput(entry.purchasePriceCents))
+  const market = entryPriceCents(entry)
+  const custom = entry.purchasePriceCents !== undefined
+
+  function commit() {
+    const cents = parseCurrencyInputCents(draft)
+    if (cents === undefined) {
+      setDraft(centsToCurrencyInput(entry.purchasePriceCents))
+      return
+    }
+    setDraft(centsToCurrencyInput(cents))
+    if (cents !== (entry.purchasePriceCents ?? null)) onChange(cents)
+  }
+
+  return (
+    <label className="mt-3 flex items-center gap-3">
+      <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-base-content/70">
+        Paid each
+      </span>
+      <Input
+        inputMode="decimal"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur()
+        }}
+        placeholder={market === null ? "No market price" : formatCents(market)}
+        aria-label={`Purchase price for ${entry.name}`}
+        className="h-9 min-h-9 w-28 font-mono"
+      />
+      <span className="min-w-0 truncate text-xs text-base-content/70">
+        {custom ? `Market ${formatCents(market)}` : "Defaults to market"}
+      </span>
+    </label>
   )
 }

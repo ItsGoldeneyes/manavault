@@ -23,7 +23,7 @@ mise run changelog -- minor
 mise run changelog -- major
 ```
 
-The script reads the current version from `mix.exs`, calculates the next version,
+The script reads the current version from `rust/Cargo.toml` (`[workspace.package]`), calculates the next version,
 and writes a section for the `vX.Y.Z` tag.
 
 ## Cut A Release
@@ -38,7 +38,7 @@ mise run release -- patch
 The task:
 
 - generates `CHANGELOG.md`
-- bumps the `mix.exs` and `package.json` versions
+- bumps the `rust/Cargo.toml` workspace version (and `rust/Cargo.lock`) and `package.json` versions
 - refreshes `native_www/version.json`
 - updates README Docker tag examples
 - commits `chore: release vX.Y.Z`
@@ -47,9 +47,12 @@ The task:
 
 The tag push triggers `.github/workflows/container.yml`, which publishes the
 container image to GitHub Container Registry, and `.github/workflows/capacitor.yml`,
-which builds the signed Capacitor Android release APK and attaches it to the
-GitHub release. Android release signing setup and custom-domain App Link builds
-are documented in [docs/android.md](android.md).
+which builds the signed Capacitor Android release APK and AAB, attaches the APK
+to the GitHub release, and uploads the AAB to the Google Play internal testing
+track (override with the `MANAVAULT_PLAY_TRACK` repository variable). Promote
+the release to closed testing or production in Play Console. Android release
+signing, Google Play setup, and custom-domain App Link builds are documented in
+[docs/android.md](android.md).
 
 Dry run:
 

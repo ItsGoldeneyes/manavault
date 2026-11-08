@@ -7,23 +7,36 @@ import {
   ScannerPrintingsDocument,
   ScannerSetIllustrationsDocument,
 } from "./documents"
-import { chooseFinish, choosePrinting, type Finish, type PrintingOption } from "./printing-choice"
+import {
+  chooseFinish,
+  choosePrinting,
+  isSingleFacedToken,
+  type Finish,
+  type PrintingOption,
+} from "./printing-choice"
 import type { Identification } from "./recognition/messages"
 import type { Candidate, Quad } from "./recognition/pipeline"
 import { useRecognizer } from "./recognition/use-recognizer"
 import {
   cardKey,
   evaluateFrame,
+  evaluateTokenFrame,
+  FRAME_PACING,
+  frameInterval,
   forgetLastLogged,
   INITIAL_TRACKER,
   markLogged,
+  type FrameOutcome,
   type ScanTracker,
 } from "./scan-decision"
 import {
   entryPriceCents,
+  lastBackFor,
   normalizeScanList,
   scanListCsv,
+  scanListFileName,
   withPrinting,
+  type ScanBackFace,
   type ScanEntry,
 } from "./scan-list"
 import {
@@ -46,9 +59,6 @@ import {
   withCheckedOutline,
 } from "./scan-training"
 import { FRAME_SIZE, useCamera } from "./use-camera"
-
-/** Breathing room between frames so the UI thread and battery are not saturated. */
-const FRAME_GAP_MS = 40
 
 const EMPTY_LIST: ScanEntry[] = []
 const readSettings = (value: string) => normalizeScanSettings(JSON.parse(value))
@@ -104,12 +114,16 @@ export function useScanSession({ paused }: { paused: boolean }) {
   settingsRef.current = settings
   // "Check outlines": the logged scan whose outline waits for the user; scanning pauses.
   const [outlineCheck, setOutlineCheck] = useState<OutlineCheck | null>(null)
+  // A scanned single-faced token whose other side the user has not picked yet; scanning pauses.
+  const [backFacePick, setBackFacePick] = useState<ScanEntry | null>(null)
   const pausedRef = useRef(paused)
-  pausedRef.current = paused || outlineCheck !== null
+  pausedRef.current = paused || outlineCheck !== null || backFacePick !== null
   const trackerRef = useRef<ScanTracker>(INITIAL_TRACKER)
   const entriesRef = useRef(entries)
   entriesRef.current = entries
   const lockRef = useRef<SetLock>({ status: "off" })
+  // Tokens mode: the token in view, logged when the screen is tapped.
+  const armedRef = useRef<{ candidate: Candidate; result: Identification } | null>(null)
   const bundleVersionRef = useRef<string | null>(null)
   bundleVersionRef.current = recognizer.state.status === "ready" ? recognizer.state.version : null
 
@@ -184,7 +198,24 @@ export function useScanSession({ paused }: { paused: boolean }) {
         return
       }
       const finish = chooseFinish(printing.finishes, settingsRef.current.preferFoil)
-      updateEntry(entry.id, (current) => withPrinting(current, printing, finish))
+      let resolved = withPrinting(entry, printing, finish)
+      // Scryfall knows both faces of a double-faced token; a single-faced one may still be
+      // printed with another token on its back, which only the user can see. Tokens mode logs
+      // a stack of the same token tap by tap, so the back settled on the previous copy carries
+      // over and the picker asks once per token; the result bar's chip changes a stray copy.
+      if (isSingleFacedToken(printing) && resolved.back === undefined) {
+        const inherited = settingsRef.current.tokenMode
+          ? lastBackFor(entriesRef.current, resolved)
+          : undefined
+        if (inherited !== undefined) {
+          resolved = { ...resolved, back: inherited }
+        } else {
+          pausedRef.current = true
+          setBackFacePick(resolved)
+        }
+      }
+      const back = resolved.back
+      updateEntry(entry.id, (current) => ({ ...withPrinting(current, printing, finish), back }))
       if (finish !== entry.finish) {
         // The outline may have been checked meanwhile; resend that, not the logged capture.
         const latest = entriesRef.current.find((candidate) => candidate.id === entry.id)
@@ -243,50 +274,82 @@ export function useScanSession({ paused }: { paused: boolean }) {
   const { grabFrame } = camera
   const { identify } = recognizer
 
+  // Switched off to save the battery after a minute with no card in view; a tap resumes.
+  const [asleep, setAsleep] = useState(false)
+  const asleepRef = useRef(asleep)
+  asleepRef.current = asleep
+  /** When a card was last in view, or scanning last paused or resumed. */
+  const lastActiveRef = useRef(0)
+  const { start: startCamera, stop: stopCamera } = camera
+
   useEffect(() => {
     if (!running) return
     let cancelled = false
+    lastActiveRef.current = performance.now()
     void (async () => {
+      let wasPaused = pausedRef.current
       while (!cancelled) {
+        if (pausedRef.current !== wasPaused) {
+          wasPaused = pausedRef.current
+          lastActiveRef.current = performance.now()
+        }
+        if (performance.now() - lastActiveRef.current >= FRAME_PACING.sleepMs) {
+          setAsleep(true)
+          stopCamera()
+          return
+        }
         if (pausedRef.current || document.visibilityState === "hidden") {
           await sleep(250)
           continue
         }
+        const started = performance.now()
         const frame = grabFrame()
         if (!frame) {
           await sleep(100)
           continue
         }
+        let interval: number = FRAME_PACING.activeMs
         try {
-          const result = await identify(frame)
+          const result = await identify(frame, settingsRef.current.tokenMode ? "tokens" : "all")
           if (cancelled || pausedRef.current) continue
           const lock = lockRef.current
           if (lock.status === "loading") {
             await sleep(100)
             continue
           }
-          const { tracker, outcome } = evaluateFrame(
-            trackerRef.current,
-            result,
-            lock.status === "ready" ? lock.allow : undefined,
-          )
-          trackerRef.current = tracker
-          if (outcome.type === "accept") logScan(outcome.candidate, result)
+          let outcome: FrameOutcome
+          if (settingsRef.current.tokenMode) {
+            outcome = evaluateTokenFrame(result)
+            armedRef.current =
+              outcome.type === "ready" ? { candidate: outcome.candidate, result } : null
+          } else {
+            armedRef.current = null
+            const next = evaluateFrame(
+              trackerRef.current,
+              result,
+              lock.status === "ready" ? lock.allow : undefined,
+            )
+            trackerRef.current = next.tracker
+            outcome = next.outcome
+            if (outcome.type === "accept") logScan(outcome.candidate, result)
+          }
           const now = performance.now()
+          if (outcome.type !== "empty") lastActiveRef.current = now
+          interval = frameInterval(outcome.type, now - lastActiveRef.current)
           setView((current) => nextView(current, outcome, result, now))
         } catch {
           if (cancelled) return
           await sleep(250)
         }
-        await sleep(FRAME_GAP_MS)
+        const elapsed = performance.now() - started
+        await sleep(Math.max(FRAME_PACING.minGapMs, interval - elapsed))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [grabFrame, identify, logScan, running])
+  }, [grabFrame, identify, logScan, running, stopCamera])
 
-  const { start: startCamera, stop: stopCamera } = camera
   const { start: startRecognizer, stop: stopRecognizer } = recognizer
 
   /** Must run from a tap: it unlocks audio and triggers the camera permission prompt. */
@@ -295,6 +358,31 @@ export function useScanSession({ paused }: { paused: boolean }) {
     startRecognizer({ threads: settingsRef.current.threads })
     void startCamera()
   }, [startCamera, startRecognizer])
+
+  const wake = useCallback(() => {
+    setAsleep(false)
+    void startCamera()
+  }, [startCamera])
+
+  // The camera is off while the app or tab is in the background, not just unread.
+  const cameraStatusRef = useRef(camera.state.status)
+  cameraStatusRef.current = camera.state.status
+  useEffect(() => {
+    let stoppedHidden = false
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        const status = cameraStatusRef.current
+        if (status !== "starting" && status !== "live") return
+        stoppedHidden = true
+        stopCamera()
+      } else if (stoppedHidden) {
+        stoppedHidden = false
+        if (!asleepRef.current) void startCamera()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => document.removeEventListener("visibilitychange", onVisibility)
+  }, [startCamera, stopCamera])
 
   // The thread count is fixed when the runtime starts, so changing it restarts the worker.
   const recognizerRunning = recognizer.state.status !== "idle"
@@ -316,6 +404,17 @@ export function useScanSession({ paused }: { paused: boolean }) {
     stopRecognizer()
     setView(IDLE_VIEW)
   }, [stopCamera, stopRecognizer])
+
+  /** Tokens mode: a tap logs the token in view, even the same one again. */
+  const logArmed = useCallback(() => {
+    const armed = armedRef.current
+    if (!armed) return
+    logScan(armed.candidate, armed.result)
+    const now = performance.now()
+    setView((current) =>
+      nextView(current, { type: "accept", candidate: armed.candidate }, armed.result, now),
+    )
+  }, [logScan])
 
   /** Explicitly logs another copy; this is how the same card is counted twice in a row. */
   const addCopy = useCallback(
@@ -361,6 +460,13 @@ export function useScanSession({ paused }: { paused: boolean }) {
 
   const setLanguage = useCallback(
     (id: string, language: string) => updateEntry(id, (entry) => ({ ...entry, language })),
+    [updateEntry],
+  )
+
+  /** `null` drops the user's price so the entry follows the market price again. */
+  const setPurchasePrice = useCallback(
+    (id: string, cents: number | null) =>
+      updateEntry(id, (entry) => ({ ...entry, purchasePriceCents: cents ?? undefined })),
     [updateEntry],
   )
 
@@ -485,6 +591,25 @@ export function useScanSession({ paused }: { paused: boolean }) {
   /** Leaves the detector's outline as it was: still a label, not detector ground truth. */
   const skipOutline = useCallback(() => setOutlineCheck(null), [])
 
+  /** Opens the back-face picker for a token entry, e.g. to change an earlier pick. */
+  const pickBackFace = useCallback((id: string) => {
+    const entry = entriesRef.current.find((candidate) => candidate.id === id)
+    if (entry) setBackFacePick(entry)
+  }, [])
+
+  /** The user named the token's other side, or `null` for a single-sided token. */
+  const setBackFace = useCallback(
+    (back: ScanBackFace | null) => {
+      const entry = backFacePick
+      setBackFacePick(null)
+      if (entry) updateEntry(entry.id, (current) => ({ ...current, back }))
+    },
+    [backFacePick, updateEntry],
+  )
+
+  /** Dismissing the picker leaves the back unknown; the chip offers it again. */
+  const dismissBackFace = useCallback(() => setBackFacePick(null), [])
+
   const clear = useCallback(() => {
     trackerRef.current = forgetLastLogged(trackerRef.current)
     setEntries([])
@@ -493,10 +618,9 @@ export function useScanSession({ paused }: { paused: boolean }) {
   /** Queues the list as CSV for the collection import overlay and opens it. */
   const addToCollection = useCallback(() => {
     if (entriesRef.current.length === 0) return
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")
     queueSharedImport({
       text: scanListCsv(entriesRef.current),
-      fileName: `manavault-scan-${stamp}.csv`,
+      fileName: scanListFileName("csv"),
       mimeType: "text/csv",
       source: "scanner",
     })
@@ -509,15 +633,19 @@ export function useScanSession({ paused }: { paused: boolean }) {
     camera,
     recognizer,
     view,
+    asleep,
+    wake,
     entries,
     settings,
     setSettings,
     start,
     stop,
+    logArmed,
     addCopy,
     setQuantity,
     setFinish,
     setLanguage,
+    setPurchasePrice,
     setPrinting,
     replaceCard,
     snapshotFrame,
@@ -525,6 +653,10 @@ export function useScanSession({ paused }: { paused: boolean }) {
     outlineCheck,
     saveOutline,
     skipOutline,
+    backFacePick,
+    pickBackFace,
+    setBackFace,
+    dismissBackFace,
     removeEntry,
     clear,
     addToCollection,

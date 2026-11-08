@@ -31,6 +31,8 @@ type DeckDetailReadinessProps = {
   allocationError: string | null
   buylistPrice: DeckPrice | null
   canBulkAllocate: boolean
+  /** False when the decklist mirrors an external deck: allocation stays, card edits do not. */
+  canEditDecklist: boolean
   deckCards: DeckCardEntry[]
   isPending: boolean
   onAllocate: (deckCard: DeckCardEntry, collectionItemId: string) => void
@@ -56,6 +58,7 @@ function DeckReadinessMetric({ label, value }: { label: string; value: number | 
 
 function DeckReadinessCard({
   allocationError,
+  canEditDecklist,
   deckCard,
   isPending,
   onAllocate,
@@ -64,6 +67,7 @@ function DeckReadinessCard({
   onToggleProxy,
 }: {
   allocationError: string | null
+  canEditDecklist: boolean
   deckCard: DeckCardEntry
   isPending: boolean
   onAllocate: (deckCard: DeckCardEntry, collectionItemId: string) => void
@@ -112,7 +116,7 @@ function DeckReadinessCard({
               Tag
             </span>
             <Select
-              disabled={isPending}
+              disabled={isPending || !canEditDecklist}
               value={deckCard.tag || SELECT_NONE_VALUE}
               onValueChange={(value) => {
                 onTagCard(deckCard, value === SELECT_NONE_VALUE ? null : (value as DeckCardTag))
@@ -149,6 +153,7 @@ export function DeckDetailReadiness({
   allocationError,
   buylistPrice,
   canBulkAllocate,
+  canEditDecklist,
   deckCards,
   isPending,
   onAllocate,
@@ -263,20 +268,22 @@ export function DeckDetailReadiness({
                     </p>
                   </div>
                 ) : null}
-                <div className="rounded-btn border border-base-300 bg-base-100 p-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={onOpenOptimizePrintings}
-                  >
-                    Optimize printings
-                  </Button>
-                  <p className="mt-1 px-1 text-xs text-base-content/60">
-                    Review cheaper or owned printings for this deck.
-                  </p>
-                </div>
+                {canEditDecklist ? (
+                  <div className="rounded-btn border border-base-300 bg-base-100 p-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={onOpenOptimizePrintings}
+                    >
+                      Optimize printings
+                    </Button>
+                    <p className="mt-1 px-1 text-xs text-base-content/60">
+                      Review cheaper or owned printings for this deck.
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               {pullActionCards.length ? (
@@ -293,6 +300,7 @@ export function DeckDetailReadiness({
                       <DeckReadinessCard
                         key={deckCard.id}
                         allocationError={allocationError}
+                        canEditDecklist={canEditDecklist}
                         deckCard={deckCard}
                         isPending={isPending}
                         onAllocate={onAllocate}

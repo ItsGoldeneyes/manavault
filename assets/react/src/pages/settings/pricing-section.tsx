@@ -5,6 +5,7 @@ import { PageSection } from "../../components/app-shell"
 import { Button } from "../../components/ui/button"
 import { useToast } from "../../components/ui/toast"
 import { cn } from "../../lib/utils"
+import { AcquisitionPricesCard } from "./acquisition-prices-card"
 import {
   PricingSettingsDocument,
   SyncVendorPricesDocument,
@@ -21,7 +22,7 @@ const sourceLabels: Record<string, { label: string; description: string }> = {
   tcgplayer: {
     label: "TCGplayer",
     description:
-      "Market prices via tcgtracking.com, falling back to the lowest listing when no market price exists. Includes special treatments. Updated daily.",
+      "Market prices via tcgcsv.com, falling back to TCG Low when a card has no recent sales. Matches finish. Updated daily.",
   },
   cardkingdom: {
     label: "Card Kingdom",
@@ -162,6 +163,7 @@ export function PricingSection() {
           </div>
         </div>
       </div>
+      <AcquisitionPricesCard />
     </PageSection>
   )
 }

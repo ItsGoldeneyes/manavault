@@ -3,8 +3,11 @@ import assert from "node:assert/strict"
 
 import {
   filterEntries,
+  lastBackFor,
   normalizeScanList,
   scanListCsv,
+  scanListText,
+  sessionBacks,
   totalQuantity,
   totalValueCents,
   withPrinting,
@@ -70,17 +73,57 @@ test("a minimum price leaves cheap cards out of the total, per copy not per stac
 test("CSV uses the collection import columns, oldest scan first, with quoting", () => {
   const csv = scanListCsv([
     entry("new", { name: "Borrowing 100,000 Arrows", finish: "foil", quantity: 3, language: "ja" }),
+    entry("token", {
+      name: "Treasure",
+      setCode: "tcmm",
+      collectorNumber: "12",
+      layout: "token",
+      back: { scryfallId: "sf-soldier", name: "Soldier", imageUrl: null },
+    }),
     entry("old", { resolved: false }),
   ])
   assert.equal(
     csv,
     [
-      "name,set_code,collector_number,quantity,finish,language,scryfall_id",
-      "Lightning Bolt,m10,146,1,nonfoil,en,sf-old",
-      '"Borrowing 100,000 Arrows",m10,146,3,foil,ja,sf-new',
+      "name,set_code,collector_number,quantity,finish,language,scryfall_id,back_scryfall_id,purchase_price",
+      "Lightning Bolt,m10,146,1,nonfoil,en,sf-old,,1.50",
+      "Treasure,tcmm,12,1,nonfoil,en,sf-token,sf-soldier,1.50",
+      '"Borrowing 100,000 Arrows",m10,146,3,foil,ja,sf-new,,9.00',
       "",
     ].join("\n"),
   )
+})
+
+test("text export is one decklist line per entry, oldest scan first", () => {
+  const text = scanListText([
+    entry("new", { name: "Borrowing 100,000 Arrows", finish: "foil", quantity: 3 }),
+    entry("etched", { setCode: "cmm", collectorNumber: "410", finish: "etched" }),
+    entry("old"),
+  ])
+  assert.equal(
+    text,
+    [
+      "1x Lightning Bolt (M10) 146",
+      "1x Lightning Bolt (CMM) 410 *E*",
+      "3x Borrowing 100,000 Arrows (M10) 146 *F*",
+      "",
+    ].join("\n"),
+  )
+  assert.equal(scanListText([]), "")
+})
+
+test("CSV purchase price defaults to the finish's market price and takes the user's edit", () => {
+  const rows = scanListCsv([
+    entry("edited", { purchasePriceCents: 25 }),
+    entry("free", { purchasePriceCents: 0 }),
+    entry("unpriced", { prices: { nonfoil: null, foil: null, etched: null } }),
+    entry("foil", { finish: "foil" }),
+  ])
+    .trim()
+    .split("\n")
+    .slice(1)
+    .map((row) => row.split(",").at(-1))
+  assert.deepEqual(rows, ["9.00", "", "0.00", "0.25"])
 })
 
 test("withPrinting swaps the printing but keeps quantity", () => {
@@ -100,6 +143,8 @@ test("withPrinting swaps the printing but keeps quantity", () => {
       promo: false,
       releasedAt: "1993-12-01",
       imageUrl: "https://cards.scryfall.io/normal/2ed.jpg",
+      backImageUrl: null,
+      layout: "normal",
       prices: { nonfoil: 9000, foil: null, etched: null },
     },
     "nonfoil",
@@ -108,6 +153,35 @@ test("withPrinting swaps the printing but keeps quantity", () => {
   assert.equal(updated.scryfallId, "sf-2ed")
   assert.equal(updated.resolved, true)
   assert.equal(updated.prices.nonfoil, 9000)
+  assert.equal(updated.layout, "normal")
+})
+
+test("withPrinting keeps a token's picked back only for the same printing", () => {
+  const back = { scryfallId: "sf-soldier", name: "Soldier", imageUrl: null }
+  const printing = {
+    scryfallId: "sf-treasure",
+    name: "Treasure",
+    setCode: "tcmm",
+    setName: "Commander Masters Tokens",
+    collectorNumber: "12",
+    lang: "en",
+    rarity: "common",
+    illustrationId: "x",
+    ownedCount: 0,
+    finishes: ["nonfoil"],
+    promo: false,
+    releasedAt: "2023-08-04",
+    imageUrl: null,
+    backImageUrl: null,
+    layout: "token",
+    prices: { nonfoil: null, foil: null, etched: null },
+  }
+  const token = entry("t", { scryfallId: "sf-treasure", layout: "token", back })
+  assert.deepEqual(withPrinting(token, printing, "nonfoil").back, back)
+  assert.equal(
+    withPrinting(token, { ...printing, scryfallId: "sf-treasure-other" }, "nonfoil").back,
+    undefined,
+  )
 })
 
 test("search matches name, set and number terms", () => {
@@ -138,8 +212,12 @@ test("stored lists and settings are sanitised", () => {
     lockedSets: ["LEB", " leb ", 3, ""],
     dingThresholdCents: -5,
     preferFoil: true,
+    tokenMode: "yes",
   })
   assert.deepEqual(settings.lockedSets, ["leb"])
+  // Tokens mode is a real toggle; settings from before it existed scan cards as usual.
+  assert.equal(settings.tokenMode, false)
+  assert.equal(normalizeScanSettings({ tokenMode: true }).tokenMode, true)
   assert.equal(settings.dingThresholdCents, 100)
   assert.equal(settings.preferFoil, true)
   // Settings stored before the total minimum existed count every card, as before.
@@ -218,4 +296,50 @@ test("bundle files are downloaded once per version and old versions pruned", asy
     "manavault-pwa-v1",
     scannerCacheName("v2"),
   ])
+})
+
+test("backs picked earlier in the session are known for the same token, either way round", () => {
+  const dragon = { scryfallId: "sf-dragon", name: "Dragon", imageUrl: "dragon.jpg" }
+  const copy = { scryfallId: "sf-copy", name: "Copy", imageUrl: null }
+  const entries = [
+    // Newest first, as the list is stored.
+    entry("d2", { scryfallId: "sf-dragon", name: "Dragon", layout: "token", back: copy }),
+    entry("g1", { scryfallId: "sf-goblin", name: "Goblin", layout: "token", back: dragon }),
+    entry("d1", { scryfallId: "sf-dragon", name: "Dragon", layout: "token", back: copy }),
+    entry("d0", { scryfallId: "sf-dragon", name: "Dragon", layout: "token", back: null }),
+    entry("d3", { scryfallId: "sf-dragon", name: "Dragon", layout: "token" }),
+  ]
+  const current = entry("d3", { scryfallId: "sf-dragon", name: "Dragon", layout: "token" })
+  // Dragon fronts carry Copy; the Goblin whose back is Dragon makes Goblin a back too.
+  assert.deepEqual(sessionBacks(entries, current), [
+    copy,
+    { scryfallId: "sf-goblin", name: "Goblin", imageUrl: null },
+  ])
+  // From Goblin's side, only the Dragon pairing is known; an entry's own pick does not count.
+  assert.deepEqual(sessionBacks(entries, entry("g2", { scryfallId: "sf-goblin" })), [dragon])
+  assert.deepEqual(sessionBacks(entries, entries[1]), [])
+  assert.deepEqual(sessionBacks(entries, entry("x", { scryfallId: "sf-elsewhere" })), [])
+})
+
+test("the back settled on the newest other copy of a token carries over; undecided copies do not", () => {
+  const copy = { scryfallId: "sf-copy", name: "Copy", imageUrl: null }
+  const treasure = { scryfallId: "sf-treasure", name: "Treasure", imageUrl: null }
+  const fresh = entry("d9", { scryfallId: "sf-dragon", layout: "token" })
+  const entries = [
+    fresh, // the entry being resolved is already in the list and never counts
+    entry("d8", { scryfallId: "sf-dragon", layout: "token" }), // picker still open: skipped
+    entry("g1", { scryfallId: "sf-goblin", layout: "token", back: treasure }),
+    entry("d7", { scryfallId: "sf-dragon", layout: "token", back: copy }),
+    entry("d6", { scryfallId: "sf-dragon", layout: "token", back: treasure }),
+  ]
+  // Newest decided Dragon wins, not the older Treasure pairing or the Goblin's back.
+  assert.deepEqual(lastBackFor(entries, fresh), copy)
+  // "Single-sided" is a decision too, so it is inherited as null rather than asked again.
+  assert.equal(
+    lastBackFor([fresh, entry("d5", { scryfallId: "sf-dragon", back: null })], fresh),
+    null,
+  )
+  // Nothing decided yet: ask.
+  assert.equal(lastBackFor([fresh, entry("d4", { scryfallId: "sf-dragon" })], fresh), undefined)
+  assert.equal(lastBackFor([fresh], fresh), undefined)
 })

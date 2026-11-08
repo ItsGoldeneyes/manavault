@@ -7,6 +7,8 @@ import type {
   LocationCoverCardSearchQuery,
   LocationQuery,
   PreviewCollectionImportMutation,
+  TokenItemFieldsFragment,
+  TokenPrintingSearchQuery,
 } from "../../gql/graphql"
 
 type ConnectionNode<T> = T extends { edges?: ReadonlyArray<(infer Edge) | null> | null }
@@ -26,7 +28,14 @@ export type CollectionItemGroup = ConnectionNode<
 >
 export type CollectionItem = CollectionItemGroup["items"][number]
 
-export type CollectionTab = "locations" | "all" | "recent" | "available" | "unfiled" | "value"
+export type CollectionTab =
+  | "locations"
+  | "all"
+  | "recent"
+  | "available"
+  | "unfiled"
+  | "tokens"
+  | "value"
 export type CollectionSortField =
   | "quantity"
   | "name"
@@ -57,6 +66,7 @@ export type CollectionValueDashboardData = CollectionValueDashboardQuery["collec
 export type CollectionValueSummary = CollectionValueDashboardData["summary"]
 export type CollectionValuePosition = CollectionValueDashboardData["biggestGains"][number]
 export type CollectionValueRanking = "total" | "percent"
+export type CollectionValueBasis = "purchase" | "market"
 export type CollectionCheckResult = CollectionCheckMutation["collectionCheck"]
 export type CollectionCheckCard = CollectionCheckResult["cards"][number]
 type AutoSortCollectionPayload = NonNullable<AutoSortCollectionMutation["autoSortCollection"]>
@@ -71,6 +81,8 @@ export type CollectionImportPreview = PayloadField<
   "importPreview"
 >
 export type CollectionImportRow = CollectionImportPreview["rows"][number]
+export type TokenItem = TokenItemFieldsFragment
+export type TokenPrinting = TokenPrintingSearchQuery["tokenPrintings"][number]
 export type CollectionImportCandidate = CollectionImportRow["candidates"][number]
 export type LocationCoverSelection = {
   cardName?: string | null

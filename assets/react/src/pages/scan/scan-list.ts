@@ -1,5 +1,13 @@
+import { shareListText } from "../trade/share-list-export.ts"
 import type { Finish, FinishPrices, PrintingOption } from "./printing-choice"
 import type { TrainingCapture } from "./scan-training"
+
+/** The other printed side of a scanned single-faced token, as the user picked it. */
+export interface ScanBackFace {
+  scryfallId: string
+  name: string
+  imageUrl: string | null
+}
 
 /** One row of the scanned list; the newest scan is first. */
 export interface ScanEntry {
@@ -18,7 +26,13 @@ export interface ScanEntry {
   language: string
   quantity: number
   prices: FinishPrices
+  /** Per-copy price the user paid; unset follows the entry's market price. */
+  purchasePriceCents?: number
   imageUrl: string | null
+  /** Scryfall layout of the resolved printing; `"token"` entries can carry a `back`. */
+  layout?: string | null
+  /** Picked other side of a single-faced token; `null` once the user said it has none. */
+  back?: ScanBackFace | null
   /** False until the catalog printing lookup finished. */
   resolved: boolean
   scannedAt: number
@@ -44,6 +58,13 @@ export function entryPriceCents(entry: Pick<ScanEntry, "finish" | "prices">): nu
   return entry.prices[entry.finish]
 }
 
+/** What the user paid per copy: their edit, else the current market price. */
+export function entryPurchaseCents(
+  entry: Pick<ScanEntry, "finish" | "prices" | "purchasePriceCents">,
+): number | null {
+  return entry.purchasePriceCents ?? entryPriceCents(entry)
+}
+
 /** Sum of the list's prices; a card priced below `minCents` (per copy) is left out. */
 export function totalValueCents(entries: ScanEntry[], minCents = 0) {
   return entries.reduce((sum, entry) => {
@@ -56,7 +77,10 @@ export function totalQuantity(entries: ScanEntry[]) {
   return entries.reduce((sum, entry) => sum + entry.quantity, 0)
 }
 
-/** Applies a catalog printing (and its language) to an entry, keeping its quantity. */
+/**
+ * Applies a catalog printing (and its language) to an entry, keeping its quantity. A picked
+ * token back only belongs to the printing it was picked for.
+ */
 export function withPrinting(
   entry: ScanEntry,
   printing: PrintingOption,
@@ -64,6 +88,8 @@ export function withPrinting(
 ): ScanEntry {
   return {
     ...entry,
+    back: printing.scryfallId === entry.scryfallId ? entry.back : undefined,
+    layout: printing.layout,
     name: printing.name,
     scryfallId: printing.scryfallId,
     setCode: printing.setCode,
@@ -89,6 +115,47 @@ export function filterEntries(entries: ScanEntry[], query: string) {
   })
 }
 
+/**
+ * The back last settled for this token printing by another entry in the list (newest first):
+ * a picked back, or `null` for "single-sided". `undefined` when no other entry has decided,
+ * so the picker should ask.
+ */
+export function lastBackFor(
+  entries: ScanEntry[],
+  entry: Pick<ScanEntry, "id" | "scryfallId">,
+): ScanBackFace | null | undefined {
+  const other = entries.find(
+    (candidate) =>
+      candidate.id !== entry.id &&
+      candidate.scryfallId === entry.scryfallId &&
+      candidate.back !== undefined,
+  )
+  return other?.back
+}
+
+/**
+ * Backs already picked in this scan session for the same token printing, newest first: other
+ * entries fronted by it contribute their back, and entries whose back is it contribute their
+ * own face. The server adds the same from owned tokens once the list is imported.
+ */
+export function sessionBacks(entries: ScanEntry[], entry: ScanEntry): ScanBackFace[] {
+  const seen = new Set<string>()
+  const backs: ScanBackFace[] = []
+  for (const other of entries) {
+    if (other.id === entry.id) continue
+    const back =
+      other.scryfallId === entry.scryfallId
+        ? other.back
+        : other.back?.scryfallId === entry.scryfallId
+          ? { scryfallId: other.scryfallId, name: other.name, imageUrl: other.imageUrl }
+          : null
+    if (!back || back.scryfallId === entry.scryfallId || seen.has(back.scryfallId)) continue
+    seen.add(back.scryfallId)
+    backs.push(back)
+  }
+  return backs
+}
+
 const CSV_HEADERS = [
   "name",
   "set_code",
@@ -97,11 +164,15 @@ const CSV_HEADERS = [
   "finish",
   "language",
   "scryfall_id",
+  "back_scryfall_id",
+  "purchase_price",
 ] as const
 
 /**
  * The collection import's CSV columns, oldest scan first; `scryfall_id` pins the exact
  * printing. Unresolved entries still carry the recognized gallery printing, which is valid.
+ * `back_scryfall_id` is the picked other side of a token; the import files tokens as owned
+ * tokens rather than collection cards. `purchase_price` is the per-copy price paid, in dollars.
  */
 export function scanListCsv(entries: ScanEntry[]) {
   const rows = [...entries]
@@ -115,11 +186,40 @@ export function scanListCsv(entries: ScanEntry[]) {
         entry.finish,
         entry.language,
         entry.scryfallId,
+        entry.back?.scryfallId ?? "",
+        csvDollars(entryPurchaseCents(entry)),
       ]
         .map(csvCell)
         .join(","),
     )
   return [CSV_HEADERS.join(","), ...rows].join("\n") + "\n"
+}
+
+/**
+ * Plain decklist text, oldest scan first: `2x Name (SET) 123 *F*`, the format the collection
+ * text import, deck imports and other card tools read.
+ */
+export function scanListText(entries: ScanEntry[]) {
+  const text = shareListText(
+    [...entries].reverse().map((entry) => ({
+      cardName: entry.name,
+      quantity: entry.quantity,
+      setCode: entry.setCode,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish,
+    })),
+  )
+  return text ? `${text}\n` : ""
+}
+
+/** `manavault-scan-2026-10-11-14-05.csv`, stamped with the current UTC minute. */
+export function scanListFileName(extension: "csv" | "txt") {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")
+  return `manavault-scan-${stamp}.${extension}`
+}
+
+function csvDollars(cents: number | null) {
+  return cents === null ? "" : (cents / 100).toFixed(2)
 }
 
 function csvCell(value: string) {

@@ -11,6 +11,7 @@ export const AnalyzeDeckDocument = graphql(`
           aiAnalysis
           aiAnalysisModel
           aiAnalyzedAt
+          hasAiCardCategories
           commanderBracket
           commanderBracketEstimate
           commanderBracketRating
@@ -30,6 +31,7 @@ export const DeckAnalysisJobDocument = graphql(`
         aiAnalysis
         aiAnalysisModel
         aiAnalyzedAt
+        hasAiCardCategories
         commanderBracket
         commanderBracketEstimate
         commanderBracketRating
@@ -125,6 +127,14 @@ export const CardByNameDocument = graphql(`
     cardByName(name: $name) {
       id
       name
+      printings(first: 1) {
+        edges {
+          node {
+            id
+            imageUrl
+          }
+        }
+      }
     }
   }
 `)

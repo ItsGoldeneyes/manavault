@@ -15,7 +15,9 @@ import {
 import { Textarea } from "../../components/ui/textarea"
 import { useToast } from "../../components/ui/toast"
 import type { AiSettingsQuery } from "../../gql/graphql"
+import { useDebouncedValue } from "../collection/form-helpers"
 import {
+  AIModelReasoningDocument,
   AISettingsDocument,
   RefreshAllDeckAnalysesDocument,
   UpdateAISettingsDocument,
@@ -24,6 +26,23 @@ import {
 import { Field } from "./ui"
 
 type AISettings = NonNullable<AiSettingsQuery["aiSettings"]>
+
+/** The select value for sending no effort, which leaves the model's default. */
+const MODEL_DEFAULT = "default"
+
+const EFFORT_LABELS: Record<string, string> = {
+  max: "Max",
+  xhigh: "Extra high",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  minimal: "Minimal",
+  none: "Off",
+}
+
+function effortLabel(effort: string) {
+  return EFFORT_LABELS[effort] ?? effort
+}
 
 export function AISettingsSection() {
   const settingsQuery = useQuery(AISettingsDocument, { fetchPolicy: "cache-and-network" })
@@ -56,6 +75,20 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
   const [deckAnalysisInstructions, setDeckAnalysisInstructions] = useState(
     settings.deckAnalysisInstructions ?? "",
   )
+  const [decisionModel, setDecisionModel] = useState(settings.decisionModel)
+  const [reasoningEffort, setReasoningEffort] = useState(settings.reasoningEffort ?? "")
+  const lookupModel = useDebouncedValue(model.trim(), 400)
+  const reasoningQuery = useQuery(AIModelReasoningDocument, {
+    variables: { model: lookupModel },
+    skip: !lookupModel,
+  })
+  const loadedReasoning =
+    lookupModel && lookupModel === model.trim() && reasoningQuery.data && !reasoningQuery.loading
+  const supportedEfforts = reasoningQuery.data?.aiModelReasoning?.supportedEfforts ?? []
+  const defaultEffort = reasoningQuery.data?.aiModelReasoning?.defaultEffort
+  // Once the model's efforts are known, an effort it does not accept falls back to its default.
+  const effort =
+    loadedReasoning && !supportedEfforts.includes(reasoningEffort) ? "" : reasoningEffort
   const [updateSettings, updateMutation] = useMutation(UpdateAISettingsDocument)
   const [refreshAllDeckAnalyses, refreshMutation] = useMutation(RefreshAllDeckAnalysesDocument)
 
@@ -68,6 +101,8 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
           provider,
           model,
           deckAnalysisInstructions,
+          decisionModel,
+          reasoningEffort: effort || null,
           ...(apiKey.trim() ? { apiKey } : {}),
         },
       },
@@ -75,6 +110,8 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
         const nextSettings = data.updateAiSettings?.aiSettings
         setApiKey("")
         if (nextSettings) {
+          setDecisionModel(nextSettings.decisionModel)
+          setReasoningEffort(nextSettings.reasoningEffort ?? "")
           client.writeQuery({ query: AISettingsDocument, data: { aiSettings: nextSettings } })
         }
         showToast("AI settings validated and saved.")
@@ -150,6 +187,41 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
               required={!settings.hasApiKey}
             />
           </Field>
+
+          <Field
+            label="Reasoning effort"
+            htmlFor="ai-reasoning-effort"
+            help={reasoningHelp({
+              loaded: Boolean(loadedReasoning),
+              error: reasoningQuery.error ? errorMessage(reasoningQuery.error) : null,
+              adjustable: supportedEfforts.length > 0,
+            })}
+          >
+            <Select
+              value={effort || MODEL_DEFAULT}
+              onValueChange={(value) => setReasoningEffort(value === MODEL_DEFAULT ? "" : value)}
+              disabled={!supportedEfforts.length && !effort}
+            >
+              <SelectTrigger id="ai-reasoning-effort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={MODEL_DEFAULT}>
+                  {defaultEffort
+                    ? `Model default (${effortLabel(defaultEffort)})`
+                    : "Model default"}
+                </SelectItem>
+                {supportedEfforts.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {effortLabel(value)}
+                  </SelectItem>
+                ))}
+                {effort && !supportedEfforts.includes(effort) ? (
+                  <SelectItem value={effort}>{effortLabel(effort)}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
 
         <div className="border-t border-base-300 pt-5">
@@ -177,10 +249,33 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
         </div>
 
         <div className="border-t border-base-300 pt-5">
+          <h3 className="text-lg font-black">AI tags</h3>
+          <p className="mt-1 max-w-[72ch] text-sm text-base-content/60">
+            After an analysis, a decision model sorts each card into the deck&apos;s AI tags.
+            Changing the model re-sorts each deck the next time it opens.
+          </p>
+          <div className="mt-4 max-w-md">
+            <Field
+              label="Decision model ID"
+              htmlFor="ai-decision-model"
+              help="An OpenRouter decision model. Leave blank for typesafe/jev-1.13."
+            >
+              <Input
+                id="ai-decision-model"
+                value={decisionModel}
+                onChange={(event) => setDecisionModel(event.target.value)}
+                placeholder="typesafe/jev-1.13"
+                autoComplete="off"
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="border-t border-base-300 pt-5">
           <h3 className="text-lg font-black">Refresh deck analyses</h3>
           <p className="mt-1 max-w-[72ch] text-sm text-base-content/60">
-            Queue a fresh analysis for every deck using the current model and instructions. This may
-            use significant provider credits for a large deck collection.
+            Queue a fresh analysis for every non-archived deck using the current model and
+            instructions. This may use significant provider credits for a large deck collection.
           </p>
           <div className="mt-4">
             <Button
@@ -205,4 +300,19 @@ function AISettingsForm({ settings }: { settings: AISettings }) {
       </div>
     </form>
   )
+}
+
+function reasoningHelp({
+  loaded,
+  error,
+  adjustable,
+}: {
+  loaded: boolean
+  error: string | null
+  adjustable: boolean
+}) {
+  if (error) return `Could not load this model's reasoning options. ${error}`
+  if (!loaded) return "Options follow the selected model."
+  if (!adjustable) return "This model has no adjustable reasoning effort."
+  return "Higher effort can give better answers but takes longer and uses more credits."
 }

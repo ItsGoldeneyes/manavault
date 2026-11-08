@@ -1,6 +1,6 @@
 # Card scanner
 
-The scanner (`/scan`) identifies cards entirely in the browser. Phoenix serves the model bundle
+The scanner (`/scan`) identifies cards entirely in the browser. The server serves the model bundle
 and resolves recognized artwork to catalog printings; it runs no inference. User-facing behavior is
 in [features.md](features.md#card-scanner).
 
@@ -50,9 +50,8 @@ checks at startup and every six hours, verifies manifest sizes and SHA-256 hashe
 switches `current`.
 
 For a manual installation, copy a complete bundle directory to `DATA_DIR/scanner/<version>` and
-atomically point the relative `current` symlink at `<version>`, or call
-`Manavault.Scanner.Bundle.install(manifest, directory)` from a remote console, which verifies and
-activates it. Version names may contain letters, digits, dots, underscores, and hyphens, and may
+atomically point the relative `current` symlink at `<version>`, or serve the bundle directory over
+HTTP and set `SCANNER_BUNDLE_SOURCE` to its URL, so the update worker verifies and activates it. Version names may contain letters, digits, dots, underscores, and hyphens, and may
 not be `current` or `previous`.
 
 ## Browser pipeline
@@ -89,6 +88,15 @@ Code lives in `assets/react/src/pages/scan/`.
   settings, `preview-framing.ts`) move only the preview, for example to centre the card on a
   stand, never what is scanned. `recognition/recognizer.ts` runs the detector twice (coarse, then refined around the
   card), embeds the card's art-frame crops and searches the gallery (top 5).
+- Frame pacing (`FRAME_PACING` and `frameInterval` in `scan-decision.ts`) spares the battery:
+  a frame starts at most every 150 ms while a card is being identified, and every 500 ms
+  while the logged card stays in view or no card has been seen for 3 s; a card that appears
+  is picked up within one slow frame. After 60 s without a card in view (time with a sheet
+  open counts), `use-scan-session.ts` stops the camera and shows "Camera paused" until a tap.
+  The camera is also stopped while the document is hidden and restarted when it is visible
+  again. Capture asks for 1920×1080 at no more than 30 fps; the settings sheet's **Camera**
+  section shows the track's label, delivered size, frame rate, focus mode, zoom and how often
+  the size changed (`CameraDiagnostics` in `use-camera.ts`).
 - Two shortcuts keep the live loop fast. A detector pass whose upright vote is below 0.25 ends
   the frame (no refined pass, embedding or search), which makes empty frames about three times
   cheaper than card frames. While a card is in view, the next frame's first pass looks at the
@@ -98,15 +106,78 @@ Code lives in `assets/react/src/pages/scan/`.
   tracking never sticks to a wrong window. Measured on the 2026-09-29 bundle in single-threaded
   WASM: card frames 264 → 190 ms, empty frames 264 → 87 ms, with identical matches.
 - `scan-decision.ts` decides when to log. A card is in view when the detector's upright vote is at
-  least 0.5 and its short side at least 60 px. A match is logged on one frame at a score of 0.75
-  or more with a 0.08 lead over the runner-up, otherwise after two agreeing frames scoring at least
-  0.6. The same card (both faces count as one) is not logged again until a different card is.
+  least 0.5 and its short side at least 60 px. A match scoring 0.75 or more with a 0.08 lead over
+  the runner-up is logged after two consecutive agreeing frames, any other match scoring at least
+  0.6 after three. The card must hold still across them: between frames its centre may move at
+  most a tenth of its short side and its size change at most 10%, otherwise the count restarts.
+  A blurred card (slid off a stack, or crossed by a moving camera) matches random artwork at
+  0.6–0.67, often the same wrong card on consecutive frames, so this is what keeps cards in
+  motion out of the list. A frame whose best match is a blank gallery art (`BLANK_ARTS`: Mystery
+  Booster 2's playtest Whiteout, whose art crop is all white and which any card with glare on
+  its art matches at about 0.98) is treated as a card not yet identified. The same card (both
+  faces count as one) is not logged again until a different card is.
   With locked sets, only artwork printed in those sets can be logged
   (`scannerSetIllustrations(setCodes)` lists their illustration IDs); a card that clearly
-  matches something outside them is reported as "Not in locked sets" instead.
+  matches something outside them is reported as "Not in locked sets" instead. Tokens mode
+  (`tokenMode` in `scan-settings.ts`, toggled in the settings sheet; `evaluateTokenFrame`)
+  instead takes the best candidate whose gallery `layout` is in `TOKEN_LAYOUTS` (`token`,
+  `double_faced_token`, `emblem`; oracle exports emblem arts from commit 978de5e onward, keyed
+  `<illustration_id>:emblem` because nine emblems share their planeswalker's illustration),
+  reports it as `ready` once it scores 0.6, and logs it only when the viewfinder is tapped
+  (`logArmed` in `use-scan-session.ts`), with no duplicate rule. The tap is the `click`, not
+  `pointerdown`: logging can open the back picker, and a sheet mounting under a finger still
+  on the screen would take the pointerup as a pick. The back settled on the newest other copy
+  of the same token in the list (`lastBackFor`, including "single-sided") carries over to the
+  new copy, so the picker asks once per token and the result bar's Back and finish chips change
+  a copy that differs. In this mode each frame is
+  identified with `scope: "tokens"` (see the gallery mask below); with a bundle that has no mask
+  input the browser can only filter the recognizer's top five results, so a token that does not
+  make the top five at all needs **Identify**.
+- Gallery mask (`pipeline.ts` `galleryMask`, `recognizer.ts`): a bundle exported by Oracle with
+  `--search-mask` (`CARDID_SEARCH_MASK=1`; manifest `search_mask: true`) has a `search.onnx` with
+  inputs `embeddings (F, 128) float32` and `mask [N] float32`, N = `manifest.gallery.arts` in
+  `arts.json` order. The recognizer checks the session's `inputNames` for `mask` rather than the
+  manifest, builds the all-ones and tokens-only masks once at load, and feeds the one for the
+  frame's scope; `mask > 0` keeps an art. Oracle scores excluded arts -3 before top-k, so when
+  fewer than k arts are kept the tail is padding: rows scoring below -1 are dropped
+  (`isPaddedResult`). An older bundle without the input gets `{ embeddings }` only, so the
+  client works with either. The settings sheet shows "token search" under **Recognition model**
+  when the mask is available. Token arts in masked bundles also use the new `token` and
+  `token_tall` frame cuts, and emblem arts an `emblem` cut (`frame_names` grew from 14 to 17;
+  `arts.json` `frame` can be any of them).
+  Oracle's measurements: Scryfall's current token `art_crop` was being filed as `old`/`tall`,
+  covering only ~65%/83% of the art, so clean token scans scored ~0.88 against 0.99 for cards
+  and fell to the hub art Funeral Room // Awakening Hall (in the top five of 12% of all
+  queries). The token frames lifted synthetic token top-1 from 0.81 to 0.87 with other cards
+  unchanged; a tokens-only mask returned only tokens at 729/800 top-1.
+- Hub penalty (Oracle `cardid/hubs.py`): at export, each gallery art's mean similarity to its
+  ten nearest cuts from up to 3000 real card scans (never its own card) is compared with the
+  gallery median, and `0.25 × (r − median)` clipped to `[0, 0.1]` is baked into `search.onnx`
+  next to the frame penalty. Scores only ever go down, so the client's thresholds and padding
+  cut are unaffected; the manifest records what was applied under `gallery.hub_penalty`
+  (`weight, neighbours, cap, cards, cards_fingerprint, median_r, penalised, max`), or `null`
+  when the export had fewer than 200 scans and shipped none. Measured on the same synthetic
+  scenes: Funeral Room in the top five 11.6% → 3.1%, other-card top-1 0.913 → 0.917, token
+  top-1 unchanged at 0.870, with correct answers scoring ≥ 0.75 about half a point rarer.
 - `printing-choice.ts` picks the default printing and finish; `scan-list.ts` builds the import
-  CSV (`name,set_code,collector_number,quantity,finish,language,scryfall_id`), which is handed to
-  the collection import through `queueSharedImport` in `lib/native-shared-import.ts`.
+  CSV (`name,set_code,collector_number,quantity,finish,language,scryfall_id,back_scryfall_id`),
+  which is handed to the collection import through `queueSharedImport` in
+  `lib/native-shared-import.ts`. `back_scryfall_id` is the user-picked reverse of a single-faced
+  token (`token-back-sheet.tsx`); the import files token rows as token items. The sheet's
+  candidates come from `tokenBackOptions(scryfallId)`: `known` are backs recorded on owned token
+  items with that face on either side (`Manavault.Catalog.Tokens.BackOptions`, most-owned first),
+  then the backs Wizards' galleries show printed with it (`priv/data/token_backs.json`, keyed by
+  Scryfall set/collector number and loaded at compile time by
+  `Manavault.Catalog.Tokens.KnownBacks`); `sameSet` is every other token in the set, emblems
+  included (Scryfall's `emblem` layout is in `Card.token_layouts/0`, so emblems import, list,
+  and validate as tokens; `isSingleFacedToken` treats them as fronts needing a back). The sheet
+  adds backs picked on other entries of the current scan list (`sessionBacks` in `scan-list.ts`)
+  ahead of both, since those are not owned yet. `known` is a hint, not a filter: the galleries publish one pairing per
+  face and other products pair differently (FRA Jace is listed with Spirit but also ships with
+  Cadet), so the UI always shows `sameSet` too. Regenerate the data file after new sets with
+  `WOTC_CONTENTFUL_TOKEN=... mise exec -- node scripts/token-backs.mjs manavault_dev.db`; the script header
+  explains where the token comes from. Coverage starts at Modern Horizons 3, the first set whose
+  gallery publishes back images.
 
 The thresholds were calibrated with bundle `retrain-20260925T043526910942Z` on synthetic phone
 frames (real card scans composited with rotation, perspective, blur and noise): 60 of 60 cards
@@ -121,9 +192,10 @@ version to `POST /api/scanner/corrections` (signed-in session and CSRF). Changin
 printing or finish, or choosing **Wrong card?** in the printing sheet, relabels the capture
 without re-sending the image; deleting a scan marks it skipped, since its label is not trusted.
 **Identify** covers scans the recognizer never logs (unrecognized foils, cards stuck on "Hold
-steady"): it freezes the frame, the user names the card, and that frame is uploaded with the
-label plus the detected quad and the recognizer's guess when there were any. Without a quad the
-capture stays pending in Oracle until its geometry is fixed. The last label per capture wins.
+steady"): it freezes the frame, the user names the card (`cards(q, tokens: INCLUDE)`, or `ONLY`
+in tokens mode), and that frame is uploaded with the label plus the detected quad and the
+recognizer's guess when there were any. Without a quad the capture stays pending in Oracle until
+its geometry is fixed. The last label per capture wins.
 Oracle trains each app's model on its own captures with `CARDID_SOURCES=manavault-scanner`.
 
 **Check outlines** (below it, only with collection on) makes those outlines detector training

@@ -42,6 +42,13 @@ detail.
 - **Missing cards** - deck demand that remains after allocated and available
   collection copies are counted. Missing-card exports can be tuned by printing
   mode and basic-land inclusion.
+- **Token item** - a stack of owned token cards (Scryfall layout `token`,
+  `double_faced_token`, or `emblem`) sharing one front printing, optional back
+  printing, and finish. Emblems count as tokens because Wizards prints them on
+  the backs of tokens in the same token sets. Tokens are kept apart from
+  collection items: they are never allocated, never counted toward collection
+  value, and never satisfy deck demand. The catalog also records which token
+  printings each card creates, from Scryfall's related-parts links.
 
 ## Card Catalog
 
@@ -51,11 +58,35 @@ search uses that local catalog, supports sorting and recent searches, shows how
 many copies you own, and shares structured filters with collection search. The
 search page also shows a gallery of top EDHREC commanders.
 
+Card and collection search accept [Scryfall's search syntax](https://scryfall.com/docs/syntax):
+colors and identity (with guild, shard, wedge, college, and four-color
+nicknames; as on Scryfall, `c:uw` finds cards that are at least blue and
+white, `id:uw` cards that fit an Azorius commander, and `=` is exact), types, Oracle text with `~` and `/regex/`, keywords, mana symbols
+and devotion, `produces:`, power/toughness/loyalty (also against each other,
+as in `pow>tou`), rarity, sets, set types, blocks and set groups, collector
+numbers, legality, prices in USD/EUR/TIX and `cheapest:`, artist, flavor text,
+watermark, border, frame, security stamp, games, dates and years (including
+set codes and `now`), print and set counts, `in:` and `new:`, languages,
+EDHREC rank, oracle tags (`otag:` for the tags ManaVault keeps), and the `is:`,
+`not:`, and `has:` flags, including land cycles and commander roles.
+`order:` and `direction:` sort card search; the other display keywords are
+accepted and ignored. Cube lists, art tags, and digital-only printings are not
+in the local catalog, so those keywords match nothing. In collection search,
+`is:foil`, `lang:`, and `usd` describe the copy rather than the printing.
+
+The sync imports paper cards plus tokens, emblems, and the game helpers Wizards
+prints in token slots (The Monarch, City's Blessing, On an Adventure,
+Day // Night, Punchcard). It skips art cards, World Championship decklists and
+ads, Booster Blitz minigame cards, checklists, substitute cards, and counter
+cards Scryfall does not file as tokens (Poison and Experience counters, Secret
+Lair "Red Mana").
+
 Card detail pages show:
 
 - oracle text and mana symbols, including back faces
 - Scryfall oracle tags, deck category, and deck themes
-- format legalities and Game Changer status
+- format legalities (legal, not legal, banned, or restricted, per Scryfall)
+  and Game Changer status
 - rulings
 - EDHREC synergies such as top commanders and related cards
 - your collection copies and the decks they are allocated to
@@ -65,16 +96,44 @@ Card detail pages show:
 - add-to-collection, add-to-deck, and add-to-wants actions from exact printings
 - links to Scryfall, EDHREC, and MTGStocks
 
+**View sets** on the search page opens the set browser. Sets shelve by release
+year with category chips (expansions, Commander, masters, and so on; promos
+and tokens are hidden by default), a name search, sorting, and an owned-only
+switch. A set's page flips through its cards one at a time like a stack in a
+box, or shows them as a grid, with the usual sorting and collection filters.
+**Group by treatment** splits the set into sections such as Borderless,
+Extended Art, or Fracture Foil Japan Showcase, derived from each printing's
+promo types, frame effects, border, and full-art flag (Scryfall's hand-named
+set sections are not in its API). Clicking the front card opens it full
+screen.
+
 ## Collection
 
-The collection has three primary views:
+The collection has four primary views:
 
 - **Locations** - storage containers with counts, cover cards, value summaries,
-  and per-location item lists.
+  and per-location item lists. Each location is drawn as its storage (a binder
+  page, bulk box, deck box, folder, fanned list, or loose unfiled pile) holding
+  its cover card and most valuable cards; opening one carries it into the
+  location page. Locations can carry up to six stickers (card symbols, set
+  symbols, or rarities) chosen in the location's create and edit dialogs and
+  shown stuck on the object. Clicking a card in a collection view opens it
+  full screen, tinted with the card's art colors; arrow keys, swipes, or the
+  filmstrip of neighboring cards step through the grid.
 - **All cards** - a filterable, sortable inventory list across locations.
-- **Value** - market value compared with purchase basis, with editable purchase
-  prices and biggest gains/losses rankings that toggle between total and
-  percentage change.
+- **Tokens** - the tokens you own, shown as card tiles with quantity badges and
+  filtered by name. Double-sided tokens are named "Front // Back" and flip to
+  the other face on click. **Add token** searches token printings (newest
+  first), optionally picks the back face (known pairings first, then the rest
+  of the set; see the scanner's **What is on the back?**), and sets quantity
+  and finish; each tile's menu edits quantity/finish or removes the stack.
+  **Select** (or tapping a tile's checkbox) enters selection mode with **Select
+  all**, **Clear** and **Remove** for the selected stacks. Tokens have no
+  location, condition, or value and are never allocated.
+- **Value** - market value compared with purchase basis or with the market
+  value at acquisition (the selected price source's price when each card was
+  added), with editable purchase prices and biggest gains/losses rankings that
+  toggle between total and percentage change.
 
 Collection items track:
 
@@ -84,16 +143,23 @@ Collection items track:
 - finish (`nonfoil`, `foil`, or `etched` when available)
 - language
 - purchase price and current value gain/loss
+- market price at acquisition (set automatically from the selected price source
+  when the item is added; existing items were backfilled with the price at
+  upgrade time, and **Settings -> Pricing** can rebuild recent items from
+  MTGJSON's price history)
 - location
 - notes
 - allocated quantity and the decks using each copy
 
 Collection workflows include:
 
-- single-card add/edit/delete, plus bulk edit
-- location create/edit/delete with selectable cover cards
+- single-card add/edit/delete, plus bulk edit; adding a card picks its
+  location from small drawings of each location, and the card drops into it
+- location create/edit/delete with selectable cover cards and stickers
 - TXT/CSV import preview and commit, with an optional default purchase price or
-  total spend spread across the import
+  total spend spread across the import; rows whose printing is a token become
+  token items instead of collection items, and an optional `back_scryfall_id`
+  column records the token's other face
 - CSV/TXT export for the current filters
 - Android/iOS share/open-with import handoff from native shells
 - search, sort (quantity, name, set, rarity, price, value gain, added date), and
@@ -107,6 +173,24 @@ Collection workflows include:
 
 Auto-sort type filters and deck type grouping use a permanent's front-face type,
 not its adventure, prepared spell, or back face. Split spells retain both types.
+
+### Dragging cards in
+
+Dragging a card image or link onto a deck, a collection view, or the want
+list from another page covers the page with drop zones: **Mainboard** and
+**Considering** on a deck, one zone drawn as the open location on a location
+page (the unfiled pile on the collection overview), and one **Wants** zone on
+the want list. Dropping adds one copy: a near-mint collection item in that
+location, a deck card in that zone, or a want (pinned to the dropped printing
+when **Choose printing** is on).
+
+The card is read from what the browser hands over: the Scryfall printing ID in
+a Scryfall, EDHREC, or ManaVault image URL, the set and collector number in a
+Scryfall card link, or else the card name in the image's alt text, the link
+text, or dragged text. Moxfield images carry only the name, so a Moxfield drop
+gets the card's newest nonfoil, non-promo printing. Dropped cards take the
+nonfoil finish when the printing has one. Drags that start on the page itself
+are ignored, so cards already shown there are not re-added.
 
 ### Collection check
 
@@ -138,7 +222,9 @@ camera; the browser or OS asks for camera access once.
 
 - Hold one card at a time in view (a phone scanner stand works well; the whole
   camera image is scanned). Cards are recognized and logged
-  automatically, with no tap. The same card is never logged twice in a row;
+  automatically, with no tap, once they hold still for a moment; a card being
+  moved, or one with glare washing out its art, is not logged. The same card is
+  never logged twice in a row;
   tap the result or **+1** to count another copy.
 - Recognition matches the artwork, so reprints that share art cannot be told
   apart by the camera. The default printing is a locked set if any, then the
@@ -150,11 +236,41 @@ camera; the browser or OS asks for camera access once.
   total value (optionally counting only cards priced at or above a minimum, so
   bulk does not add up), sounds (a click per scan, a ding at $1 and a bigger
   ding at $10 by default; both thresholds are configurable), camera preview
-  zoom and pan, and recognition threads.
+  zoom and pan, and recognition threads. The settings also show what the camera
+  delivers (lens, resolution, frame rate, focus and zoom, and how often the
+  resolution changed), to diagnose blur or sudden zooms.
+- To save battery the scanner slows down while nothing new is in view, turns the
+  camera off while the app is in the background, and after a minute with no
+  card in view pauses the camera until you tap.
 - **Identify** next to the status adds a card the scanner does not recognize:
-  it freezes the camera view and searches the card by name.
+  it freezes the camera view and searches the card (or token) by name.
 - **Wrong card?** in the printing picker searches the catalog by name and swaps
-  a misrecognized scan for the right card.
+  a misrecognized scan for the right card. Both searches include tokens.
+- **Tokens mode** in the scanner settings restricts recognition to tokens, and
+  nothing is logged until you tap the screen, so the same token can be added
+  again and again. The status pill reads "Hold one token in view" and then
+  "Tap to add <token>". The back picker asks once per token; later copies reuse
+  the back you chose, and the finish and Back chips under the camera view change
+  a copy that is foil or paired differently before you scan the next one.
+  **Identify** searches
+  tokens only in this mode. With a model bundle whose search graph takes a
+  gallery mask (shown as "token search" under **Recognition model**), only
+  token artwork is searched at all; with an older bundle the scanner filters
+  tokens out of the model's top results instead.
+- Tokens are recognized like any other card. Double-faced tokens carry both
+  faces from Scryfall. For a single-faced token, the scanner pauses and asks
+  **What is on the back?**. **Known backs** come first: backs you picked earlier
+  in the scan list or recorded on tokens you own (either side of the pairing),
+  then the fixed front/back combinations Wizards publishes in its card image
+  galleries (`priv/data/token_backs.json`, Modern Horizons 3 onward). The
+  published list is incomplete (one product's pairing per face; bundles and
+  decks pair differently), so the rest of the set always follows under **Other
+  tokens**, including the set's emblems (a Human Wizard token from Innistrad
+  Remastered can carry the Jace, Unraveler of Secrets emblem on its back).
+  Tokens from older sets show the whole set. Pick the reverse or mark it
+  **Single-sided**; a chip on the entry changes the answer later. **Add to
+  collection** files tokens as token items (see Collection -> Tokens) rather
+  than collection items.
 - **Collect training data** (off by default) uploads each scan's camera frame
   and card to your server so the recognition model can be retrained on your
   phone, stand and foils; see [scanner.md](scanner.md#training-data).
@@ -175,8 +291,14 @@ available collection copies.
 Deck workflows include:
 
 - create, edit, archive, and delete decks, with tags, format, status, and a
-  selectable cover card
+  selectable cover card; the gallery shows each deck as a deck box printed with
+  its cover, holding its most valuable cards, with the commander's colors stuck
+  on as mana stickers
 - import and export decklists (import straight into a zone, or into select mode)
+- drag and drop: drag a card image or link from Scryfall, EDHREC, Moxfield,
+  another ManaVault tab, or a dialog over the deck onto the page, and drop it
+  on the **Mainboard** or **Considering** zone (see
+  [Dragging cards in](#dragging-cards-in))
 - mainboard/commander/considering zones - a segmented Mainboard/Considering
   toggle (plus Commander for Commander decks) picks the zone when adding or
   moving cards. Considering replaced the old sideboard and maybeboard zones;
@@ -190,9 +312,10 @@ Deck workflows include:
   their current finish
 - grouping by theme, category, type, color, color identity, mana value, rarity,
   set, custom tag, price, salt score, allocation, or none
-- custom deck tags with a radial tag picker on each card, a collapsible tags
-  sidebar with counts and jump-to-group, and default tags (with optional
-  targets) configured in **Settings -> Default Deck Tags**
+- custom deck tags with a radial tag picker on each card, a **Tags** toolbar
+  button that opens a dialog with counts, targets, and jump-to-group (the
+  active tag shows on the button), and default tags (with optional targets)
+  configured in **Settings -> Default Deck Tags**
 - a deck primer saved with the deck, with clickable card references
 - EDHREC salt score totals in the deck header
 - bulk deck-card selection and movement
@@ -215,6 +338,27 @@ Deck workflows include:
   and catalog checks but stay out of the Ask AI history.
 - **Compare decklist** - diff an external list against the open deck as adds,
   cuts, and quantity changes (see [Trade](#trade) for supported sources)
+- **Link external deck** - attach a public Moxfield or Archidekt deck URL from
+  the deck actions menu. Linking imports that list (replacing the current
+  cards) and keeps it in sync every hour; the header shows the last sync time
+  and a **Sync now** button, and failed syncs leave the last good list in
+  place with the error shown. While linked, every decklist edit (add, swap,
+  import, move, tag, printing, commander, delete, EDHREC/Recommander adds) is
+  disabled and the Share dialog offers the external page instead of a
+  ManaVault link; allocation, pull lists, proxies, and buylists still work.
+  Printing and finish follow the remote only for cards without allocated
+  copies, since an allocation pins the deck card to the owned printing.
+  **Unlink** keeps the imported cards and makes the deck editable again.
+- **Import precon** - the deck gallery's button lists the Commander precons
+  in MTGJSON's deck list (`DeckList.json`, compiled from Wizards of the
+  Coast's published decklists), newest first, searchable by deck name or
+  product, with each precon's commander color identity. The list is cached
+  for twelve hours. Importing creates a new
+  Commander deck with each card's printing and the precon's foil and etched
+  copies. Optionally the cards are also added to the collection in a chosen
+  storage location (list locations can't hold allocated cards) and allocated
+  to the new deck in the same transaction; basic lands are skipped because
+  decks count them as allocated.
 
 ## Allocation, Pull Lists, and Missing Cards
 
@@ -247,12 +391,44 @@ Deck detail pages include:
 - format legality status and issue details
 - mana curve, average/median/total mana value, land/nonland counts
 - mana cost versus mana production comparison with source-card highlighting
-- token summaries derived from Oracle text
+- **Tokens this deck can create** - each token the deck's cards make, with the
+  token's actual card image and name when Scryfall links the card to a token
+  printing (falling back to the Oracle text description otherwise), the cards
+  that create it, how many each event makes, and how many copies you own. Public
+  share pages list the tokens but never show owned counts.
 - **Infinite combos** from Commander Spellbook, listing cards, prerequisites,
   mana needed, steps, and results for combos found in the commander and
   mainboard
 - an in-browser playtest table with draw, shuffle, mulligan, move, exile,
-  graveyard, command zone, and library interactions
+  graveyard, command zone, and library interactions:
+  - click a hand card to play it; played cards line up automatically (nonlands
+    from the top, lands along the bottom, spaced so tapped neighbours never
+    overlap) and can be dragged anywhere, or onto the hand, library,
+    graveyard, exile, or command zone
+  - Shift-click or drag a box on empty battlefield to select several
+    permanents; keyboard shortcuts, the action bar, and dragging then apply to
+    the whole selection, and a dragged group keeps its formation
+  - click the library to draw; its menu handles draw, scry, surveil, look,
+    mill, and exile _X_, plus searching and shuffling
+  - click the graveyard or exile pile to browse every card, move cards out
+    (double-click puts one onto the battlefield), or return the whole pile to
+    hand or library; the graveyard shows its card-type count for delirium
+  - double-click a permanent to tap it; right-click opens counters,
+    power/toughness, face-down, and token-copy actions; click a counter chip
+    to add one, Shift-click to remove one
+  - hovering a hand card shows its mana cost above the fanned hand
+  - the token dialog offers the tokens this deck's cards create, with their
+    card art, ahead of common presets and a custom token form
+  - life, poison, energy, and experience counters, dice, coin flips, undo, and
+    a game log
+  - the game autosaves in the browser and resumes on reload, as long as the
+    decklist hasn't changed; settings can turn off the draw on next turn and
+    the hover preview
+  - keyboard shortcuts (press `?` for the list): `N` next turn, `D` draw, `U`
+    untap all, `S` shuffle, and, for the hovered card or every selected card,
+    `T` tap, `F` flip, `C` copy, `]`/`[` add or remove a +1/+1 counter,
+    `B`/`H`/`G`/`E` move to battlefield, hand, graveyard, or exile, `L`/`Shift
+    L` top or bottom of library
 
 ## Recommendations: EDHREC and Recommander
 
@@ -289,8 +465,10 @@ history.
 AI features are optional and currently use OpenRouter. The owner configures and
 validates an API key and model ID in **Settings -> AI**, and can add custom
 analysis instructions; the key is encrypted at rest and is never returned
-through GraphQL. Deck data is sent only when the owner explicitly runs an
-analysis or sends a question.
+through GraphQL. A reasoning effort setting offers only the efforts OpenRouter
+lists for the selected model, or the model's default; it applies to analyses
+and questions. Deck data is sent only when the owner explicitly runs an
+analysis, sends a question, or opens a deck grouped by **AI Tag**.
 
 ### Deck analysis
 
@@ -308,6 +486,18 @@ from the deck page.
 
 **Analyze list** on the deck list analyzes a pasted decklist or deck link
 without saving it as a deck.
+
+### Deck roles
+
+Each saved-deck analysis also names the deck's own card roles, such as
+"Cast-from-exile payoffs" or "-1/-1 counter engines", with standard roles like
+Ramp and Lands. After the analysis, a decision model sorts every non-commander
+card into one of those roles, or Other, with the commander as context. It uses
+the same OpenRouter key and defaults to Jev (`typesafe/jev-1.13`); change it
+under **Settings -> AI -> AI tags**, where saving checks the model with one
+small request. Decks with roles open grouped by **AI Tag**, the first grouping
+option; decks without them do not offer it. Assignments are saved, so only cards added since the last assignment
+are sent; a new analysis or commander reassigns the deck.
 
 ### Commander brackets
 
@@ -338,14 +528,23 @@ recommendation and delete controls.
 During analysis and questions, the model can call a `lookup_cards` tool that
 returns rules text, color identity, and legality from the local Scryfall
 catalog, so it can verify cards released after its training data before
-recommending them. A `check_collection` tool reports whether the owner has a
-free copy of each candidate, has copies only in other active decks, or does not
-own it. The prompts tell the model to prefer cards with a free copy when they
-fit comparably well, treat copies in other decks the same as unowned cards, and
-still suggest cards without a free copy when they are clearly better. Answers
-say which additions the owner has a free copy of; deck analysis uses collection
-status only to choose cards and does not label them. Models whose OpenRouter
+recommending them. The prompts ask it to look cards up rather than rely on its
+memory; requests leave `tool_choice` at its default, the only value some
+providers accept. After four rounds of tool calls, further calls are answered
+with an instruction to answer instead. A `check_collection` tool reports
+whether the owner has a free copy of each candidate, has copies only in other
+active decks, or does not own it. The prompts tell the model to prefer cards
+with a free copy when they fit comparably well, treat copies in other decks the
+same as unowned cards, and still suggest cards without a free copy when they are
+clearly better. Answers say which additions the owner has a free copy of; deck
+analysis uses collection status only to choose cards and does not label them. Models whose OpenRouter
 endpoints lack tool support fall back to answering without tools.
+
+Requests are shaped for OpenRouter prompt caching: the system prompt and the
+decklist come first and are marked as cache breakpoints, and every request in
+one conversation shares a session so follow-ups reach the provider holding the
+cache. The server log records cached and cache-write prompt tokens for each
+request.
 
 ## Trade
 
@@ -358,7 +557,8 @@ The Trade tab connects owned inventory to trading with other players:
 - **Wants** - a card-search-backed want list with quantities. Wants are
   either generic ("any printing") or pinned to an exact printing via the
   opt-in printing picker or the **Add to wants** action on a card detail
-  printing.
+  printing. Cards can also be dragged in from other sites (see
+  [Dragging cards in](#dragging-cards-in)).
 - **Matches** - paste list text or a supported link, declare whether the
   list is the partner's haves or wants, and see the overlap: cards you have
   up for trade that they want, or cards they have that are on your want
@@ -411,14 +611,28 @@ Share pages offer copy-to-clipboard (with a plain-http fallback) and `.txt`
 download as standard decklist text, ready to paste into any ManaVault Matches
 tab or other deck tools. Owners can rotate a link or disable sharing from the
 Share dialog; the old token stops working immediately.
+Decks linked to Moxfield or Archidekt share their external page instead; the
+Share dialog shows that URL and hides the rotate/disable controls.
 
 ## Pricing
 
 **Settings -> Pricing** selects the price source used across the app: Scryfall
 (default), TCGplayer, Card Kingdom, or Mana Pool. Vendor prices sync in the
 background into their own table and fall back to Scryfall for printings a vendor
-does not stock. TCGplayer and Mana Pool use the lowest near-mint listing per
-finish. A manual vendor sync can be queued from the same section.
+does not stock. TCGplayer uses the market price from tcgcsv.com (falling back
+to TCG Low when a finish has no sales), matched to printings through Scryfall's TCGplayer product
+IDs. Mana Pool uses the lowest near-mint listing per finish. A manual vendor
+sync can be queued from the same section.
+
+**Settings -> Pricing -> Acquisition prices** rebuilds each item's market price
+at acquisition from MTGJSON's daily price history (`AllPrices.json`, about the
+last 90 days). The rebuild downloads the history in the background and, for
+every item added inside that window, replaces the recorded price with the
+selected source's price on the day the item was added (Scryfall uses
+TCGplayer's history; a finish without history falls back like current
+prices do). Items added before the window and cards without history keep
+their current snapshot. The section shows the latest run's result: the history
+range used and how many items were in the window, updated, or had no history.
 
 ## Settings and Appearance
 
@@ -430,7 +644,7 @@ The Settings page groups owner configuration:
   account (the card size slider in the app shell adjusts card images across
   the app)
 - **Pricing** - price source and vendor sync
-- **AI** - OpenRouter key, model, and custom instructions
+- **AI** - OpenRouter key, model, reasoning effort, and custom instructions
 - **Personal API keys** - read-only keys for integrations; see [api.md](api.md)
 - **Collection auto-sort** and **Default Deck Tags**
 - **Scryfall data** - force a Scryfall catalog or symbol/set icon reload

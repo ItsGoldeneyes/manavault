@@ -1,13 +1,12 @@
+import { CardGridSkeleton, LocationPageSkeleton } from "../../components/skeletons"
 import { useApolloClient, useMutation, useQuery } from "@apollo/client/react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Boxes, CheckSquare, ListFilter, Search, WandSparkles } from "lucide-react"
+import { CheckSquare, ListFilter, Search, WandSparkles } from "lucide-react"
 import type * as React from "react"
 import { useCallback, useMemo, useState } from "react"
 import { PageSection } from "../../components/app-shell"
 import { EmptyState } from "../../components/card-image"
 import { CardNameSearchField } from "../../components/card-name-search-field"
-import { ImageSummaryCard } from "../../components/image-summary-card"
-import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { useToast } from "../../components/ui/toast"
@@ -20,10 +19,11 @@ import {
 } from "../../lib/collection-filters"
 import { useLocalStorageState } from "../../lib/use-local-storage"
 import { usePageTitle } from "../../lib/page-title"
-import { cn, compactNumber, pluralize, present, titleize } from "../../lib/utils"
+import { cn, pluralize, present } from "../../lib/utils"
 import { AutoSortSetupDialog, hasEnabledAutoSortRules } from "./auto-sort-setup-dialog"
 import { AutoSortSummaryDialog } from "./auto-sort-summary-dialog"
 import { AutoSortCollectionDocument } from "./auto-sort/documents"
+import { CollectionCardDrop } from "./collection-card-drop"
 import { invalidateCollectionViews } from "./collection-navigation"
 import { COLLECTION_PAGE_SIZE, DEFAULT_COLLECTION_SORT } from "./constants"
 import { ExportCollectionDialog } from "./export/collection-export-dialog"
@@ -45,7 +45,8 @@ import {
   LocationCollectionCountDocument,
   LocationDocument,
 } from "./locations/documents"
-import { SummaryActionMenu, UnfiledLocationCard, isUnfiledLocation } from "./location-summary"
+import { LocationCard } from "./location-card"
+import { SummaryActionMenu, isUnfiledLocation, isUnfiledLocationId } from "./location-summary"
 import {
   CollectionBulkActionBar,
   VirtualizedCollectionGrid,
@@ -62,7 +63,6 @@ import {
   serializeStoredCollectionFilters,
 } from "./storage"
 import type { AutoSortCollectionResult, CollectionExportFormat, CollectionSort } from "./types"
-import { collectionValueLine } from "./value-summary"
 
 const LOCATION_PAGE_SORT_STORAGE_KEY = collectionSortStorageKey("location")
 
@@ -118,12 +118,15 @@ export function LocationPage({ id }: { id: string }) {
     }),
     [combinedCollectionQuery, id],
   )
-  const { data, loading: isLoading } = useQuery(LocationDocument, {
+  const { data, loading } = useQuery(LocationDocument, {
     variables: { id },
     fetchPolicy: "cache-and-network",
   })
+  // A location cached by the collection list renders at once while it
+  // refreshes, so its object can carry over from the list.
+  const isLoading = loading && !data
   const autoSortRuleOptionsQuery = useQuery(CollectionItemFormOptionsDocument, {
-    skip: id !== "unfiled",
+    skip: !isUnfiledLocationId(id),
     fetchPolicy: "cache-and-network",
   })
   const countQuery = useQuery(LocationCollectionCountDocument, {
@@ -274,36 +277,22 @@ export function LocationPage({ id }: { id: string }) {
     runUnfiledAutoSort(false)
   }
 
-  if (isLoading) return <EmptyState title="Loading location..." />
+  if (isLoading) return <LocationPageSkeleton />
   if (!location) return <EmptyState title="Location not found" />
 
   return (
     <>
       <div className="mb-7 space-y-4">
         <Button asChild variant="outline" size="sm">
-          <Link to="/collection" search={{ importFile: false }}>
+          <Link to="/collection" search={{ importFile: false }} viewTransition>
             Back to collection
           </Link>
         </Button>
-        {isUnfiledLocation(location) ? (
-          <UnfiledLocationCard
-            location={location}
-            countLine={`${compactNumber(location.itemCount || 0)} cards`}
-            priceLine={collectionValueLine(location.valueSummary)}
-            detailLine={location.description}
-            interactive={false}
-          />
-        ) : (
-          <ImageSummaryCard
-            imageUrl={location.coverPrinting?.artCropUrl}
-            fallback={<Boxes className="h-12 w-12" />}
-            typeLine={<Badge>{titleize(location.kind)}</Badge>}
-            countLine={`${compactNumber(location.itemCount || 0)} cards`}
-            priceLine={collectionValueLine(location.valueSummary)}
-            nameLine={location.name}
-            detailLine={location.description}
-            interactive={false}
-            actionSlot={
+        <LocationCard
+          location={location}
+          variant="header"
+          actionSlot={
+            isUnfiledLocation(location) ? null : (
               <SummaryActionMenu
                 label={`${location.name} actions`}
                 onEdit={() => setIsEditLocationOpen(true)}
@@ -311,9 +300,9 @@ export function LocationPage({ id }: { id: string }) {
                 onExportText={() => setExportLocationFormat("text")}
                 onDelete={() => setIsDeleteLocationOpen(true)}
               />
-            }
-          />
-        )}
+            )
+          }
+        />
       </div>
       <form
         onSubmit={submit}
@@ -380,7 +369,7 @@ export function LocationPage({ id }: { id: string }) {
         </p>
       ) : null}
       {itemsQuery.loading && !itemsQuery.data ? (
-        <EmptyState title="Loading collection..." />
+        <CardGridSkeleton label="Loading collection..." />
       ) : (
         <div className="space-y-7">
           <CollectionBulkActionBar
@@ -410,6 +399,7 @@ export function LocationPage({ id }: { id: string }) {
           </PageSection>
         </div>
       )}
+      <CollectionCardDrop location={location} />
       <AutoSortSetupDialog open={isAutoSortSetupOpen} onOpenChange={setIsAutoSortSetupOpen} />
       <AutoSortSummaryDialog
         open={Boolean(autoSortResult)}
