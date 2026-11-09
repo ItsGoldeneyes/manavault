@@ -89,3 +89,25 @@ export function printingOption(printing: ScannerPrinting): PrintingOption {
     },
   }
 }
+
+/** Decks to compare the scanned list against; the card count tells apart decks sharing a name. */
+export const ScanCompareDecksDocument = graphql(`
+  query ScanCompareDecks($after: String) {
+    decks(first: 100, after: $after) {
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+      edges {
+        node {
+          id
+          name
+          format
+          cardCount
+          coverImageUrl
+          commanderColorIdentity
+        }
+      }
+    }
+  }
+`)
