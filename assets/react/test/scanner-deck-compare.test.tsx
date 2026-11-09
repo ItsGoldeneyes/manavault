@@ -124,7 +124,10 @@ test("picking a deck diffs the scan list against it", async () => {
     </ApolloProvider>,
   )
 
-  await userEvent.click(await screen.findByRole("button", { name: /Izzet Burn.*60 cards/ }))
+  const deckButton = await screen.findByRole("button", { name: /Izzet Burn.*60 cards/ })
+  // The scan page requires CORP, so cross-origin art only loads over CORS.
+  expect(deckButton.querySelector("img")?.getAttribute("crossorigin")).toBe("anonymous")
+  await userEvent.click(deckButton)
 
   expect(await screen.findByText("3/6")).toBeTruthy()
   const missing = screen.getByRole("region", { name: "Missing from scan" })

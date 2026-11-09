@@ -173,8 +173,10 @@ function DeckChoices({ onChoose }: { onChoose: (deck: { id: string; name: string
               >
                 <span className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-field bg-base-200 text-base-content/40">
                   {deck.coverImageUrl ? (
+                    // The scan page is cross-origin isolated, so Scryfall art must load over CORS.
                     <img
                       src={deck.coverImageUrl}
+                      crossOrigin="anonymous"
                       alt=""
                       loading="lazy"
                       decoding="async"
